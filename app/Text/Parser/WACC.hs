@@ -253,6 +253,24 @@ statementPrint = commandLikeStatement Print "print"
 statementPrintLine :: WaccParser Statement
 statementPrintLine = commandLikeStatement PrintLine "println"
 
+statementIf :: WaccParser Statement
+statementIf = If ~ do
+    _ <- str "if"
+    _ <- many white
+    condition <- expression
+    _ <- many white
+    _ <- str "then"
+    _ <- many white
+    thenClause <- statements
+    _ <- many white
+    _ <- str "else"
+    _ <- many white
+    elseClause <- statements
+    _ <- many white
+    _ <- str "fi"
+    return (condition, thenClause, elseClause)
+
+
 statement :: Parser WaccSyntaxErrorType Statement
 statement = asum [
     statementSkip,
@@ -260,7 +278,8 @@ statement = asum [
     statementFree,
     statementExit,
     statementPrint,
-    statementPrintLine
+    statementPrintLine,
+    statementIf
     ] 
 
 statements :: Parser WaccSyntaxErrorType [Statement]
