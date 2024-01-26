@@ -14,7 +14,7 @@ data WaccSyntaxErrorType
     | MissingExpressionInBracket
     | UnmatchedBracket
     | MissingEscapedChar
-    | NonAsciiChar
+    | NonGraphicChar
     | UnmatchedSingleQuote
     | ExpectOneCharacter
     | UnmatchedDoubleQuote
@@ -28,8 +28,8 @@ instance Show WaccSyntaxErrorType where
         "Unmatched bracket in expression"
     show MissingEscapedChar =
         "Missing escaped charater"
-    show NonAsciiChar =
-        "Non ASCII character is not allowed"
+    show NonGraphicChar =
+        "Non graphic character is not allowed"
     show UnmatchedSingleQuote =
         "Unmatched single quote in literal character"
     show UnmatchedDoubleQuote =
@@ -68,7 +68,7 @@ identifierString = do
     c <- charThat (`elem` headChars)
     s <- many (charThat (`elem` identifierTailChars))
     let name = c:s
-    if name `elem` ["len", "ord", "chr"]
+    if name `elem` ["len", "ord", "chr", "begin", "end", "function", "is"]
         then empty else return name
     where
     headChars = '_' : ['A'..'Z'] ++ ['a'..'z']
@@ -86,12 +86,15 @@ charEscaped = (
     <|> ('\0' <$ char '0')
     ) `syntaxError` MissingEscapedChar
 
-charAscii :: WaccParser Char
-charAscii = charThat (\c -> 0 <= ord c && ord c <= 127)
+graphicChar :: WaccParser Char
+graphicChar = charThat $ \c ->
+    lower <= c && c <= upper
+    where
+    (lower, upper) = (' ', '~')
 
 charInner :: WaccParser Char
 charInner = do
-    c <- charAscii `syntaxError` NonAsciiChar
+    c <- graphicChar `syntaxError` NonGraphicChar
     case c of
         '\'' -> empty
         '\"' -> empty
@@ -117,13 +120,22 @@ expressionLiteralChar = LiteralChar ~ do
     _ <- char '\'' `syntaxError` UnmatchedSingleQuote
     return c
 
+expressionLiteralString :: WaccParser Expression
+expressionLiteralString = LiteralString ~ do
+    _ <- char '"'
+    s <- many charInner
+    _ <- char '"' `syntaxError` UnmatchedDoubleQuote
+    return s
+
 expressionBase :: WaccParser Expression
-expressionBase =
-        expressionWithBrackets
-    <|> expressionIdentifier
-    <|> expressionLiteralBool
-    <|> expressionLiteralInt
-    <|> expressionLiteralChar
+expressionBase = asum [
+    expressionWithBrackets,
+    expressionIdentifier,
+    expressionLiteralBool,
+    expressionLiteralInt,
+    expressionLiteralChar,
+    expressionLiteralString
+    ]
 
 unaryOperator
     :: Parser error Expression
@@ -210,13 +222,46 @@ expressionWithBrackets = do
 
     return e
 
+expression :: WaccParser Expression
+expression = expressionBinaryOperation
+
 -- Statement
 
-statementSkip :: Parser WaccSyntaxErrorType Statement
+statementSkip :: WaccParser Statement
 statementSkip = Skip ~ void (str "skip")
 
+commandLikeStatement
+    :: (Expression -> Range -> node)
+    -> String -> WaccParser node
+commandLikeStatement constructor command =
+    constructor ~
+        (str command *> follows (`notElem` identifierTailChars) *> many white
+            *> expression)
+
+statementRead :: WaccParser Statement
+statementRead = commandLikeStatement Read "read"
+
+statementFree :: WaccParser Statement
+statementFree = commandLikeStatement Free "free"
+
+statementExit :: WaccParser Statement
+statementExit = commandLikeStatement Exit "exit"
+
+statementPrint :: WaccParser Statement
+statementPrint = commandLikeStatement Print "print"
+
+statementPrintLine :: WaccParser Statement
+statementPrintLine = commandLikeStatement PrintLine "println"
+
 statement :: Parser WaccSyntaxErrorType Statement
-statement = statementSkip
+statement = asum [
+    statementSkip,
+    statementRead,
+    statementFree,
+    statementExit,
+    statementPrint,
+    statementPrintLine
+    ] 
 
 statements :: Parser WaccSyntaxErrorType [Statement]
 statements = statement `separatedBy` surroundManyWhites (char ';')
