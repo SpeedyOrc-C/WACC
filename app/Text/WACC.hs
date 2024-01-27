@@ -105,9 +105,15 @@ expressionRange expr = case expr of
     FunctionCall _ r -> r
 
 isLeftValue :: Expression -> Bool
-isLeftValue expr = case expr of
+isLeftValue = \case
     Identifier _ _ -> True
-    ArrayElement _ _ -> True
-    PairFirst _ _ -> True
-    PairSecond _ _ -> True
+    ArrayElement (a, _) _ -> isArrayElement a
+    PairFirst e _ -> isLeftValue e
+    PairSecond e _ -> isLeftValue e
     _ -> False 
+
+isArrayElement :: Expression -> Bool
+isArrayElement = \case
+    Identifier {} -> True
+    ArrayElement (a, _) _ -> isArrayElement a
+    _ -> False
