@@ -108,6 +108,13 @@ charThat condition = Parser $ \(len, stream) -> case stream of
         else
             Left Nothing
 
+that :: Parser error object -> (object -> Bool) -> Parser error object
+that parser condition = Parser $ \input -> do
+    Parsed range result rest <- parse parser input
+    if condition result
+        then Right $ Parsed range result rest
+        else Left Nothing
+
 follows :: (Char -> Bool) -> Parser error Char
 follows condition = Parser $ \(len, stream) -> case stream of
     [] -> Left Nothing

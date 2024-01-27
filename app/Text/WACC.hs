@@ -103,3 +103,6 @@ expressionRange expr = case expr of
     And _ r -> r
     Or _ r -> r
     FunctionCall _ r -> r
+
+isLeftValue :: Expression -> Bool
+isLeftValue = undefined

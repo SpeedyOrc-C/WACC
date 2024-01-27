@@ -12,6 +12,8 @@ data WaccSyntaxErrorType
     = ExpectRightOperand String
     | ExpectExpressionInBracket
     | UnmatchedBracket
+    | ExpectIndexInBracket
+    | UnmatchedSquareBracket
     | MissingEscapedChar
     | NonGraphicChar
     | UnmatchedSingleQuote
@@ -23,15 +25,20 @@ data WaccSyntaxErrorType
     | ExpectConditionWhile
     | ExpectWhileBody
     | ExpectStatementAfterSemicolon
+    | ExpectScopeBody
 
 instance Show WaccSyntaxErrorType where
     show :: WaccSyntaxErrorType -> String
     show (ExpectRightOperand operator) =
         "Expect right operand for operator “" ++ operator ++ "”"
     show ExpectExpressionInBracket =
-        "Expect expression in bracket"
+        "Expect an expression in bracket"
     show UnmatchedBracket =
         "Unmatched bracket in expression"
+    show ExpectIndexInBracket =
+        "Expect an index in bracket"
+    show UnmatchedSquareBracket =
+        "Unmatched square bracket in index"
     show MissingEscapedChar =
         "Missing escaped charater"
     show NonGraphicChar =
@@ -54,7 +61,8 @@ instance Show WaccSyntaxErrorType where
         "Expect body after “while” condition"
     show ExpectStatementAfterSemicolon =
         "Expect a statement after semicolon"
-    
+    show ExpectScopeBody =
+        "Expect body after “begin” keyword"
 
 
 type WaccParser a = Parser WaccSyntaxErrorType a
@@ -160,13 +168,30 @@ expressionBase = asum [
     expressionLiteralString
     ]
 
+indexOperator :: WaccParser Expression -> WaccParser Expression
+indexOperator higherParser = do
+    ((from, _), array) <- getRangeA higherParser
+    indices <- many $ do
+        _ <- many white
+        _ <- char '['
+        index <- getRangeA $ surroundManyWhites expression `syntaxError` ExpectIndexInBracket
+        _ <- char ']' `syntaxError` UnmatchedSquareBracket
+        return index
+
+    let mergeArrayElement x ((_, to), y) = ArrayElement (x, y) (from, to)
+
+    return $ foldl mergeArrayElement array indices
+
+expressionArrayElement :: WaccParser Expression
+expressionArrayElement = indexOperator expressionBase
+
 unaryOperator
     :: Parser error Expression
     -> ([(String, Expression -> Range -> Expression)],
         [(String, Expression -> Range -> Expression)])
     -> Parser error Expression
 unaryOperator higherParser (wordOperators, symbolOperators) = do
-        operators <- many $ asum $ map getRangeA $
+        operators <- many . asum . map getRangeA $
 
             let wordOperatorsParsers = wordOperators <&>
                     \(operator, constructor) -> constructor <$
@@ -181,22 +206,20 @@ unaryOperator higherParser (wordOperators, symbolOperators) = do
 
             in wordOperatorsParsers ++ symbolOperatorParsers
 
-        e <- higherParser
+        ((_, to), e) <- getRangeA higherParser
 
-        let mergeUnaryExpression
-                :: Expression
-                -> (Range, Expression -> Range -> Expression)
-                -> Expression
-            mergeUnaryExpression x (range, constructor) =
-                constructor x (fst range, snd $ expressionRange x)
+        let mergeUnaryExpression x (range, constructor) =
+                constructor x (fst range, to)
 
         return $ foldl mergeUnaryExpression e operators
 
 expressionUnaryOperation :: WaccParser Expression
-expressionUnaryOperation = unaryOperator expressionBase ([
+expressionUnaryOperation = unaryOperator expressionArrayElement ([
         ("len", Length),
         ("ord", Order),
-        ("chr", Character)
+        ("chr", Character),
+        ("fst", PairFirst),
+        ("snd", PairSecond)
     ],[
         ("!", Not),
         ("-", Negate)
@@ -206,25 +229,19 @@ binaryOperator ::
     WaccParser Expression
     -> [(String, (Expression, Expression) -> Range -> Expression)]
     -> WaccParser Expression
-binaryOperator higherParser operators = Parser $ \input -> do
-    first@(Parsed (from, _) leftExpression rest) <- parse higherParser input
+binaryOperator higherParser operators = do
+    ((from, _), e) <- getRangeA higherParser
 
-    let nextParser = asum $ operators <&> \(symbol, constructor) -> do
+    es <- many . asum . map getRangeA $ operators <&>
+        \(symbol, constructor) -> do
             _ <- surroundManyWhites $ str symbol
             right <- higherParser `syntaxError` ExpectRightOperand symbol
             return (constructor, right)
+    
+    let mergeBinaryExpression x ((_, to), (constructor, y)) =
+            constructor (x, y) (from, to)
 
-    case parse (many nextParser) rest of
-        Left x -> Left x
-        Right (Parsed _ [] _) -> return first
-        Right (Parsed (_, to) rightExpressions rest') -> do
-            Right $ Parsed (from, to) mergedExpression rest'
-            where
-                mergedExpression =
-                    foldl mergeBinaryExpression leftExpression rightExpressions
-
-                mergeBinaryExpression x (constructor, y) = constructor (x, y)
-                    (fst $ expressionRange x, snd $ expressionRange y)
+    return $ foldl mergeBinaryExpression e es
 
 expressionBinaryOperation :: WaccParser Expression
 expressionBinaryOperation = foldl binaryOperator expressionUnaryOperation [
@@ -279,32 +296,32 @@ statementPrintLine = commandLikeStatement PrintLine "println"
 statementIf :: WaccParser Statement
 statementIf = If ~ do
     _ <- str "if"
-    _ <- many white
-    condition <- expression `syntaxError` ExpectConditionIf
-    _ <- many white
+    condition <- surroundManyWhites expression `syntaxError` ExpectConditionIf
     _ <- str "then"
-    _ <- many white
-    thenClause <- statements `syntaxError` ExpectThenClause
-    _ <- many white
+    thenClause <- surroundManyWhites statements `syntaxError` ExpectThenClause
     _ <- str "else"
-    _ <- many white
-    elseClause <- statements `syntaxError` ExpectElseClause
-    _ <- many white
+    elseClause <- surroundManyWhites statements `syntaxError` ExpectElseClause
     _ <- str "fi"
     return (condition, thenClause, elseClause)
 
 statementWhile :: WaccParser Statement
 statementWhile = While ~ do
     _ <- str "while"
-    _ <- many white
-    condition <- expression `syntaxError` ExpectConditionWhile
-    _ <- many white
+    condition <- surroundManyWhites expression `syntaxError` ExpectConditionWhile
     _ <- str "do"
-    _ <- many white
-    body <- statements `syntaxError` ExpectWhileBody
-    _ <- many white
+    body <- surroundManyWhites statements `syntaxError` ExpectWhileBody
     _ <- str "done"
     return (condition, body)
+
+statementScope :: WaccParser Statement
+statementScope = Scope ~ do
+    _ <- str "begin"
+    body <- surroundManyWhites statements `syntaxError` ExpectScopeBody
+    _ <- str "end"
+    return body
+
+leftValue :: WaccParser Expression
+leftValue = expression `that` isLeftValue
 
 statement :: Parser WaccSyntaxErrorType Statement
 statement = asum [
@@ -315,7 +332,8 @@ statement = asum [
     statementPrint,
     statementPrintLine,
     statementIf,
-    statementWhile
+    statementWhile,
+    statementScope
     ]
 
 statements :: Parser WaccSyntaxErrorType [Statement]
