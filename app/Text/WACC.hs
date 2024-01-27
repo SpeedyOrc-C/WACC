@@ -105,4 +105,9 @@ expressionRange expr = case expr of
     FunctionCall _ r -> r
 
 isLeftValue :: Expression -> Bool
-isLeftValue = undefined
+isLeftValue expr = case expr of
+    Identifier _ _ -> True
+    ArrayElement _ _ -> True
+    PairFirst _ _ -> True
+    PairSecond _ _ -> True
+    _ -> False 
