@@ -158,6 +158,18 @@ expressionLiteralString = LiteralString ~ do
     _ <- char '"' `syntaxError` UnmatchedDoubleQuote
     return s
 
+expressionLiteralArray :: WaccParser Expression
+expressionLiteralArray = LiteralArray ~ do undefined
+
+expressionLiteralPair :: WaccParser Expression
+expressionLiteralPair = LiteralPair ~ do undefined
+
+expressionLiteralPairNull :: WaccParser Expression
+expressionLiteralPairNull = LiteralPairNull ~ do undefined
+
+expressionFunctionCall :: WaccParser Expression
+expressionFunctionCall = FunctionCall ~ do undefined
+
 expressionBase :: WaccParser Expression
 expressionBase = asum [
     expressionWithBrackets,
