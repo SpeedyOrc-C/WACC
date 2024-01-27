@@ -7,23 +7,29 @@ import Control.Monad ( void )
 import Control.Applicative
     ( Alternative(many, empty, some, (<|>)), asum )
 import Data.Functor ( (<&>) )
-import Data.Char ( ord )
 
 data WaccSyntaxErrorType
-    = MissingRightOperand String
-    | MissingExpressionInBracket
+    = ExpectRightOperand String
+    | ExpectExpressionInBracket
     | UnmatchedBracket
     | MissingEscapedChar
     | NonGraphicChar
     | UnmatchedSingleQuote
     | ExpectOneCharacter
     | UnmatchedDoubleQuote
+    | ExpectConditionIf
+    | ExpectThenClause
+    | ExpectElseClause
+    | ExpectConditionWhile
+    | ExpectWhileBody
+    | ExpectStatementAfterSemicolon
 
 instance Show WaccSyntaxErrorType where
-    show (MissingRightOperand operator) =
-        "Missing right operand for operator “" ++ operator ++ "”"
-    show MissingExpressionInBracket =
-        "Missing expression in bracket"
+    show :: WaccSyntaxErrorType -> String
+    show (ExpectRightOperand operator) =
+        "Expect right operand for operator “" ++ operator ++ "”"
+    show ExpectExpressionInBracket =
+        "Expect expression in bracket"
     show UnmatchedBracket =
         "Unmatched bracket in expression"
     show MissingEscapedChar =
@@ -36,6 +42,19 @@ instance Show WaccSyntaxErrorType where
         "Unmatched double quote in literal string"
     show ExpectOneCharacter =
         "Expect one character in literal character"
+    show ExpectConditionIf =
+        "Expect condition after “if” keyword"
+    show ExpectThenClause =
+        "Expect 'then' clause after condition"
+    show ExpectElseClause =
+        "Expect 'else' clause after “then” clause"
+    show ExpectConditionWhile =
+        "Expect condition after “while” keyword"
+    show ExpectWhileBody =
+        "Expect body after “while” condition"
+    show ExpectStatementAfterSemicolon =
+        "Expect a statement after semicolon"
+    
 
 
 type WaccParser a = Parser WaccSyntaxErrorType a
@@ -45,7 +64,7 @@ addRange constructor parser = Parser $ \input -> do
     Parsed range result rest <- parse parser input
     Right (Parsed range (constructor result range) rest)
 
-(~) :: (info -> Range -> node) -> Parser error info -> Parser error node
+(~) :: (info -> Range -> node) -> WaccParser info -> WaccParser node
 (~) = addRange
 
 white :: Parser error ()
@@ -68,7 +87,11 @@ identifierString = do
     c <- charThat (`elem` headChars)
     s <- many (charThat (`elem` identifierTailChars))
     let name = c:s
-    if name `elem` ["len", "ord", "chr", "begin", "end", "function", "is"]
+    if name `elem` ["len", "ord", "chr",
+                    "begin", "end", "is",
+                    "if", "then", "else", "fi",
+                    "while", "do", "done",
+                    "skip", "read", "free", "return", "exit", "print", "println"]
         then empty else return name
     where
     headChars = '_' : ['A'..'Z'] ++ ['a'..'z']
@@ -188,7 +211,7 @@ binaryOperator higherParser operators = Parser $ \input -> do
 
     let nextParser = asum $ operators <&> \(symbol, constructor) -> do
             _ <- surroundManyWhites $ str symbol
-            right <- higherParser `syntaxError` MissingRightOperand symbol
+            right <- higherParser `syntaxError` ExpectRightOperand symbol
             return (constructor, right)
 
     case parse (many nextParser) rest of
@@ -217,7 +240,7 @@ expressionWithBrackets :: WaccParser Expression
 expressionWithBrackets = do
     _ <- char '('
     e <- surroundManyWhites expressionBinaryOperation
-        `syntaxError` MissingExpressionInBracket
+        `syntaxError` ExpectExpressionInBracket
     _ <- char ')' `syntaxError` UnmatchedBracket
 
     return e
@@ -257,19 +280,31 @@ statementIf :: WaccParser Statement
 statementIf = If ~ do
     _ <- str "if"
     _ <- many white
-    condition <- expression
+    condition <- expression `syntaxError` ExpectConditionIf
     _ <- many white
     _ <- str "then"
     _ <- many white
-    thenClause <- statements
+    thenClause <- statements `syntaxError` ExpectThenClause
     _ <- many white
     _ <- str "else"
     _ <- many white
-    elseClause <- statements
+    elseClause <- statements `syntaxError` ExpectElseClause
     _ <- many white
     _ <- str "fi"
     return (condition, thenClause, elseClause)
 
+statementWhile :: WaccParser Statement
+statementWhile = While ~ do
+    _ <- str "while"
+    _ <- many white
+    condition <- expression `syntaxError` ExpectConditionWhile
+    _ <- many white
+    _ <- str "do"
+    _ <- many white
+    body <- statements `syntaxError` ExpectWhileBody
+    _ <- many white
+    _ <- str "done"
+    return (condition, body)
 
 statement :: Parser WaccSyntaxErrorType Statement
 statement = asum [
@@ -279,8 +314,12 @@ statement = asum [
     statementExit,
     statementPrint,
     statementPrintLine,
-    statementIf
-    ] 
+    statementIf,
+    statementWhile
+    ]
 
 statements :: Parser WaccSyntaxErrorType [Statement]
-statements = statement `separatedBy` surroundManyWhites (char ';')
+statements = (:) <$> statement <*> many (do
+    _ <- surroundManyWhites (char ';')
+    statement `syntaxError` ExpectStatementAfterSemicolon
+    )
