@@ -404,3 +404,33 @@ statements = (:) <$> statement <*> many (do
     _ <- surroundManyWhites (char ';')
     statement `syntaxError` ExpectStatementAfterSemicolon
     )
+
+parameter :: WaccParser Parameter
+parameter = Parameter ~ do
+    t <- type'
+    _ <- some white
+    name <- identifierString
+    return (t, name)
+
+function :: WaccParser Function
+function = Function ~ do
+    t <- type'
+    name <- surroundManyWhites identifierString
+    _ <- char '('
+    parameters <- optional $ surroundManyWhites $
+        parameter `separatedBy` surroundManyWhites (char ',')
+    _ <- char ')'
+    _ <- surroundManyWhites $ str "is"
+    body <- statements
+    _ <- many white
+    _ <- str "end"
+    return (t, name, if null parameters then [] else fromJust parameters, body)
+
+program :: WaccParser Program
+program = Program ~ do
+    _ <- many white
+    functions <- function `separatedBy` many white
+    _ <- many white
+    body <- statements
+    _ <- many white
+    return (functions, body)
