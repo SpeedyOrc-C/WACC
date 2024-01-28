@@ -146,6 +146,12 @@ parser `surroundedBy` it = it *> parser <* it
 one :: Parser error Char
 one = charThat (const True)
 
+strict :: Parser error object -> Parser error object
+strict parser = Parser $ \input -> case parse parser input of
+    Right (Parsed range result (len, [])) -> Right $ Parsed range result (len, [])
+    Right {} -> Left Nothing
+    x -> x
+
 getRangeA :: Parser error object -> Parser error (Range, object)
 getRangeA parser = Parser $ \input -> do
     case parse parser input of

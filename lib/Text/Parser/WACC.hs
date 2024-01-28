@@ -19,8 +19,16 @@ addRange constructor parser = Parser $ \input -> do
 (~) :: (info -> Range -> node) -> WaccParser info -> WaccParser node
 (~) = addRange
 
+nonLineBreak :: Parser error ()
+nonLineBreak = void $ charThat (`notElem` ['\r', '\n'])
+
 white :: Parser error ()
-white = void $ asum $ char <$> [' ', '\t', '\r', '\n']
+white = void (asum $ char <$> [' ', '\t', '\r', '\n']) <|> void comment
+
+comment :: Parser error ()
+comment = void $ do
+    _ <- char '#'
+    many nonLineBreak
 
 surroundManyWhites :: Parser error a -> Parser error a
 surroundManyWhites = (`surroundedBy` many white)
@@ -281,6 +289,9 @@ statementPrint = commandLikeStatement Print "print"
 statementPrintLine :: WaccParser Statement
 statementPrintLine = commandLikeStatement PrintLine "println"
 
+statementReturn :: WaccParser Statement
+statementReturn = commandLikeStatement Return "return"
+
 statementIf :: WaccParser Statement
 statementIf = If ~ do
     _ <- str "if"
@@ -392,6 +403,7 @@ statement = asum [
     statementExit,
     statementPrint,
     statementPrintLine,
+    statementReturn,
     statementIf,
     statementWhile,
     statementScope,
@@ -427,10 +439,10 @@ function = Function ~ do
     return (t, name, if null parameters then [] else fromJust parameters, body)
 
 program :: WaccParser Program
-program = Program ~ do
-    _ <- many white
-    functions <- function `separatedBy` many white
+program =strict $ Program ~ do
+    _ <- surroundManyWhites $ str "begin"
+    functions <- optional $ function `separatedBy` many white
     _ <- many white
     body <- statements
-    _ <- many white
-    return (functions, body)
+    _ <- surroundManyWhites $ str "end"
+    return (if null functions then [] else fromJust functions, body)
