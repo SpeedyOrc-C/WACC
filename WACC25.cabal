@@ -54,36 +54,45 @@ extra-doc-files:    CHANGELOG.md
 common warnings
     ghc-options: -Wall
 
-executable WACC25
-    -- Import common warning flags.
-    import:           warnings
-
-    -- .hs or .lhs file containing the Main module.
+library wacc25-lib
+    hs-source-dirs:   lib
     main-is:          Main.hs
 
-    -- Modules included in this executable, other than Main.
-    other-modules:
-        Text.Parser,
+    exposed-modules:
         Text.WACC,
-        Text.Parser.WACC
+        Text.Parser,
+        Text.Parser.WACC,
+        Text.Parser.WACC.SyntaxError
 
-    -- LANGUAGE extensions used by modules in this package.
     default-extensions:
         LambdaCase
 
-    -- Other library packages from which modules are imported.
-    build-depends:    base ^>=4.17.1.0
+    build-depends:
+        base ^>=4.17.1.0
 
-    -- Directories containing source files.
-    hs-source-dirs:   app
-
-    -- Base language which the package is written in.
+    import: warnings
     default-language: GHC2021
 
-test-suite WACC25Test
-    import: warnings
+executable wacc25
+    hs-source-dirs: app
     main-is: Main.hs
-    build-depends: base ^>=4.17.1.0
+    
+    build-depends:
+        directory,
+        base ^>=4.17.1.0
+
+    default-language: GHC2021
+    import: warnings
+
+test-suite wacc25-test
     hs-source-dirs: test
+    main-is: Main.hs
+
+    build-depends:
+        wacc25-lib,
+        directory,
+        base ^>=4.17.1.0
+    
+    import: warnings
     default-language: GHC2021
     type: exitcode-stdio-1.0
