@@ -7,13 +7,17 @@ data WaccSyntaxErrorType
     | ExpectIndexInBracket
     | UnmatchedSquareBracket
     | MissingEscapedChar
-    | NonGraphicChar
+    | NonGraphicChar Char
+    | NonAsciiChar Char
     | UnmatchedSingleQuote
     | ExpectOneCharacter
     | UnmatchedDoubleQuote
     | ExpectConditionIf
+    | ExpectThen
     | ExpectThenClause
+    | ExpectElse
     | ExpectElseClause
+    | ExpectFi
     | ExpectConditionWhile
     | ExpectWhileBody
     | ExpectStatementAfterSemicolon
@@ -25,7 +29,9 @@ data WaccSyntaxErrorType
     | InvalidRightValue
     | ExpectOneStatement
     | ExpectOneExpression
-    | IntegerOverflow
+    | IntegerOverflow Int
+    | ExpectProgramBegin
+    | ExpectProgramEnd
 
 instance Show WaccSyntaxErrorType where
     show :: WaccSyntaxErrorType -> String
@@ -41,8 +47,10 @@ instance Show WaccSyntaxErrorType where
         "Unmatched square bracket in index"
     show MissingEscapedChar =
         "Missing escaped charater"
-    show NonGraphicChar =
-        "Non graphic character is not allowed"
+    show (NonGraphicChar c) =
+        "Non graphic character " ++ show c ++ " is not allowed"
+    show (NonAsciiChar c) =
+        "Non ASCII character “" ++ [c] ++ "” is not allowed"
     show UnmatchedSingleQuote =
         "Unmatched single quote in literal character"
     show UnmatchedDoubleQuote =
@@ -51,10 +59,16 @@ instance Show WaccSyntaxErrorType where
         "Expect one character in literal character"
     show ExpectConditionIf =
         "Expect condition after “if” keyword"
+    show ExpectThen =
+        "Expect “then” keyword after condition"
     show ExpectThenClause =
-        "Expect 'then' clause after condition"
+        "Expect “then” clause after condition"
+    show ExpectElse =
+        "Expect “else” keyword after “then” clause"
     show ExpectElseClause =
-        "Expect 'else' clause after “then” clause"
+        "Expect “else” clause after “then” clause"
+    show ExpectFi =
+        "Expect “fi” keyword after “then” clause"
     show ExpectConditionWhile =
         "Expect condition after “while” keyword"
     show ExpectWhileBody =
@@ -77,5 +91,11 @@ instance Show WaccSyntaxErrorType where
         "Expect one statement"
     show ExpectOneExpression =
         "Expect one expression"
-    show IntegerOverflow =
-        "Integer literal should be in range -2^31 and 2^31-1"
+    show (IntegerOverflow i) =
+        "Integer literal “" ++ show i ++ "” is too " ++
+        (if i < -2^31 then "small" else "big") ++ ", " ++
+        "and should be in range -2^31 and 2^31-1"
+    show ExpectProgramBegin =
+        "Expect “begin” keyword at the beginning of program"
+    show ExpectProgramEnd =
+        "Expect “end” keyword at the end of program"

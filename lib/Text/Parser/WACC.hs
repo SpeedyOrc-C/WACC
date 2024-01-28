@@ -70,15 +70,10 @@ charEscaped = (
     <|> ('\0' <$ char '0')
     ) `syntaxError` MissingEscapedChar
 
-graphicChar :: WaccParser Char
-graphicChar = charThat $ \c ->
-    lower <= c && c <= upper
-    where
-    (lower, upper) = (' ', '~')
-
 charInner :: WaccParser Char
 charInner = do
-    c <- graphicChar `syntaxError` NonGraphicChar
+    c <- (one `syntaxErrorWhen` (NonAsciiChar, (> '~')))
+            `syntaxErrorWhen` (NonGraphicChar, (< ' '))
     case c of
         '\'' -> empty
         '\"' -> empty
@@ -315,11 +310,11 @@ statementIf :: WaccParser Statement
 statementIf = If ~ do
     _ <- str "if"
     condition <- surroundManyWhites expression `syntaxError` ExpectConditionIf
-    _ <- str "then"
+    _ <- str "then" `syntaxError` ExpectThen
     thenClause <- surroundManyWhites statements `syntaxError` ExpectThenClause
-    _ <- str "else"
+    _ <- str "else" `syntaxError` ExpectElse
     elseClause <- surroundManyWhites statements `syntaxError` ExpectElseClause
-    _ <- str "fi"
+    _ <- str "fi" `syntaxError` ExpectFi
     return (condition, thenClause, elseClause)
 
 statementWhile :: WaccParser Statement
@@ -459,9 +454,9 @@ function = Function ~ do
 
 program :: WaccParser Program
 program = strict $ Program ~ do
-    _ <- surroundManyWhites $ str "begin"
+    _ <- surroundManyWhites (str "begin" `syntaxError` ExpectProgramBegin)
     functions <- optional $ function `separatedBy` many white
     _ <- many white
     body <- statements
-    _ <- surroundManyWhites $ str "end"
+    _ <- surroundManyWhites (str "end" `syntaxError` ExpectProgramEnd)
     return (if null functions then [] else fromJust functions, body)
