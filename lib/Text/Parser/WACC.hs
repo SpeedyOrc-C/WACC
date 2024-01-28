@@ -52,7 +52,7 @@ identifierString = do
                     "if", "then", "else", "fi",
                     "while", "do", "done",
                     "skip", "read", "free", "return", "exit", "print", "println",
-                    "null", "newpair"]
+                    "int", "string", "pair", "char", "null", "newpair"]
         then empty else return name
     where
     headChars = '_' : ['A'..'Z'] ++ ['a'..'z']
@@ -105,7 +105,9 @@ expressionLiteralInt = LiteralInt ~ do
         negator _ x = x
     (negator sign . read <$> some (charThat (`elem` digits)))
         `syntaxErrorWhen`
-            (IntegerOverflow, \x -> x < -2^31 || 2^31 - 1 < x)
+            (IntegerOverflow, \x -> x < -twoToThe31 || twoToThe31 - 1 < x)
+    where
+    twoToThe31 = (2::Int) ^ (31::Int)
 
 expressionLiteralChar :: WaccParser Expression
 expressionLiteralChar = LiteralChar ~ do
@@ -276,36 +278,38 @@ leftValue = (expression `that` isLeftValue) `syntaxError` InvalidLeftValue
 rightValue :: WaccParser Expression
 rightValue = (expression `that` isRightValue) `syntaxError` InvalidRightValue
 
+strictExpression :: WaccParser Expression
+strictExpression = expression `that` isExpression
+
 -- Statement
 
 statementSkip :: WaccParser Statement
 statementSkip = Skip ~ void (str "skip")
 
-commandLikeStatement
-    :: (Expression -> Range -> node)
-    -> String -> WaccParser node
-commandLikeStatement constructor command =
-    constructor ~
-        (str command *> follows (`notElem` identifierTailChars) *> many white
-            *> expression)
+command :: String -> WaccParser node -> WaccParser node
+command keyword value = do
+    _ <- str keyword
+    _ <- follows (`notElem` identifierTailChars)
+    _ <- many white
+    value
 
 statementRead :: WaccParser Statement
-statementRead = commandLikeStatement Read "read"
+statementRead = Read ~ command "read" leftValue
 
 statementFree :: WaccParser Statement
-statementFree = commandLikeStatement Free "free"
+statementFree = Free ~ command "free" strictExpression
 
 statementExit :: WaccParser Statement
-statementExit = commandLikeStatement Exit "exit"
+statementExit = Exit ~ command "exit" strictExpression
 
 statementPrint :: WaccParser Statement
-statementPrint = commandLikeStatement Print "print"
+statementPrint = Print ~ command "print" strictExpression
 
 statementPrintLine :: WaccParser Statement
-statementPrintLine = commandLikeStatement PrintLine "println"
+statementPrintLine = PrintLine ~ command "println" strictExpression
 
 statementReturn :: WaccParser Statement
-statementReturn = commandLikeStatement Return "return"
+statementReturn = Return ~ command "return" strictExpression
 
 statementIf :: WaccParser Statement
 statementIf = If ~ do
@@ -454,7 +458,7 @@ function = Function ~ do
     return (t, name, if null parameters then [] else fromJust parameters, body)
 
 program :: WaccParser Program
-program =strict $ Program ~ do
+program = strict $ Program ~ do
     _ <- surroundManyWhites $ str "begin"
     functions <- optional $ function `separatedBy` many white
     _ <- many white

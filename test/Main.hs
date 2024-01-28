@@ -1,11 +1,10 @@
-{-# LANGUAGE LambdaCase #-}
 import Data.Foldable
 import Data.Traversable
 
 import System.Exit
 import System.Directory
 
-import Text.Parser
+import Text.Parser ( parseString, SyntaxError(SyntaxError) )
 import Text.Parser.WACC
 import Control.Monad
 
@@ -42,7 +41,6 @@ testSyntaxError = do
         putStrLn $ "    " ++ test
 
         raw <- readFile test
-        let result = parseString program raw
 
         putStrLn $ "        " ++ 
             case parseString program raw of

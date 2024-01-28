@@ -51,12 +51,8 @@ extra-doc-files:    CHANGELOG.md
 -- Extra source files to be distributed with the package, such as examples, or a tutorial module.
 -- extra-source-files:
 
-common warnings
-    ghc-options: -Wall
-
 library wacc25-lib
     hs-source-dirs:   lib
-    main-is:          Main.hs
 
     exposed-modules:
         Text.WACC,
@@ -72,8 +68,8 @@ library wacc25-lib
         directory,
         base ^>=4.17.1.0
 
-    import: warnings
     default-language: GHC2021
+    ghc-options: -Wall
 
 executable wacc25
     hs-source-dirs: app
@@ -84,7 +80,7 @@ executable wacc25
         base ^>=4.17.1.0
 
     default-language: GHC2021
-    import: warnings
+    ghc-options: -Wall
 
 test-suite wacc25-test
     hs-source-dirs: test
@@ -95,6 +91,7 @@ test-suite wacc25-test
         directory,
         base ^>=4.17.1.0
     
-    import: warnings
-    default-language: GHC2021
     type: exitcode-stdio-1.0
+    
+    default-language: GHC2021
+    ghc-options: -Wall
