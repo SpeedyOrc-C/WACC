@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 import Data.Foldable
 import Data.Traversable
 
@@ -6,39 +7,36 @@ import System.Directory
 
 import Text.Parser
 import Text.Parser.WACC
+import Control.Monad
 
 getDirectoryContents' :: FilePath -> IO [FilePath]
-getDirectoryContents' path = filter (`notElem` [".", "..", ".DS_Store"]) <$>
-    getDirectoryContents path
+getDirectoryContents' path =
+    filter (`notElem` [".", "..", ".DS_Store"]) <$> getDirectoryContents path
 
-syntaxErrorTestPath :: FilePath
-syntaxErrorTestPath = "example/invalid/syntaxErr"
+allFilesRecursive :: FilePath -> IO [FilePath]
+allFilesRecursive path = do
+    contents <- getDirectoryContents' path
+    files <- filterM doesFileExist $ ((path ++ "/") ++) <$> contents
+    dirs <- filterM doesDirectoryExist $ ((path ++ "/") ++ ) <$> contents
+    files' <- for dirs allFilesRecursive
 
-syntaxErrorTestCategories :: IO [FilePath]
-syntaxErrorTestCategories = do
-    dir <- getCurrentDirectory
-    getDirectoryContents' $ dir ++ "/" ++ syntaxErrorTestPath
-
-syntaxErrorTestsPaths :: IO [(String, [(String, FilePath)])]
-syntaxErrorTestsPaths = do
-    categories <- syntaxErrorTestCategories
-    for categories $ \category -> do
-        tests <- do
-            paths <- getDirectoryContents' (syntaxErrorTestPath ++ "/" ++ category)
-            for paths $ \path -> do
-                return (path, syntaxErrorTestPath ++ "/" ++ category ++ "test")
-        return (category, tests)
+    return $ files ++ concat files'
 
 testSyntaxError = do
-    putStrLn "TEST [Syntax Error]"
-    categories <- syntaxErrorTestsPaths
-    for categories $ \(category, tests) -> do
-        putStrLn $ "  * " ++ category
-        for tests $ \(test, path) -> do
-            putStrLn $ "    - " ++ test
-            raw <- readFile path
-            let result = parseString statements raw
-            putStrLn $ "        " ++ show result
+    putStrLn "# Syntax Error"
+
+    oldPwd <- getCurrentDirectory
+    setCurrentDirectory "example/invalid/syntaxErr"
+
+    tests <- allFilesRecursive "."
+    for_ tests $ \test -> do
+        putStrLn $ "    " ++ test
+
+        raw <- readFile test
+        let result = parseString program raw
+        putStrLn $ "        " ++ show result
+
+    setCurrentDirectory oldPwd
 
 main :: IO ()
 main = do

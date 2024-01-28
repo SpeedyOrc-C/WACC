@@ -68,6 +68,7 @@ library wacc25-lib
         LambdaCase
 
     build-depends:
+        directory,
         base ^>=4.17.1.0
 
     import: warnings
