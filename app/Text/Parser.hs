@@ -127,6 +127,13 @@ follows condition = Parser $ \(len, stream) -> case stream of
         else
             Left Nothing
 
+followsParser :: Parser error a -> Parser error b -> Parser error a
+followsParser parser1 parser2 = Parser $ \input -> do
+    Parsed range result rest <- parse parser1 input
+    case parse parser2 rest of
+        Right (Parsed {}) -> Right $ Parsed range result rest
+        Left x -> Left x
+
 str :: String -> Parser error String
 str = traverse char
 

@@ -35,8 +35,8 @@ data Type
     | TypePair (Maybe (Type, Type)) Range
     deriving Show
 
-type UnaryOperator = Expression -> Expression
-type BinaryOperator = Expression -> Expression -> Expression
+type Unary = Expression
+type Binary = (Expression, Expression)
 
 data Expression
     = LiteralInt Int Range
@@ -48,26 +48,26 @@ data Expression
     | LiteralPairNull () Range
     | Identifier String Range
     | ArrayElement (Expression, Expression) Range
-    | Not Expression Range
-    | Negate Expression Range
-    | Length Expression Range
-    | Order Expression Range
-    | Character Expression Range
-    | PairFirst Expression Range
-    | PairSecond Expression Range
-    | Multiply (Expression, Expression) Range
-    | Divide (Expression, Expression) Range
-    | Remainder (Expression, Expression) Range
-    | Add (Expression, Expression) Range
-    | Subtract (Expression, Expression) Range
-    | Greater (Expression, Expression) Range
-    | GreaterEqual (Expression, Expression) Range
-    | Less (Expression, Expression) Range
-    | LessEqual (Expression, Expression) Range
-    | Equal (Expression, Expression) Range
-    | NotEqual (Expression, Expression) Range
-    | And (Expression, Expression) Range
-    | Or (Expression, Expression) Range
+    | Not Unary Range
+    | Negate Unary Range
+    | Length Unary Range
+    | Order Unary Range
+    | Character Unary Range
+    | PairFirst Unary Range
+    | PairSecond Unary Range
+    | Multiply Binary Range
+    | Divide Binary Range
+    | Remainder Binary Range
+    | Add Binary Range
+    | Subtract Binary Range
+    | Greater Binary Range
+    | GreaterEqual Binary Range
+    | Less Binary Range
+    | LessEqual Binary Range
+    | Equal Binary Range
+    | NotEqual Binary Range
+    | And Binary Range
+    | Or Binary Range
     | FunctionCall (String, [Expression]) Range
     deriving Show
 
@@ -117,3 +117,6 @@ isArrayElement = \case
     Identifier {} -> True
     ArrayElement (a, _) _ -> isArrayElement a
     _ -> False
+
+isRightValue :: Expression -> Bool
+isRightValue = undefined

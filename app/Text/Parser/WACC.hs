@@ -5,8 +5,9 @@ import Text.WACC
 
 import Control.Monad ( void )
 import Control.Applicative
-    ( Alternative(many, empty, some, (<|>)), asum )
+    ( Alternative(many, empty, some, (<|>)), asum, optional )
 import Data.Functor ( (<&>) )
+import Data.Maybe (fromJust)
 
 data WaccSyntaxErrorType
     = ExpectRightOperand String
@@ -26,6 +27,11 @@ data WaccSyntaxErrorType
     | ExpectWhileBody
     | ExpectStatementAfterSemicolon
     | ExpectScopeBody
+    | ExpectTypesInOutermostPairType
+    | UnexpectTypesInInnerPairType
+    | UnknownType
+    | ExpectOneStatement
+    | ExpectOneExpression
 
 instance Show WaccSyntaxErrorType where
     show :: WaccSyntaxErrorType -> String
@@ -63,6 +69,16 @@ instance Show WaccSyntaxErrorType where
         "Expect a statement after semicolon"
     show ExpectScopeBody =
         "Expect body after “begin” keyword"
+    show ExpectTypesInOutermostPairType =
+        "Expect types in outermost pair type"
+    show UnexpectTypesInInnerPairType =
+        "Unexpected types in inner pair type"
+    show UnknownType =
+        "Unknown type"
+    show ExpectOneStatement =
+        "Expect one statement"
+    show ExpectOneExpression =
+        "Expect one expression"
 
 
 type WaccParser a = Parser WaccSyntaxErrorType a
@@ -159,16 +175,38 @@ expressionLiteralString = LiteralString ~ do
     return s
 
 expressionLiteralArray :: WaccParser Expression
-expressionLiteralArray = LiteralArray ~ do undefined
+expressionLiteralArray = LiteralArray ~ do
+    _ <- char '['
+    _ <- many white
+    es <- optional $ expression `separatedBy` surroundManyWhites (char ',')
+    _ <- many white
+    _ <- char ']'
+    return $ if null es then [] else fromJust es
 
 expressionLiteralPair :: WaccParser Expression
-expressionLiteralPair = LiteralPair ~ do undefined
+expressionLiteralPair = LiteralPair ~ do
+    _ <- str "newpair"
+    _ <- surroundManyWhites $ char '('
+    a <- expression
+    _ <- surroundManyWhites (char ',')
+    b <- expression
+    _ <- many white
+    _ <- char ')'
+    return (a, b)
 
 expressionLiteralPairNull :: WaccParser Expression
-expressionLiteralPairNull = LiteralPairNull ~ do undefined
+expressionLiteralPairNull = LiteralPairNull ~ void (str "null")
 
 expressionFunctionCall :: WaccParser Expression
-expressionFunctionCall = FunctionCall ~ do undefined
+expressionFunctionCall = FunctionCall ~ do
+    _        <- str "call"
+    name     <- surroundManyWhites identifierString
+    _        <- char '('
+    paraList <- optional $ surroundManyWhites $
+                expression `separatedBy` surroundManyWhites (char ',')
+    _        <- char ')'
+    return (name, if null paraList then [] else fromJust paraList)
+
 
 expressionBase :: WaccParser Expression
 expressionBase = asum [
@@ -177,7 +215,21 @@ expressionBase = asum [
     expressionLiteralBool,
     expressionLiteralInt,
     expressionLiteralChar,
-    expressionLiteralString
+    expressionLiteralString,
+    expressionLiteralPairNull
+    -- expressionLiteralArray
+    ]
+
+expressionPairElement :: WaccParser Expression
+expressionPairElement = asum
+    [PairFirst  ~ do
+        _ <- str "fst"
+        _ <- many white
+        leftValue
+    ,PairSecond ~ do
+        _ <- str "snd"
+        _ <- many white
+        leftValue
     ]
 
 indexOperator :: WaccParser Expression -> WaccParser Expression
@@ -229,9 +281,9 @@ expressionUnaryOperation :: WaccParser Expression
 expressionUnaryOperation = unaryOperator expressionArrayElement ([
         ("len", Length),
         ("ord", Order),
-        ("chr", Character),
-        ("fst", PairFirst),
-        ("snd", PairSecond)
+        ("chr", Character)
+        -- ("fst", PairFirst),
+        -- ("snd", PairSecond)
     ],[
         ("!", Not),
         ("-", Negate)
@@ -249,7 +301,7 @@ binaryOperator higherParser operators = do
             _ <- surroundManyWhites $ str symbol
             right <- higherParser `syntaxError` ExpectRightOperand symbol
             return (constructor, right)
-    
+
     let mergeBinaryExpression x ((_, to), (constructor, y)) =
             constructor (x, y) (from, to)
 
@@ -276,6 +328,15 @@ expressionWithBrackets = do
 
 expression :: WaccParser Expression
 expression = expressionBinaryOperation
+
+rightValue :: WaccParser Expression
+rightValue = asum [
+    expression,
+    expressionLiteralArray,
+    expressionLiteralPair,
+    expressionFunctionCall,
+    expressionPairElement
+    ]
 
 -- Statement
 
@@ -332,8 +393,84 @@ statementScope = Scope ~ do
     _ <- str "end"
     return body
 
+typeInt :: WaccParser Type
+typeInt = TypeInt ~ void (str "int")
+
+typeBool :: WaccParser Type
+typeBool = TypeBool ~ void (str "bool")
+
+typeChar :: WaccParser Type
+typeChar = TypeChar ~ void (str "char")
+
+typeString :: WaccParser Type
+typeString = TypeString ~ void (str "string")
+
+pairElementType :: WaccParser Type
+pairElementType = asum [
+    typeInt,
+    typeBool,
+    typeChar,
+    typeString,
+    typePairNothing `followsParser` (
+        (many white *> (char ',' <|> char ')'))
+            `syntaxError` UnexpectTypesInInnerPairType)
+    ] `syntaxError` UnknownType
+
+typePairNothing :: WaccParser Type
+typePairNothing = TypePair ~ (Nothing <$ str "pair")
+
+typePair :: WaccParser Type
+typePair = TypePair ~ do
+    _ <- str "pair"
+    _ <- many white
+    _ <- char '(' `syntaxError` ExpectTypesInOutermostPairType
+    a <- pairElementType
+    _ <- surroundManyWhites (char ',')
+    b <- pairElementType
+    _ <- many white
+    _ <- char ')'
+    return $ Just (a, b)
+
+baseType :: WaccParser Type
+baseType = asum [
+    typeInt,
+    typeBool,
+    typeChar,
+    typeString,
+    typePair
+    ]
+
+typeArray :: WaccParser Type
+typeArray = do
+    ((from, _), t) <- getRangeA baseType
+    brackets <- many $ getRangeA $ void $
+        surroundManyWhites (char '[') >> char ']'
+
+    let mergeArray x ((_, to), _) = TypeArray x (from, to)
+
+    return $ foldl mergeArray t brackets
+
+type' :: WaccParser Type
+type' = typeArray
+
 leftValue :: WaccParser Expression
 leftValue = expression `that` isLeftValue
+
+statementDeclare :: WaccParser Statement
+statementDeclare = Declare ~ do
+    t <- type'
+    _ <- some white
+    name <- identifierString
+    _ <- surroundManyWhites $ char '='
+    value <- rightValue `syntaxError` ExpectOneExpression
+    return (t, name, value)
+
+statementAssign :: WaccParser Statement
+statementAssign = Assign ~ do
+    left <- leftValue
+    _ <- surroundManyWhites $ char '='
+    right <- rightValue `syntaxError` ExpectOneExpression
+    return (left, right)
 
 statement :: Parser WaccSyntaxErrorType Statement
 statement = asum [
@@ -345,8 +482,10 @@ statement = asum [
     statementPrintLine,
     statementIf,
     statementWhile,
-    statementScope
-    ]
+    statementScope,
+    statementDeclare,
+    statementAssign
+    ] `syntaxError` ExpectOneStatement
 
 statements :: Parser WaccSyntaxErrorType [Statement]
 statements = (:) <$> statement <*> many (do
