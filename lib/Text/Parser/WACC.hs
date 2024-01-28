@@ -94,8 +94,18 @@ expressionLiteralBool :: WaccParser Expression
 expressionLiteralBool = LiteralBool ~
     ((True <$ str "true") <|> (False <$ str "false"))
 
+expressionNoSignLiteralInt :: WaccParser Expression
+expressionNoSignLiteralInt = LiteralInt ~ do
+    read <$> some (charThat (`elem` digits))
+
 expressionLiteralInt :: WaccParser Expression
-expressionLiteralInt = LiteralInt ~ (read <$> some (charThat (`elem` digits)))
+expressionLiteralInt = LiteralInt ~ do
+    sign <- optional (char '-' <|> char '+')
+    let negator (Just '-') x = -x
+        negator _ x = x
+    (negator sign . read <$> some (charThat (`elem` digits)))
+        `syntaxErrorWhen`
+            (IntegerOverflow, \x -> x < -2^31 || 2^31 - 1 < x)
 
 expressionLiteralChar :: WaccParser Expression
 expressionLiteralChar = LiteralChar ~ do
@@ -190,21 +200,26 @@ unaryOperator higherParser (wordOperators, symbolOperators) = do
                             <* many white
 
                 symbolOperatorParsers = symbolOperators <&>
-                    \(operator, constructor) -> constructor <$
-                        str operator
-                            <* many white
+                    \(operator, constructor) ->
+                        constructor <$
+                            case operator of
+                                "!" -> str operator <* many white
+                                "-" -> (str operator <* many white)
+                                    `notFollowedBy` expressionNoSignLiteralInt
+                                _ -> error "unreachable"
 
             in wordOperatorsParsers ++ symbolOperatorParsers
 
         ((_, to), e) <- getRangeA higherParser
 
-        let mergeUnaryExpression x (range, constructor) =
-                constructor x (fst range, to)
+        let mergeUnaryExpression x ((from, _), constructor) =
+                constructor x (from, to)
 
-        return $ foldl mergeUnaryExpression e operators
+        return $ foldl mergeUnaryExpression e (reverse operators)
 
 expressionUnaryOperation :: WaccParser Expression
-expressionUnaryOperation = unaryOperator expressionArrayElement ([
+expressionUnaryOperation = --giveNegativeSign <$>
+    unaryOperator expressionArrayElement ([
         ("len", Length),
         ("ord", Order),
         ("chr", Character),
@@ -337,7 +352,7 @@ pairElementType = asum [
     typeBool,
     typeChar,
     typeString,
-    typePairNothing `followsParser` (
+    typePairNothing `followedBy` (
         (many white *> (char ',' <|> char ')'))
             `syntaxError` UnexpectTypesInInnerPairType)
     ] `syntaxError` UnknownType

@@ -65,7 +65,8 @@ library wacc25-lib
         Text.Parser.WACC.SyntaxError
 
     default-extensions:
-        LambdaCase
+        LambdaCase,
+        ViewPatterns
 
     build-depends:
         directory,

@@ -30,6 +30,16 @@ syntaxError parser error = Parser $ \input -> case parse parser input of
     Left Nothing -> Left $ Just $ SyntaxError (inputPosition input) error
     x -> x
 
+syntaxErrorWhen
+    :: Parser error object
+    -> (error, object -> Bool) -> Parser error object
+syntaxErrorWhen parser (error, condition) = Parser $ \input -> case parse parser input of
+    Right (Parsed range result rest) ->
+        if condition result
+            then Left $ Just $ SyntaxError (inputPosition input) error
+            else Right $ Parsed range result rest
+    x -> x
+
 instance Functor (Parser error) where
     fmap :: (a -> b) -> Parser error a -> Parser error b
     mapper `fmap` parser = Parser $ \input -> do
@@ -127,12 +137,19 @@ follows condition = Parser $ \(len, stream) -> case stream of
         else
             Left Nothing
 
-followsParser :: Parser error a -> Parser error b -> Parser error a
-followsParser parser1 parser2 = Parser $ \input -> do
+followedBy :: Parser error a -> Parser error b -> Parser error a
+followedBy parser1 parser2 = Parser $ \input -> do
     Parsed range result rest <- parse parser1 input
     case parse parser2 rest of
         Right (Parsed {}) -> Right $ Parsed range result rest
         Left x -> Left x
+
+notFollowedBy :: Parser error a -> Parser error' b -> Parser error a
+notFollowedBy parser1 parser2 = Parser $ \input -> do
+    Parsed range result rest <- parse parser1 input
+    case parse parser2 rest of
+        Right {} -> Left Nothing
+        _ -> Right $ Parsed range result rest
 
 str :: String -> Parser error String
 str = traverse char

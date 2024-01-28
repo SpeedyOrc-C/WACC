@@ -43,8 +43,8 @@ testSyntaxError = do
 
         raw <- readFile test
         let result = parseString program raw
-        
-        putStr $ "        " ++ 
+
+        putStrLn $ "        " ++ 
             case parseString program raw of
                 Right {} ->
                     red "[ERROR] Should have failed"

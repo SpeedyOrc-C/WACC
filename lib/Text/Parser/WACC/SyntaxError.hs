@@ -25,6 +25,7 @@ data WaccSyntaxErrorType
     | InvalidRightValue
     | ExpectOneStatement
     | ExpectOneExpression
+    | IntegerOverflow
 
 instance Show WaccSyntaxErrorType where
     show :: WaccSyntaxErrorType -> String
@@ -76,3 +77,5 @@ instance Show WaccSyntaxErrorType where
         "Expect one statement"
     show ExpectOneExpression =
         "Expect one expression"
+    show IntegerOverflow =
+        "Integer literal should be in range -2^31 and 2^31-1"
