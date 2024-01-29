@@ -47,7 +47,7 @@ identifierString = do
     c <- charThat (`elem` headChars)
     s <- many (charThat (`elem` identifierTailChars))
     let name = c:s
-    if name `elem` ["len", "ord", "chr",
+    if name `elem` ["len", "ord", "chr", "call",
                     "begin", "end", "is",
                     "if", "then", "else", "fi",
                     "while", "do", "done",
@@ -215,7 +215,7 @@ unaryOperator higherParser (wordOperators, symbolOperators) = do
         return $ foldl mergeUnaryExpression e (reverse operators)
 
 expressionUnaryOperation :: WaccParser Expression
-expressionUnaryOperation = --giveNegativeSign <$>
+expressionUnaryOperation =
     unaryOperator expressionArrayElement ([
         ("len", Length),
         ("ord", Order),
@@ -345,31 +345,22 @@ typeChar = TypeChar ~ void (str "char")
 typeString :: WaccParser Type
 typeString = TypeString ~ void (str "string")
 
-pairElementType :: WaccParser Type
-pairElementType = asum [
-    typeInt,
-    typeBool,
-    typeChar,
-    typeString,
-    typePairNothing `followedBy` (
-        (many white *> (char ',' <|> char ')'))
-            `syntaxError` UnexpectTypesInInnerPairType)
-    ] `syntaxError` UnknownType
-
-typePairNothing :: WaccParser Type
-typePairNothing = TypePair ~ (Nothing <$ str "pair")
+-- `syntaxError` UnexpectTypesInInnerPairType
+-- `syntaxError` UnknownType
+-- `syntaxError` ExpectTypesInOutermostPairType
 
 typePair :: WaccParser Type
 typePair = TypePair ~ do
     _ <- str "pair"
-    _ <- many white
-    _ <- char '(' `syntaxError` ExpectTypesInOutermostPairType
-    a <- pairElementType
-    _ <- surroundManyWhites (char ',')
-    b <- pairElementType
-    _ <- many white
-    _ <- char ')'
-    return $ Just (a, b)
+    optional $ do
+        _ <- many white
+        _ <- char '(' 
+        a <- typeArray
+        _ <- surroundManyWhites (char ',')
+        b <- typeArray
+        _ <- many white
+        _ <- char ')'
+        return (a, b)
 
 baseType :: WaccParser Type
 baseType = asum [
@@ -391,7 +382,7 @@ typeArray = do
     return $ foldl mergeArray t brackets
 
 type' :: WaccParser Type
-type' = typeArray
+type' = typeArray `that` isType
 
 statementDeclare :: WaccParser Statement
 statementDeclare = Declare ~ do
@@ -441,13 +432,16 @@ parameter = Parameter ~ do
 function :: WaccParser Function
 function = Function ~ do
     t <- type'
-    name <- surroundManyWhites identifierString
+    _ <- some white
+    name <- identifierString
+    _ <- many white
     _ <- char '('
     parameters <- optional $ surroundManyWhites $
         parameter `separatedBy` surroundManyWhites (char ',')
     _ <- char ')'
     _ <- surroundManyWhites $ str "is"
     body <- statements
+        `syntaxErrorWhen` (const NoReturnInFunction, not . willReturn . last)
     _ <- many white
     _ <- str "end"
     return (t, name, if null parameters then [] else fromJust parameters, body)

@@ -4,7 +4,7 @@ import Data.Traversable
 import System.Exit
 import System.Directory
 
-import Text.Parser ( parseString, SyntaxError(SyntaxError) )
+import Text.Parser ( parseString, SyntaxError(SyntaxError), textPosition )
 import Text.Parser.WACC
 import Control.Monad
 
@@ -30,6 +30,9 @@ orange str = "\x1b[33m" ++ str ++ "\x1b[0m"
 green :: String -> String
 green str = "\x1b[32m" ++ str ++ "\x1b[0m"
 
+humanTextPosition :: (Int, Int) -> (Int, Int)
+humanTextPosition (row, col) = (row + 1, col + 1)
+
 testSyntaxError = do
     putStrLn "# Syntax Error"
 
@@ -49,11 +52,38 @@ testSyntaxError = do
                 Left Nothing ->
                     orange "[WELL] No error message"
                 Left (Just (SyntaxError pos msg)) ->
-                    green $ "[OK] " ++ show pos ++ " : " ++ show msg
+                    green $ "[OK] " ++
+                        show (humanTextPosition $ textPosition raw pos) ++
+                        " : " ++ show msg
+
+    setCurrentDirectory oldPwd
+
+testParseValid = do
+    putStrLn "# Valid"
+
+    oldPwd <- getCurrentDirectory
+    setCurrentDirectory "example/valid"
+
+    tests <- allFilesRecursive "."
+    for_ tests $ \test -> do
+        putStrLn $ "    " ++ test
+
+        raw <- readFile test
+        case parseString program raw of
+            Right {} ->
+                putStrLn $ "        " ++ green "[OK]"
+            Left (Just (SyntaxError pos msg)) -> do
+                putStrLn $ "        " ++ red "[ERROR] " ++
+                    show (humanTextPosition $ textPosition raw pos) ++
+                    " : " ++ show msg
+                print raw
+            Left Nothing ->
+                putStrLn $ "        " ++ red "[ERROR]"
 
     setCurrentDirectory oldPwd
 
 main :: IO ()
 main = do
     testSyntaxError
+    testParseValid
     exitFailure

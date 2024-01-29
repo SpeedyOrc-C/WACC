@@ -32,6 +32,7 @@ data WaccSyntaxErrorType
     | IntegerOverflow Int
     | ExpectProgramBegin
     | ExpectProgramEnd
+    | NoReturnInFunction
 
 instance Show WaccSyntaxErrorType where
     show :: WaccSyntaxErrorType -> String
@@ -93,9 +94,11 @@ instance Show WaccSyntaxErrorType where
         "Expect one expression"
     show (IntegerOverflow i) =
         "Integer literal “" ++ show i ++ "” is too " ++
-        (if i < -2^31 then "small" else "big") ++ ", " ++
+        (if i < -(2::Int)^(31::Int) then "small" else "big") ++ ", " ++
         "and should be in range -2^31 and 2^31-1"
     show ExpectProgramBegin =
         "Expect “begin” keyword at the beginning of program"
     show ExpectProgramEnd =
         "Expect “end” keyword at the end of program"
+    show NoReturnInFunction =
+        "There is no return statement in function body"

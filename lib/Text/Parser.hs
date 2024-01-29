@@ -18,6 +18,15 @@ newtype Parser error object = Parser {
     parse :: InputStream -> ParserResult error object
 }
 
+textPosition :: String -> Int -> (Int, Int)
+textPosition text i = textPosition' text i (0, 0) where
+    textPosition' :: String -> Int -> (Int, Int) ->(Int, Int)
+    textPosition' _ 0 pos = pos
+    textPosition' [] _ _ = (-1, -1)
+    textPosition' ('\n':text') n (row, _) = textPosition' text' (n-1) (row+1, 0)
+    textPosition' ('\r':'\n':text') n (row, _) = textPosition' text' (n-1) (row+1, 0)
+    textPosition' (_:text') n (row, col) = textPosition' text' (n-1) (row, col+1)
+
 inputPosition :: InputStream -> Int
 inputPosition (len, []) = len
 inputPosition (_, (position, _):_) = position

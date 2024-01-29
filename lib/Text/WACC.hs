@@ -176,3 +176,36 @@ isRightValue e = or [
     isPairElement e,
     isFunctionCall e
     ]
+
+isType :: Type -> Bool
+isType t = isTypeBase t || isTypeArray t || isTypePair t
+
+isTypeBase :: Type -> Bool
+isTypeBase = \case
+    TypeInt {} -> True
+    TypeBool {} -> True
+    TypeChar {} -> True
+    TypeString {} -> True
+    _ -> False
+
+isTypeArray :: Type -> Bool
+isTypeArray = \case
+    TypeArray t _ -> isType t
+    _ -> False
+
+isTypePair :: Type -> Bool
+isTypePair = \case
+    TypePair (Just (a, b)) _ -> isTypePairElement a && isTypePairElement b
+    _ -> False
+
+isTypePairElement :: Type -> Bool
+isTypePairElement = \case
+    TypePair Nothing _ -> True
+    t -> isTypeBase t || isTypeArray t
+
+willReturn :: Statement -> Bool
+willReturn (Return {}) = True
+willReturn (Exit {}) = True
+willReturn (If (_, t, e) _) = any willReturn t && any willReturn e
+willReturn (Scope s _) = any willReturn s
+willReturn _ = False
