@@ -100,9 +100,7 @@ expressionLiteralInt = LiteralInt ~ do
         negator _ x = x
     (negator sign . read <$> some (charThat (`elem` digits)))
         `syntaxErrorWhen`
-            (IntegerOverflow, \x -> x < -twoToThe31 || twoToThe31 - 1 < x)
-    where
-    twoToThe31 = (2::Int) ^ (31::Int)
+            (IntegerOverflow, \x -> x < intLowerBound || intUpperBound < x)
 
 expressionLiteralChar :: WaccParser Expression
 expressionLiteralChar = LiteralChar ~ do
@@ -320,9 +318,13 @@ statementIf = If ~ do
 statementWhile :: WaccParser Statement
 statementWhile = While ~ do
     _ <- str "while"
-    condition <- surroundManyWhites expression `syntaxError` ExpectConditionWhile
+    _ <- some white
+    condition <- expression `syntaxError` ExpectConditionWhile
+    _ <- some white
     _ <- str "do"
-    body <- surroundManyWhites statements `syntaxError` ExpectWhileBody
+    _ <- some white
+    body <- statements `syntaxError` ExpectWhileBody
+    _ <- some white
     _ <- str "done"
     return (condition, body)
 
@@ -354,7 +356,7 @@ typePair = TypePair ~ do
     _ <- str "pair"
     optional $ do
         _ <- many white
-        _ <- char '(' 
+        _ <- char '('
         a <- typeArray
         _ <- surroundManyWhites (char ',')
         b <- typeArray
@@ -429,6 +431,12 @@ parameter = Parameter ~ do
     name <- identifierString
     return (t, name)
 
+statementMustNotReturn :: WaccParser Statement
+statementMustNotReturn = statement `that` (not . willReturn)
+
+statementMustReturn :: WaccParser Statement
+statementMustReturn = statement `that` willReturn
+
 function :: WaccParser Function
 function = Function ~ do
     t <- type'
@@ -440,17 +448,29 @@ function = Function ~ do
         parameter `separatedBy` surroundManyWhites (char ',')
     _ <- char ')'
     _ <- surroundManyWhites $ str "is"
-    body <- statements
-        `syntaxErrorWhen` (const NoReturnInFunction, not . willReturn . last)
+    body <- do
+        s <- many $ statementMustNotReturn <* surroundManyWhites (char ';')
+        s' <- (statementMustReturn `separatedBy` surroundManyWhites (char ';'))
+            `syntaxError` FunctionDoesNotReturn
+        return $ s ++ s'
     _ <- many white
     _ <- str "end"
     return (t, name, if null parameters then [] else fromJust parameters, body)
 
-program :: WaccParser Program
-program = strict $ Program ~ do
+program' :: WaccParser ([Function], [Statement])
+program' = do
     _ <- surroundManyWhites (str "begin" `syntaxError` ExpectProgramBegin)
     functions <- optional $ function `separatedBy` many white
     _ <- many white
     body <- statements
     _ <- surroundManyWhites (str "end" `syntaxError` ExpectProgramEnd)
+
     return (if null functions then [] else fromJust functions, body)
+
+program :: WaccParser Program
+program = Program ~ Parser (\input -> do
+    case parse program' input of
+        (Right (Parsed (_, to) _ (_, _:_))) ->
+            Left $ Just (SyntaxError to UnexpectedCodeAfterProgramEnd)
+        x -> x
+    )

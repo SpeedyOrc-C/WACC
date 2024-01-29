@@ -1,4 +1,3 @@
-import Data.Foldable
 import Data.Traversable
 
 import System.Exit
@@ -30,9 +29,13 @@ orange str = "\x1b[33m" ++ str ++ "\x1b[0m"
 green :: String -> String
 green str = "\x1b[32m" ++ str ++ "\x1b[0m"
 
+gray :: String -> String
+gray str = "\x1b[90m" ++ str ++ "\x1b[0m"
+
 humanTextPosition :: (Int, Int) -> (Int, Int)
 humanTextPosition (row, col) = (row + 1, col + 1)
 
+testSyntaxError :: IO Bool
 testSyntaxError = do
     putStrLn "# Syntax Error"
 
@@ -40,50 +43,65 @@ testSyntaxError = do
     setCurrentDirectory "example/invalid/syntaxErr"
 
     tests <- allFilesRecursive "."
-    for_ tests $ \test -> do
-        putStrLn $ "    " ++ test
-
-        raw <- readFile test
-
-        putStrLn $ "        " ++ 
-            case parseString program raw of
-                Right {} ->
-                    red "[ERROR] Should have failed"
-                Left Nothing ->
-                    orange "[WELL] No error message"
-                Left (Just (SyntaxError pos msg)) ->
-                    green $ "[OK] " ++
-                        show (humanTextPosition $ textPosition raw pos) ++
-                        " : " ++ show msg
-
-    setCurrentDirectory oldPwd
-
-testParseValid = do
-    putStrLn "# Valid"
-
-    oldPwd <- getCurrentDirectory
-    setCurrentDirectory "example/valid"
-
-    tests <- allFilesRecursive "."
-    for_ tests $ \test -> do
-        putStrLn $ "    " ++ test
+    result <- for tests $ \test -> do
 
         raw <- readFile test
         case parseString program raw of
-            Right {} ->
-                putStrLn $ "        " ++ green "[OK]"
+            Right {} -> do
+                putStrLn $ red    "    ! " ++ test
+                putStrLn $        "        " ++ red "Parser didn’t fail"
+                return False
+            Left Nothing -> do
+                putStrLn $ orange "    ? " ++ test
+                putStrLn $        "        " ++ orange "No error message"
+                return False
             Left (Just (SyntaxError pos msg)) -> do
-                putStrLn $ "        " ++ red "[ERROR] " ++
+                putStrLn $ green  "    * " ++ test
+                putStrLn $ "        " ++ gray (
                     show (humanTextPosition $ textPosition raw pos) ++
-                    " : " ++ show msg
-                print raw
-            Left Nothing ->
-                putStrLn $ "        " ++ red "[ERROR]"
+                    " : " ++ show msg)
+                return True
 
     setCurrentDirectory oldPwd
 
+    return $ and result
+
+testNoSyntaxError :: IO Bool
+testNoSyntaxError = do
+    putStrLn "# Valid"
+
+    oldPwd <- getCurrentDirectory
+    setCurrentDirectory "example"
+
+    validTests <- allFilesRecursive "./valid"
+    syntaticallyValidTests <- allFilesRecursive "./invalid/semanticErr"
+
+    result <- for (validTests ++ syntaticallyValidTests) $ \test -> do
+        raw <- readFile test
+        case parseString program raw of
+            Right {} -> do
+                putStrLn $ green "    * " ++ test
+                return True
+            Left Nothing -> do
+                putStrLn $ red   "    ! " ++ test
+                return False
+            Left (Just (SyntaxError pos msg)) -> do
+                putStrLn $ red $ "    ! " ++ test
+                putStrLn $ red $ "        " ++
+                    show (humanTextPosition $ textPosition raw pos) ++
+                    " : " ++ show msg
+                print raw
+                return False
+
+    setCurrentDirectory oldPwd
+
+    return $ and result
+
 main :: IO ()
 main = do
-    testSyntaxError
-    testParseValid
-    exitFailure
+    resultSyntaxError <- testSyntaxError
+    resultNoSyntaxError <- testNoSyntaxError
+
+    let succeed = resultSyntaxError && resultNoSyntaxError
+    
+    if succeed then exitSuccess else exitFailure
