@@ -1,7 +1,8 @@
 module Text.Parser.WACC.SyntaxError where
 
 data WaccSyntaxErrorType
-    = ExpectRightOperand String
+    = ExpectOperand String
+    | ExpectRightOperand String
     | ExpectExpressionInBracket
     | UnmatchedBracket
     | ExpectIndexInBracket
@@ -22,8 +23,8 @@ data WaccSyntaxErrorType
     | ExpectWhileBody
     | ExpectStatementAfterSemicolon
     | ExpectScopeBody
-    | ExpectTypesInOutermostPairType
-    | UnexpectTypesInInnerPairType
+    | PairTypeErased
+    | PairTypeInPairTypeNotErased
     | UnknownType
     | InvalidLeftValue
     | InvalidRightValue
@@ -38,6 +39,8 @@ data WaccSyntaxErrorType
 
 instance Show WaccSyntaxErrorType where
     show :: WaccSyntaxErrorType -> String
+    show (ExpectOperand operator) =
+        "Expect operand for operator “" ++ operator ++ "”"
     show (ExpectRightOperand operator) =
         "Expect right operand for operator “" ++ operator ++ "”"
     show ExpectExpressionInBracket =
@@ -85,10 +88,10 @@ instance Show WaccSyntaxErrorType where
         "Expect a statement after semicolon"
     show ExpectScopeBody =
         "Expect body after “begin” keyword"
-    show ExpectTypesInOutermostPairType =
-        "Expect types in outermost pair type"
-    show UnexpectTypesInInnerPairType =
-        "Unexpected types in inner pair type"
+    show PairTypeErased =
+        "Pair type here should have inner types"
+    show PairTypeInPairTypeNotErased =
+        "Pair type in pair type should be type-erased"
     show UnknownType =
         "Unknown type"
     show InvalidLeftValue =

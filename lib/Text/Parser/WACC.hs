@@ -186,36 +186,39 @@ expressionArrayElement :: WaccParser Expression
 expressionArrayElement = indexOperator expressionBase
 
 unaryOperator
-    :: Parser error Expression
+    :: WaccParser Expression
     -> ([(String, Expression -> Range -> Expression)],
         [(String, Expression -> Range -> Expression)])
-    -> Parser error Expression
+    -> WaccParser Expression
 unaryOperator higherParser (wordOperators, symbolOperators) = do
-        operators <- many . asum . map getRangeA $
+    let wordOperatorsParsers = wordOperators <&>
+            \(operator, constructor) -> (operator, constructor) <$
+                str operator
+                    <* follows (`notElem` identifierTailChars)
+                    <* many white
 
-            let wordOperatorsParsers = wordOperators <&>
-                    \(operator, constructor) -> constructor <$
-                        str operator
-                            <* follows (`notElem` identifierTailChars)
-                            <* many white
+        symbolOperatorParsers = symbolOperators <&>
+            \(operator, constructor) -> (operator, constructor) <$
+                    case operator of
+                        "!" -> str operator <* many white
+                        "-" -> (str operator <* many white)
+                            `notFollowedBy` expressionNoSignLiteralInt
+                        _ -> error "unreachable"
 
-                symbolOperatorParsers = symbolOperators <&>
-                    \(operator, constructor) ->
-                        constructor <$
-                            case operator of
-                                "!" -> str operator <* many white
-                                "-" -> (str operator <* many white)
-                                    `notFollowedBy` expressionNoSignLiteralInt
-                                _ -> error "unreachable"
+        constructorParsers = wordOperatorsParsers ++ symbolOperatorParsers
 
-            in (wordOperatorsParsers ++ symbolOperatorParsers)
+    constructors <- many . asum . map getRangeA $ constructorParsers
+    let operatorStrings = fst . snd <$> constructors
 
-        ((_, to), e) <- getRangeA higherParser
+    ((_, to), e) <- if null operatorStrings
+        then getRangeA higherParser
+        else getRangeA higherParser
+            `syntaxError` ExpectOperand (last operatorStrings)
 
-        let mergeUnaryExpression x ((from, _), constructor) =
-                constructor x (from, to)
+    let mergeUnaryExpression x ((from, _), (_, constructor)) =
+            constructor x (from, to)
 
-        return $ foldl mergeUnaryExpression e (reverse operators)
+    return $ foldl mergeUnaryExpression e (reverse constructors)
 
 expressionUnaryOperation :: WaccParser Expression
 expressionUnaryOperation =
@@ -389,9 +392,16 @@ typeArray = do
     return $ foldl mergeArray t brackets
 
 type' :: WaccParser Type
-type' = typeArray `that` isType
+type' = typeArray `syntaxErrorWhen` (not . isType, \(_, t) -> findError t)
     where
-    
+    findError = \case
+        TypeArray (TypePair Nothing (from, _)) _ ->
+            SyntaxError from PairTypeErased
+        TypePair (Just (TypePair (Just {}) (from, _), _)) _ ->
+            SyntaxError from PairTypeInPairTypeNotErased
+        TypePair (Just (_, TypePair (Just {}) (from, _))) _ ->
+            SyntaxError from PairTypeInPairTypeNotErased
+        _ -> error "unreachable"
 
 statementDeclare :: WaccParser Statement
 statementDeclare = Declare ~ do
