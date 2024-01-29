@@ -1,6 +1,6 @@
 module Text.Parser.WACC where
 
-import Text.WACC
+import WACC
 import Text.Parser
 import Text.Parser.WACC.SyntaxError
 

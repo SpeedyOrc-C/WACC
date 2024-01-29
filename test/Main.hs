@@ -103,5 +103,5 @@ main = do
     resultNoSyntaxError <- testNoSyntaxError
 
     let succeed = resultSyntaxError && resultNoSyntaxError
-    
-    if succeed then exitSuccess else exitFailure
+    exitFailure
+    -- if succeed then exitSuccess else exitFailure

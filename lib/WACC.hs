@@ -1,4 +1,4 @@
-module Text.WACC where
+module WACC where
 
 import Text.Parser
 

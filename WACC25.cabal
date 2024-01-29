@@ -55,7 +55,8 @@ library wacc25-lib
     hs-source-dirs:   lib
 
     exposed-modules:
-        Text.WACC,
+        WACC,
+        WACC.Semantics,
         Text.Parser,
         Text.Parser.WACC,
         Text.Parser.WACC.SyntaxError
@@ -66,6 +67,7 @@ library wacc25-lib
 
     build-depends:
         directory,
+        containers,
         base ^>=4.17.1.0
 
     default-language: GHC2021
