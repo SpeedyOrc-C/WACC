@@ -51,8 +51,13 @@ instance Show WaccSyntaxErrorType where
         "Missing escaped charater"
     show (NonGraphicChar c) =
         "Non graphic character " ++ show c ++ " is not allowed"
-    show (NonAsciiChar c) =
-        "Non ASCII character “" ++ [c] ++ "” is not allowed"
+    show (NonAsciiChar c)
+        | isCJK = "除了 ASCII 字符以外的都不可以，所以汉字“" ++ [c] ++ "”也不行"
+        | isKana = "ASCII 文字以外はダメだから、仮名「" ++ [c] ++ "」もダメだよ"
+        | otherwise = "Non ASCII character “" ++ [c] ++ "” is not allowed"
+        where
+            isCJK = c >= '\x4E00' && c <= '\x9FFF'
+            isKana = c >= '\x3040' && c <= '\x30FF'
     show UnmatchedSingleQuote =
         "Unmatched single quote in literal character"
     show UnmatchedDoubleQuote =

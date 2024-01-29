@@ -23,7 +23,7 @@ nonLineBreak :: Parser error ()
 nonLineBreak = void $ charThat (`notElem` ['\r', '\n'])
 
 white :: Parser error ()
-white = void (asum $ char <$> [' ', '\t', '\r', '\n']) <|> void comment
+white = void (asum $ char <$> [' ', '\t', '\r', '\n']) <|> comment
 
 comment :: Parser error ()
 comment = void $ do
