@@ -1,11 +1,16 @@
 import Data.Traversable
 
-import System.Exit
+import System.Exit ( exitFailure )
 import System.Directory
-
+    ( doesDirectoryExist,
+      doesFileExist,
+      getCurrentDirectory,
+      getDirectoryContents,
+      setCurrentDirectory )
 import Text.Parser ( parseString, SyntaxError(SyntaxError), textPosition )
-import Text.Parser.WACC
-import Control.Monad
+import Text.Parser.WACC ( program )
+import Control.Monad ( filterM )
+import Text.AnsiEscape ( red, orange, green, gray )
 
 getDirectoryContents' :: FilePath -> IO [FilePath]
 getDirectoryContents' path =
@@ -19,18 +24,6 @@ allFilesRecursive path = do
     files' <- for dirs allFilesRecursive
 
     return $ files ++ concat files'
-
-red :: String -> String
-red str = "\x1b[31m" ++ str ++ "\x1b[0m"
-
-orange :: String -> String
-orange str = "\x1b[33m" ++ str ++ "\x1b[0m"
-
-green :: String -> String
-green str = "\x1b[32m" ++ str ++ "\x1b[0m"
-
-gray :: String -> String
-gray str = "\x1b[90m" ++ str ++ "\x1b[0m"
 
 humanTextPosition :: (Int, Int) -> (Int, Int)
 humanTextPosition (row, col) = (row + 1, col + 1)

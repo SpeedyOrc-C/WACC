@@ -41,11 +41,11 @@ syntaxError parser error = Parser $ \input -> case parse parser input of
 
 syntaxErrorWhen
     :: Parser error object
-    -> (object -> error, object -> Bool) -> Parser error object
-syntaxErrorWhen parser (error, condition) = Parser $ \input -> case parse parser input of
+    -> (object -> Bool, (Range, object) -> SyntaxError error) -> Parser error object
+syntaxErrorWhen parser (condition, error) = Parser $ \input -> case parse parser input of
     Right (Parsed range result rest) ->
         if condition result
-            then Left $ Just $ SyntaxError (inputPosition input) (error result)
+            then Left $ Just $ error (range, result)
             else Right $ Parsed range result rest
     x -> x
 

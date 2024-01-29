@@ -104,6 +104,21 @@ expressionRange expr = case expr of
     Or _ r -> r
     FunctionCall _ r -> r
 
+statementRange :: Statement -> Range
+statementRange stmt = case stmt of
+    Skip _ r -> r
+    Declare _ r -> r
+    Assign _ r -> r
+    Read _ r -> r
+    Free _ r -> r
+    Return _ r -> r
+    Exit _ r -> r
+    Print _ r -> r
+    PrintLine _ r -> r
+    If _ r -> r
+    While _ r -> r
+    Scope _ r -> r
+
 isLeftValue :: Expression -> Bool
 isLeftValue = \case
     Identifier _ _ -> True

@@ -72,8 +72,11 @@ charEscaped = (
 
 charInner :: WaccParser Char
 charInner = do
-    c <- (one `syntaxErrorWhen` (NonAsciiChar, (> '~')))
-            `syntaxErrorWhen` (NonGraphicChar, (< ' '))
+    c <- (one
+        `syntaxErrorWhen`
+            ((> '~'), \((from, _), x) -> SyntaxError from (NonAsciiChar x))
+        ) `syntaxErrorWhen`
+            ((< ' '), \((from, _), x) -> SyntaxError from (NonGraphicChar x))
     case c of
         '\'' -> empty
         '\"' -> empty
@@ -99,8 +102,10 @@ expressionLiteralInt = LiteralInt ~ do
     let negator (Just '-') x = -x
         negator _ x = x
     (negator sign . read <$> some (charThat (`elem` digits)))
-        `syntaxErrorWhen`
-            (IntegerOverflow, \x -> x < intLowerBound || intUpperBound < x)
+        `syntaxErrorWhen` (
+            \x -> x < intLowerBound || intUpperBound < x,
+            \((from, _), x) -> SyntaxError from (IntegerOverflow x)
+            )
 
 expressionLiteralChar :: WaccParser Expression
 expressionLiteralChar = LiteralChar ~ do
@@ -203,7 +208,7 @@ unaryOperator higherParser (wordOperators, symbolOperators) = do
                                     `notFollowedBy` expressionNoSignLiteralInt
                                 _ -> error "unreachable"
 
-            in wordOperatorsParsers ++ symbolOperatorParsers
+            in (wordOperatorsParsers ++ symbolOperatorParsers)
 
         ((_, to), e) <- getRangeA higherParser
 
@@ -385,20 +390,22 @@ typeArray = do
 
 type' :: WaccParser Type
 type' = typeArray `that` isType
+    where
+    
 
 statementDeclare :: WaccParser Statement
 statementDeclare = Declare ~ do
     t <- type'
     _ <- some white
     name <- identifierString
-    _ <- surroundManyWhites $ char '='
+    _ <- surroundManyWhites $ char '=' `syntaxError` ExpectEqualSign
     value <- rightValue `syntaxError` ExpectOneExpression
     return (t, name, value)
 
 statementAssign :: WaccParser Statement
 statementAssign = Assign ~ do
     left <- leftValue
-    _ <- surroundManyWhites $ char '='
+    _ <- surroundManyWhites $ char '=' `syntaxError` ExpectEqualSign
     right <- rightValue `syntaxError` ExpectOneExpression
     return (left, right)
 
@@ -418,11 +425,11 @@ statement = asum [
     statementAssign
     ] `syntaxError` ExpectOneStatement
 
+statementSep :: Parser error ()
+statementSep = void $ surroundManyWhites (char ';')
+
 statements :: WaccParser [Statement]
-statements = (:) <$> statement <*> many (do
-    _ <- surroundManyWhites (char ';')
-    statement `syntaxError` ExpectStatementAfterSemicolon
-    )
+statements = statement `separatedBy` statementSep
 
 parameter :: WaccParser Parameter
 parameter = Parameter ~ do
@@ -448,11 +455,10 @@ function = Function ~ do
         parameter `separatedBy` surroundManyWhites (char ',')
     _ <- char ')'
     _ <- surroundManyWhites $ str "is"
-    body <- do
-        s <- many $ statementMustNotReturn <* surroundManyWhites (char ';')
-        s' <- (statementMustReturn `separatedBy` surroundManyWhites (char ';'))
-            `syntaxError` FunctionDoesNotReturn
-        return $ s ++ s'
+    body <- statements `syntaxErrorWhen` (
+        not . willReturn . last,
+        \(_, body) -> SyntaxError (fst (statementRange (last body))) FunctionDoesNotReturn
+        )
     _ <- many white
     _ <- str "end"
     return (t, name, if null parameters then [] else fromJust parameters, body)

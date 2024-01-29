@@ -57,6 +57,7 @@ library wacc25-lib
     exposed-modules:
         WACC,
         WACC.Semantics,
+        Text.AnsiEscape,
         Text.Parser,
         Text.Parser.WACC,
         Text.Parser.WACC.SyntaxError
@@ -78,6 +79,7 @@ executable wacc25
     main-is: Main.hs
     
     build-depends:
+        wacc25-lib,
         directory,
         base ^>=4.17.1.0
 

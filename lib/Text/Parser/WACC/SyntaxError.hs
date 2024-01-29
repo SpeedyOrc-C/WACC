@@ -28,6 +28,7 @@ data WaccSyntaxErrorType
     | InvalidLeftValue
     | InvalidRightValue
     | ExpectOneStatement
+    | ExpectEqualSign
     | ExpectOneExpression
     | IntegerOverflow Int
     | ExpectProgramBegin
@@ -96,8 +97,10 @@ instance Show WaccSyntaxErrorType where
         "Invalid right value"
     show ExpectOneStatement =
         "Expect one statement"
+    show ExpectEqualSign =
+        "Expect “=” sign for assignment"
     show ExpectOneExpression =
-        "Expect one expression"
+        "Expect one expression for assignment"
     show (IntegerOverflow i) =
         "Integer literal “" ++ show i ++ "” is too " ++
         (if i < intLowerBound then "small" else "big") ++ ", " ++
