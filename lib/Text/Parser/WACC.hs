@@ -467,7 +467,8 @@ function = Function ~ do
     _ <- surroundManyWhites $ str "is"
     body <- statements `syntaxErrorWhen` (
         not . willReturn . last,
-        \(_, body) -> SyntaxError (fst (statementRange (last body))) FunctionDoesNotReturn
+        \(_, body) ->
+            SyntaxError (fst (statementRange (last body))) (FunctionDoesNotReturn name)
         )
     _ <- many white
     _ <- str "end"

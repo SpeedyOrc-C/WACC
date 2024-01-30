@@ -1,9 +1,19 @@
 module WACC.Semantics where
 
 import Text.Parser (Range)
-import WACC (Type (..), Expression, Statement, Function, Program)
+import qualified WACC as W (Type(..))
+import WACC (Expression(..), Statement, Function, Program)
 
 import qualified Data.Map as M
+
+data Type
+    = TypeAny
+    | TypeInt
+    | TypeBool
+    | TypeChar
+    | TypeString
+    | TypeArray Type
+    | TypePair (Maybe (Type, Type))
 
 data WaccSemanticsErrorType
     = UndefinedVariable String
@@ -20,28 +30,44 @@ data WaccSemanticsErrorType
 
 data SemanticError = SemanticError Range WaccSemanticsErrorType
 data IdentifierType
-newtype CheckerState = CheckerState [M.Map String Type]
-
-getType :: CheckerState -> String -> Maybe Type
-getType (CheckerState []) _ = Nothing
-getType (CheckerState (m:ms)) name = case M.lookup name m of
-    Nothing -> getType (CheckerState ms) name
-    Just t -> Just t
+newtype CheckerState = CheckerState [String `M.Map` Type]
 
 class Compatible t where
-    (<|) :: t -> t -> Bool 
+    (<|) :: t -> t -> Bool
 
 instance Compatible Type where
     (<|) :: Type -> Type -> Bool
-    (TypeInt {}) <| (TypeInt {}) = True
-    (TypeBool {}) <| (TypeBool {}) = True
-    (TypeChar {}) <| (TypeChar {}) = True
-    (TypeString {}) <| (TypeString {}) = True
-    (TypeString {}) <| (TypeArray (TypeChar {}) _) = True
-    (TypeArray a _) <| (TypeArray b _) = a <| b
-    (TypePair (Just (a, b)) _) <| (TypePair (Just (c, d)) _) = a <| c && b <| d
+    TypeAny <| _ = True
+    _ <| TypeAny = True
+    TypeInt <| TypeInt = True
+    TypeBool <| TypeBool = True
+    TypeChar <| TypeChar = True
+    TypeString <| TypeString = True
+    TypeString <| TypeArray TypeChar = True
+    TypeArray a <| TypeArray b = a <| b
+    TypePair (Just (a, b)) <| TypePair (Just (c, d)) = a <| c && b <| d
     (TypePair {}) <| (TypePair {}) = True
     _ <| _ = False
+
+lookUpIdentifierType :: CheckerState -> String -> Maybe Type
+lookUpIdentifierType (CheckerState []) _ = Nothing
+lookUpIdentifierType (CheckerState (m:ms)) name = case M.lookup name m of
+    Nothing -> lookUpIdentifierType (CheckerState ms) name
+    Just t -> Just t
+
+fromWaccType :: W.Type -> Type
+fromWaccType = \case
+    W.TypeInt {} -> TypeInt
+    W.TypeBool {} -> TypeBool
+    W.TypeChar {} -> TypeChar
+    W.TypeString {} -> TypeString
+    W.TypeArray t _ -> TypeArray (fromWaccType t)
+    W.TypePair Nothing _ -> TypePair Nothing
+    W.TypePair (Just (a, b)) _ -> TypePair (Just (fromWaccType a, fromWaccType b))
+
+computeType :: CheckerState -> Expression -> Type
+computeType state = \case
+    LiteralInt {} -> TypeInt
 
 class CheckSemantics a where
     check :: CheckerState -> a -> (CheckerState, [SemanticError])

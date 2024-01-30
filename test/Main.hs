@@ -30,12 +30,11 @@ humanTextPosition (row, col) = (row + 1, col + 1)
 
 testSyntaxError :: IO Bool
 testSyntaxError = do
-    putStrLn "# Syntax Error"
-
     oldPwd <- getCurrentDirectory
     setCurrentDirectory "example/invalid/syntaxErr"
 
     tests <- allFilesRecursive "."
+    putStrLn $ "# Syntax Error (" ++ show (length tests) ++ ")"
     result <- for tests $ \test -> do
 
         raw <- readFile test

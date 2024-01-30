@@ -35,7 +35,7 @@ data WaccSyntaxErrorType
     | IntegerOverflow Int
     | ExpectProgramBegin
     | ExpectProgramEnd
-    | FunctionDoesNotReturn
+    | FunctionDoesNotReturn String
     | UnexpectedCodeAfterProgramEnd
 
 instance Show WaccSyntaxErrorType where
@@ -115,8 +115,8 @@ instance Show WaccSyntaxErrorType where
         "Expect “begin” keyword at the beginning of program"
     show ExpectProgramEnd =
         "Expect “end” keyword at the end of program"
-    show FunctionDoesNotReturn =
-        "There is a path in function that does not return"
+    show (FunctionDoesNotReturn name) =
+        "There is a path in function “" ++ name ++ "” that does not return"
     show UnexpectedCodeAfterProgramEnd =
         "There is unexpected code after “end” keyword"
 

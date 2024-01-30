@@ -1,11 +1,11 @@
 stages:
-  - compile
+  - build
   - test
 
 compile:
-  stage: compile
+  stage: build
   script:
-    - make
+    - cabal build
 
 test:
   stage: test
