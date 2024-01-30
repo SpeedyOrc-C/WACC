@@ -26,7 +26,7 @@ main = do
                 
                 Left (Just (SyntaxError pos error')) -> do
                     let (row, col) = textPosition raw pos
-                        ls = lines raw
+                        ls = lines raw ++ [""]
                         distance = 2
                         upperLines = take (min distance row) $ drop (row - distance) ls
                         lowerLines = take distance $ drop (row + 1) ls
