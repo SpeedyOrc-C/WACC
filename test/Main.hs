@@ -1,6 +1,6 @@
 import Data.Traversable
 
-import System.Exit ( exitFailure )
+import System.Exit ( exitFailure, exitSuccess )
 import System.Directory
     ( doesDirectoryExist,
       doesFileExist,
@@ -96,5 +96,4 @@ main = do
     resultNoSyntaxError <- testNoSyntaxError
 
     let succeed = resultSyntaxError && resultNoSyntaxError
-    exitFailure
-    -- if succeed then exitSuccess else exitFailure
+    if succeed then exitSuccess else exitFailure

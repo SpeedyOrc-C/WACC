@@ -28,8 +28,8 @@ main = do
                     let (row, col) = textPosition raw pos
                         ls = lines raw
                         distance = 2
-                        upperLines = take distance $ drop (row - distance) ls
-                        lowerLines = take distance $ drop (row + distance - 1) ls
+                        upperLines = take (min distance row) $ drop (row - distance) ls
+                        lowerLines = take distance $ drop (row + 1) ls
 
                     putStrLn ""
                     (putStrLn . gray) `traverse_` upperLines
