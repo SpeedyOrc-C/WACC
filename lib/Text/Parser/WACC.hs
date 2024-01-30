@@ -407,7 +407,7 @@ statementDeclare :: WaccParser Statement
 statementDeclare = Declare ~ do
     t <- type'
     _ <- some white
-    name <- identifierString
+    name <- identifierString `syntaxError` ExpectIdentifierInDeclaration
     _ <- surroundManyWhites $ char '=' `syntaxError` ExpectEqualSign
     value <- rightValue `syntaxError` ExpectOneExpression
     return (t, name, value)

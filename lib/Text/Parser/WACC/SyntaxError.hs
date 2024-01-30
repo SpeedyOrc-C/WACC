@@ -26,6 +26,7 @@ data WaccSyntaxErrorType
     | PairTypeErased
     | PairTypeInPairTypeNotErased
     | UnknownType
+    | ExpectIdentifierInDeclaration
     | InvalidLeftValue
     | InvalidRightValue
     | ExpectOneStatement
@@ -94,6 +95,8 @@ instance Show WaccSyntaxErrorType where
         "Pair type in pair type should be type-erased"
     show UnknownType =
         "Unknown type"
+    show ExpectIdentifierInDeclaration =
+        "Expect an identifier in declaration"
     show InvalidLeftValue =
         "Invalid left value"
     show InvalidRightValue =
