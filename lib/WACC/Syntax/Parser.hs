@@ -1,13 +1,14 @@
-module Text.Parser.WACC where
+module WACC.Syntax.Parser where
 
-import WACC
+import WACC.Syntax.Structure
 import Text.Parser
-import Text.Parser.WACC.SyntaxError
+import WACC.Syntax.Error
 
 import Control.Monad
 import Control.Applicative
 import Data.Functor
 import Data.Maybe
+import WACC.Syntax.Validation
 
 type WaccParser a = Parser WaccSyntaxErrorType a
 
@@ -47,7 +48,7 @@ identifierString = do
     c <- charThat (`elem` headChars)
     s <- many (charThat (`elem` identifierTailChars))
     let name = c:s
-    if name `elem` ["len", "ord", "chr", "call",
+    if name `elem` ["len", "ord", "chr", "call", "true", "false",
                     "begin", "end", "is",
                     "if", "then", "else", "fi",
                     "while", "do", "done",
@@ -344,23 +345,23 @@ statementScope = Scope ~ do
     return body
 
 typeInt :: WaccParser Type
-typeInt = TypeInt ~ void (str "int")
+typeInt = Int ~ void (str "int")
 
 typeBool :: WaccParser Type
-typeBool = TypeBool ~ void (str "bool")
+typeBool = Bool ~ void (str "bool")
 
 typeChar :: WaccParser Type
-typeChar = TypeChar ~ void (str "char")
+typeChar = Char ~ void (str "char")
 
 typeString :: WaccParser Type
-typeString = TypeString ~ void (str "string")
+typeString = String ~ void (str "string")
 
 -- `syntaxError` UnexpectTypesInInnerPairType
 -- `syntaxError` UnknownType
 -- `syntaxError` ExpectTypesInOutermostPairType
 
 typePair :: WaccParser Type
-typePair = TypePair ~ do
+typePair = Pair ~ do
     _ <- str "pair"
     optional $ do
         _ <- many white
@@ -387,7 +388,7 @@ typeArray = do
     brackets <- many $ getRangeA $ void $
         surroundManyWhites (char '[') >> char ']'
 
-    let mergeArray x ((_, to), _) = TypeArray x (from, to)
+    let mergeArray x ((_, to), _) = Array x (from, to)
 
     return $ foldl mergeArray t brackets
 
@@ -395,11 +396,11 @@ type' :: WaccParser Type
 type' = typeArray `syntaxErrorWhen` (not . isType, \(_, t) -> findError t)
     where
     findError = \case
-        TypeArray (TypePair Nothing (from, _)) _ ->
+        Array (Pair Nothing (from, _)) _ ->
             SyntaxError from PairTypeErased
-        TypePair (Just (TypePair (Just {}) (from, _), _)) _ ->
+        Pair (Just (Pair (Just {}) (from, _), _)) _ ->
             SyntaxError from PairTypeInPairTypeNotErased
-        TypePair (Just (_, TypePair (Just {}) (from, _))) _ ->
+        Pair (Just (_, Pair (Just {}) (from, _))) _ ->
             SyntaxError from PairTypeInPairTypeNotErased
         _ -> error "unreachable"
 
@@ -441,8 +442,8 @@ statementSep = void $ surroundManyWhites (char ';')
 statements :: WaccParser [Statement]
 statements = statement `separatedBy` statementSep
 
-parameter :: WaccParser Parameter
-parameter = Parameter ~ do
+parameter :: WaccParser (Type, String)
+parameter = do
     t <- type'
     _ <- some white
     name <- identifierString

@@ -1,4 +1,4 @@
-module Text.Parser.WACC.SyntaxError where
+module WACC.Syntax.Error where
 
 data WaccSyntaxErrorType
     = ExpectOperand String

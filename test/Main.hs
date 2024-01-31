@@ -8,7 +8,7 @@ import System.Directory
       getDirectoryContents,
       setCurrentDirectory )
 import Text.Parser ( parseString, SyntaxError(SyntaxError), textPosition )
-import Text.Parser.WACC ( program )
+import WACC.Syntax.Parser ( program )
 import Control.Monad ( filterM )
 import Text.AnsiEscape ( red, orange, green, gray )
 

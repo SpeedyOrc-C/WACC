@@ -1,75 +1,7 @@
-module WACC where
+module WACC.Syntax.Validation where
 
-import Text.Parser
-
-data Program = Program ([Function], [Statement]) Range
-    deriving Show
-
-data Function = Function (Type, String, [Parameter], [Statement]) Range
-    deriving Show
-
-data Parameter = Parameter (Type, String) Range
-    deriving Show
-
-data Statement
-    = Skip () Range
-    | Declare (Type, String, Expression) Range
-    | Assign (Expression, Expression) Range
-    | Read Expression Range
-    | Free Expression Range
-    | Return Expression Range
-    | Exit Expression Range
-    | Print Expression Range
-    | PrintLine Expression Range
-    | If (Expression, [Statement], [Statement]) Range
-    | While (Expression, [Statement]) Range
-    | Scope [Statement] Range
-    deriving Show
-
-data Type
-    = TypeInt () Range
-    | TypeBool () Range
-    | TypeChar () Range
-    | TypeString () Range
-    | TypeArray Type Range
-    | TypePair (Maybe (Type, Type)) Range
-    deriving Show
-
-type Unary = Expression
-type Binary = (Expression, Expression)
-
-data Expression
-    = LiteralInt Int Range
-    | LiteralBool Bool Range
-    | LiteralChar Char Range
-    | LiteralString String Range
-    | LiteralArray [Expression] Range
-    | LiteralPair (Expression, Expression) Range
-    | LiteralPairNull () Range
-    | Identifier String Range
-    | ArrayElement (Expression, Expression) Range
-    | Not Unary Range
-    | Negate Unary Range
-    | Length Unary Range
-    | Order Unary Range
-    | Character Unary Range
-    | PairFirst Unary Range
-    | PairSecond Unary Range
-    | Multiply Binary Range
-    | Divide Binary Range
-    | Remainder Binary Range
-    | Add Binary Range
-    | Subtract Binary Range
-    | Greater Binary Range
-    | GreaterEqual Binary Range
-    | Less Binary Range
-    | LessEqual Binary Range
-    | Equal Binary Range
-    | NotEqual Binary Range
-    | And Binary Range
-    | Or Binary Range
-    | FunctionCall (String, [Expression]) Range
-    deriving Show
+import Text.Parser ( Range )
+import WACC.Syntax.Structure ( Expression(..), Type(..), Statement(..) )
 
 expressionRange :: Expression -> Range
 expressionRange expr = case expr of
@@ -197,25 +129,25 @@ isType t = isTypeBase t || isTypeArray t || isTypePair t
 
 isTypeBase :: Type -> Bool
 isTypeBase = \case
-    TypeInt {} -> True
-    TypeBool {} -> True
-    TypeChar {} -> True
-    TypeString {} -> True
+    Int {} -> True
+    Bool {} -> True
+    Char {} -> True
+    String {} -> True
     _ -> False
 
 isTypeArray :: Type -> Bool
 isTypeArray = \case
-    TypeArray t _ -> isType t
+    Array t _ -> isType t
     _ -> False
 
 isTypePair :: Type -> Bool
 isTypePair = \case
-    TypePair (Just (a, b)) _ -> isTypePairElement a && isTypePairElement b
+    Pair (Just (a, b)) _ -> isTypePairElement a && isTypePairElement b
     _ -> False
 
 isTypePairElement :: Type -> Bool
 isTypePairElement = \case
-    TypePair Nothing _ -> True
+    Pair Nothing _ -> True
     t -> isTypeBase t || isTypeArray t
 
 willReturn :: Statement -> Bool
@@ -224,3 +156,4 @@ willReturn (Exit {}) = True
 willReturn (If (_, t, e) _) = any willReturn t && any willReturn e
 willReturn (Scope s _) = any willReturn s
 willReturn _ = False
+

@@ -55,16 +55,20 @@ library wacc25-lib
     hs-source-dirs:   lib
 
     exposed-modules:
-        WACC,
-        WACC.Semantics,
+        WACC.Syntax.Parser,
+        WACC.Syntax.Structure,
+        WACC.Syntax.Error,
+        WACC.Syntax.Validation,
+        WACC.Semantics.Checker,
+        WACC.Semantics.Structure,
+        WACC.Semantics.Error,
         Text.AnsiEscape,
-        Text.Parser,
-        Text.Parser.WACC,
-        Text.Parser.WACC.SyntaxError
+        Text.Parser
 
     default-extensions:
         LambdaCase,
-        ViewPatterns
+        ViewPatterns,
+        FunctionalDependencies
 
     build-depends:
         directory,
