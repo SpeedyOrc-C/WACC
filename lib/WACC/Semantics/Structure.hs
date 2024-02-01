@@ -35,7 +35,6 @@ data Type
     | String
     | Array Type
     | Pair (Type, Type)
-    | Callable [Type] Type
     deriving (Show, Eq)
 
 data Expression

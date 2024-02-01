@@ -10,28 +10,30 @@ import WACC.Semantics.Structure
     ( Expression(..), Type(..), Statement(Declare), Function, Program )
 import WACC.Syntax.Validation (expressionRange)
 
-type MappindStack = [String `M.Map` Type]
+type MappingStack = [String `M.Map` Type]
+type FunctionMapping = String `M.Map` ([Type], Type)
 
 goDeeper :: CheckerState -> CheckerState
-goDeeper (CheckerState stack) = CheckerState $ M.empty : stack
+goDeeper (CheckerState fm stack) = CheckerState fm (M.empty : stack)
 
 addIdentifier :: String -> Type -> CheckerState -> CheckerState
-addIdentifier name t (CheckerState stack) = CheckerState $ M.insert name t (head stack) : tail stack
+addIdentifier name t (CheckerState fm stack) = CheckerState fm
+    (M.insert name t (head stack) : tail stack)
 
 lookUp :: CheckerState -> String -> Maybe Type
-lookUp (CheckerState mappings) name =
+lookUp (CheckerState fm mappings) name =
     case mappings of
         [] -> Nothing
         mapping:rest ->
             case M.lookup name mapping of
                 Just t -> Just t
-                Nothing -> lookUp (CheckerState rest) name
+                Nothing -> lookUp (CheckerState fm rest) name
 
 lookUpInnermost :: CheckerState -> String -> Maybe Type
-lookUpInnermost (CheckerState mappings) = lookUp (CheckerState [head mappings])
+lookUpInnermost (CheckerState fm mappings) = lookUp (CheckerState fm [head mappings])
 
 data SemanticError = SemanticError Range WaccSemanticsErrorType deriving Show
-newtype CheckerState = CheckerState MappindStack
+data CheckerState = CheckerState FunctionMapping MappingStack
 
 -- | Can the right type take the place of the left type?
 (<|) :: Type -> Type -> Bool
@@ -55,8 +57,11 @@ fromSyntaxType = \case
 
 -- | Debug use
 d input =
-    check (CheckerState [M.fromList [
-        ("f", Callable [Int] String),
+    check (CheckerState
+    (M.fromList [
+        ("f", ([Int], Char))
+    ])
+    [M.fromList [
         ("i", Int),
         ("a", Array $ Array Int),
         ("p", Pair (Int, Int))
