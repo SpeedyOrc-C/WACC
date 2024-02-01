@@ -40,8 +40,8 @@ data WaccSemanticsErrorType
     | InvalidLessInt OperandDirection Type
     | InvalidLessEqualInt OperandDirection Type
     
-    | InvalidEqual OperandDirection Type
-    | InvalidNotEqual OperandDirection Type
+    | InvalidEqual Type Type
+    | InvalidNotEqual Type Type
     | InvalidAnd OperandDirection Type
     | InvalidOr OperandDirection Type
     deriving Show
