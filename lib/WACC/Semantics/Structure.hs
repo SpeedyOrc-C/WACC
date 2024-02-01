@@ -47,6 +47,9 @@ data Expression
     | LiteralArray Type [Expression]
     | LiteralPair (Type, Type) (Expression, Expression)
     | LiteralPairNull
+
+    | ArrayElement Expression Expression
+
     | Not Expression
     | Negate Expression
     | Length Expression

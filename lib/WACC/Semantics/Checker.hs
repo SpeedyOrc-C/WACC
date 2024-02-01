@@ -4,13 +4,32 @@ import Prelude hiding (error)
 import Text.Parser (Range, parseString, Parsed (Parsed))
 import qualified WACC.Syntax.Structure as Syntax
 import qualified Data.Map as M
-import WACC.Syntax.Parser (statement)
+import WACC.Syntax.Parser as Parser
 import WACC.Semantics.Error ( WaccSemanticsErrorType(..) )
 import WACC.Semantics.Structure
     ( Expression(..), Type(..), Statement(Declare), Function, Program )
 import WACC.Syntax.Validation (expressionRange)
 
 type MappindStack = [String `M.Map` Type]
+
+goDeeper :: CheckerState -> CheckerState
+goDeeper (CheckerState stack) = CheckerState $ M.empty : stack
+
+addIdentifier :: String -> Type -> CheckerState -> CheckerState
+addIdentifier name t (CheckerState stack) = CheckerState $ M.insert name t (head stack) : tail stack
+
+lookUp :: CheckerState -> String -> Maybe Type
+lookUp (CheckerState mappings) name =
+    case mappings of
+        [] -> Nothing
+        mapping:rest ->
+            case M.lookup name mapping of
+                Just t -> Just t
+                Nothing -> lookUp (CheckerState rest) name
+
+lookUpInnermost :: CheckerState -> String -> Maybe Type
+lookUpInnermost (CheckerState mappings) = lookUp (CheckerState [head mappings])
+
 data SemanticError = SemanticError Range WaccSemanticsErrorType deriving Show
 newtype CheckerState = CheckerState MappindStack
 
@@ -24,15 +43,6 @@ Array a <| Array b = a <| b
 Pair (a, b) <| Pair (c, d) = a <| c && b <| d
 a <| b = a == b
 
-lookUpIdentifierType :: MappindStack -> String -> Maybe Type
-lookUpIdentifierType mappings name =
-    case mappings of
-        [] -> Nothing
-        mapping:rest ->
-            case M.lookup name mapping of
-                Just t -> Just t
-                Nothing -> lookUpIdentifierType rest name
-
 fromSyntaxType :: Syntax.Type -> Type
 fromSyntaxType = \case
     Syntax.Int {} -> Int
@@ -44,11 +54,16 @@ fromSyntaxType = \case
     Syntax.Pair (Just (a, b)) _ -> Pair (fromSyntaxType a, fromSyntaxType b)
 
 -- | Debug use
-d input = checkSemantics (CheckerState [M.fromList [
-    ("foo", Callable [Int] String), ("x", Int)
-    ]]) e
+d input =
+    checkSemantics (CheckerState [M.fromList [
+        ("f", Callable [Int] String),
+        ("i", Int),
+        ("a", Array $ Array Int),
+        ("p", Pair (Int, Int))
+    ]])
+    e
     where
-    Right (Parsed _ e _) = parseString statement input
+    Right (Parsed _ e _) = parseString Parser.statements input
 
 -- | Given that two types are compatible with each other,
 --   find the common type between two types. This can find the type of an array.
@@ -69,27 +84,6 @@ common a b = if a == b then a else undefined
 
 -- computeType :: CheckerState -> Syntax.Expression -> SemanticError `Either` Type
 -- computeType state = \case
---     Syntax.LiteralArray array _ -> do
---         types <- computeType state `mapM` array
-
---         let check [] = Right $ Array Any
---             check ((t, _):es) = check' t es
-
---             check' t [] = Right $ Array t
---             check' t ((t', e'):es) =
---                 let strongerType = common t t' in
---                 if t <| t' || t' <| t
---                     then check' strongerType es
---                     else Left $ SemanticError (expressionRange e') $
---                         InconsistentTypesInArray t t'
-
---         check (zip types array)
-
---     Syntax.LiteralPair (a, b) _ -> do
---         a' <- computeType state a
---         b' <- computeType state b
---         return $ Pair (a', b')
-
 --     Syntax.FunctionCall (name, args) range -> do
 --         case lookUpIdentifierType state name of
 
@@ -117,7 +111,11 @@ common a b = if a == b then a else undefined
 --             Nothing ->
 --                 Left $ SemanticError range $ UndefinedFunction name
 
---     _ -> Left undefined
+merge :: (a -> b -> c) -> Either [x] a -> Either [x] b -> Either [x] c
+merge _ (Left errors1) (Left errors2) = Left $ errors1 ++ errors2
+merge _ (Right {}) (Left errors) = Left errors
+merge _ (Left errors) (Right {}) = Left errors
+merge f (Right result1) (Right results2) = Right $ result1 `f` results2
 
 class CheckSemantics syntaxTree result
     | syntaxTree -> result, result -> syntaxTree where
@@ -129,17 +127,17 @@ class CheckSemantics syntaxTree result
     checkSemantics :: CheckerState -> syntaxTree -> Either [SemanticError] result
 
 instance CheckSemantics Syntax.Expression (Type, Expression) where
-    checkSemantics state@(CheckerState mappings) = \case
+    checkSemantics state = \case
         Syntax.LiteralInt x _ -> Right (Int, LiteralInt x)
         Syntax.LiteralBool x _ -> Right (Bool, LiteralBool x)
         Syntax.LiteralChar x _ -> Right (Char, LiteralChar x)
         Syntax.LiteralString x _ -> Right (String, LiteralString x)
 
         Syntax.Identifier name range ->
-            case lookUpIdentifierType mappings name of
+            case lookUp state name of
                 Just t -> Right (t, Identifier name)
                 Nothing -> Left [SemanticError range (UndefinedIdentifier name)]
-        
+
         Syntax.LiteralArray array _ -> do
             typesAndExpressions <- checkSemantics state `mapM` array
 
@@ -159,39 +157,72 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                         (Array commonType, LiteralArray commonType expressions)
                         where expressions = snd <$> typesAndExpressions
 
+        Syntax.ArrayElement (array, index) _ ->
+            case merge (,)
+                (checkSemantics state array) (checkSemantics state index) of
+                Left x -> Left x
+
+                Right ((arrayType, array'), (indexType, index')) ->
+                    if Int <| indexType
+
+                    then case arrayType of
+                        Array arrayElementType ->
+                            Right (arrayElementType, ArrayElement array' index')
+                
+                        _ -> Left [SemanticError (expressionRange array) $
+                                    InvalidArray arrayType]
+                
+                    else Left [SemanticError (expressionRange index) $
+                                InvalidIndex indexType]
+
+        Syntax.LiteralPair (left, right) _ ->
+            case merge (,)
+                (checkSemantics state left) (checkSemantics state right) of
+                Left x -> Left x
+
+                Right ((leftType, left'), (rightType, right')) -> 
+                    Right (Pair (leftType, rightType),
+                            LiteralPair (leftType, rightType) (left', right'))
+
+        Syntax.PairFirst pair _ -> do
+            (pairType, pair') <- checkSemantics state pair
+
+            case pairType of
+                Pair (leftType, _) -> Right (leftType, PairFirst pair')
+                _ -> Left [SemanticError (expressionRange pair) $
+                            InvalidPair pairType]
+
         _ -> undefined
 
-instance CheckSemantics Syntax.Statement ((String, Type), Statement) where
-    checkSemantics state@(CheckerState mappings) =
-        let mapping = head mappings in
-        \case
-        Syntax.Skip {} -> Left []
-
+instance CheckSemantics Syntax.Statement Statement where
+    checkSemantics state = \case
         Syntax.Declare (fromSyntaxType -> declaredType, name, value) range ->
+            case checkSemantics state value of
+                Right (computedType, newValue) ->
+                    if declaredType <| computedType then
+                        case lookUpInnermost state name of
+                            Nothing -> Right (Declare declaredType name newValue)
+                            Just {} -> Left [SemanticError range $ RedefinedIdentifier name]
+                    else
+                        Left [SemanticError range $
+                                IncompatibleAssignment declaredType computedType]
 
-            case lookUpIdentifierType [mapping] name of
-            
-                Just {} -> Left [SemanticError range $ RedefinedIdentifier name]
-            
-                Nothing ->
-                    case checkSemantics state value of
-            
-                        Right (computedType, newValue) ->
-                            if declaredType <| computedType
+                Left x -> Left x
 
-                                then Right ((name, declaredType),
-                                            Declare declaredType name newValue)
-
-                                else Left [SemanticError range $
-                                            IncompatibleAssignment
-                                                declaredType computedType]
-            
-                        Left x -> Left x
-        
         _ -> undefined
 
 instance CheckSemantics [Syntax.Statement] [Statement] where
-    checkSemantics = undefined
+    checkSemantics state = \case
+        (s@(Syntax.Declare (fromSyntaxType -> declaredType, name, _) _):ss) -> do
+            let state' = addIdentifier name declaredType state
+            merge (:) (checkSemantics state s) (checkSemantics state' ss)
+
+        (s@(Syntax.Assign {}):ss) ->
+            merge (:) (checkSemantics state s) (checkSemantics state ss)
+        
+        (Syntax.Skip {}:ss) -> checkSemantics state ss
+
+        [] -> Right []
 
 instance CheckSemantics Syntax.Function Function where
     checkSemantics = undefined

@@ -14,6 +14,10 @@ data WaccSemanticsErrorType
     | InconsistentTypesInArray Type Type
     | IncompatibleAssignment Type Type
 
+    | InvalidArray Type
+    | InvalidIndex Type
+    | InvalidPair Type
+
     | InvalidNot Type
     | InvalidNegate Type
     | InvalidLength Type
