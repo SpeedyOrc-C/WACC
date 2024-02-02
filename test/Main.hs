@@ -7,10 +7,11 @@ import System.Directory
       getCurrentDirectory,
       getDirectoryContents,
       setCurrentDirectory )
-import Text.Parser ( parseString, SyntaxError(SyntaxError), textPosition )
+import Text.Parser ( parseString, SyntaxError(SyntaxError) )
 import WACC.Syntax.Parser ( program )
 import Control.Monad ( filterM )
 import Text.AnsiEscape ( red, orange, green, gray )
+import Text.SourceCode (textPosition)
 
 getDirectoryContents' :: FilePath -> IO [FilePath]
 getDirectoryContents' path =
