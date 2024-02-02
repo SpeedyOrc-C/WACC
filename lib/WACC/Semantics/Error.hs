@@ -13,6 +13,7 @@ data WaccSemanticsErrorType
     | TooFewArguments Int Int
     | InconsistentTypesInArray Type Type
     | IncompatibleAssignment Type Type
+    | RedefinedFunction String
 
     | InvalidArray Type
     | InvalidIndex Type
@@ -30,10 +31,10 @@ data WaccSemanticsErrorType
     | InvalidAdd OperandDirection Type
     | InvalidSubtract OperandDirection Type
 
+    | InvalidArithmetic OperandDirection Type
     | InvalidComparisonLeft Type
     | InvalidComparisonRight ComparisonType Type
     | InvalidEquality Type Type
     
-    | InvalidAnd OperandDirection Type
-    | InvalidOr OperandDirection Type
+    | InvalidLogical OperandDirection Type
     deriving Show

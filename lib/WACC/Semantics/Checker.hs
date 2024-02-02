@@ -4,11 +4,13 @@ import Prelude hiding (error)
 import Text.Parser (Range, parseString, Parsed (Parsed))
 import qualified WACC.Syntax.Structure as Syntax
 import qualified Data.Map as M
+import Data.List ((\\))
 import WACC.Syntax.Parser as Parser
-import WACC.Semantics.Error ( WaccSemanticsErrorType(..) )
+import WACC.Semantics.Error ( WaccSemanticsErrorType(..), OperandDirection (OperandLeft, OperandRight) )
 import WACC.Semantics.Structure
     ( Expression(..), Type(..), Statement(Declare), Function, Program, ComparisonType (..) )
 import WACC.Syntax.Validation (expressionRange)
+import Data.Functor ((<&>), void)
 
 goDeeper :: CheckerState -> CheckerState
 goDeeper state = state { mappingStack = M.empty : mappingStack state }
@@ -33,8 +35,11 @@ lookUpInnermost state =
 
 data SemanticError = SemanticError Range WaccSemanticsErrorType deriving Show
 data CheckerState = CheckerState {
-    inFunctionContext :: Bool,
+    -- Is it inside a function? If so, what type does this function returns?
+    functionContext :: Maybe Type,
+    -- All functions' types of parameters and return value
     functionMapping :: String `M.Map` ([Type], Type),
+    -- All variables' types
     mappingStack :: [String `M.Map` Type]
 }
 
@@ -61,9 +66,9 @@ fromSyntaxType = \case
 -- | Debug use
 db input =
     check (CheckerState {
-        inFunctionContext = False,
+        functionContext = Nothing,
         functionMapping = M.fromList [
-            ("f", ([Int], Char))
+            ("f", ([Int, Char, String], Bool))
         ],
         mappingStack =
         [M.fromList [
@@ -94,40 +99,14 @@ common (Pair (a, b)) (Pair (c, d)) = Pair (common a c, common b d)
 
 common a b = if a == b then a else undefined
 
--- computeType :: CheckerState -> Syntax.Expression -> SemanticError `Either` Type
--- computeType state = \case
---     Syntax.FunctionCall (name, args) range -> do
---         case lookUpIdentifierType state name of
-
---             Just (Callable paramsType returnType) -> do
---                 argsType <- computeType state `mapM` args
-
---                 let check :: [(Type, Type, Syntax.Expression)] -> SemanticError `Either` Type
---                     check [] = case compare (length args) (length paramsType) of
---                         LT -> Left $ SemanticError range $
---                             TooFewArguments (length paramsType) (length argsType)
---                         EQ -> Right returnType
---                         GT -> Left $ SemanticError range $
---                             TooManyArguments (length paramsType) (length argsType)
---                     check ((paramType, argType, e):es) =
---                         if paramType <| argType
---                             then check es
---                             else Left $ SemanticError (expressionRange e) $
---                                 IncompatibleAssignment paramType argType
-
---                 check (zip3 paramsType argsType args)
-
---             Just t -> do
---                 Left $ SemanticError range $ NotCallable name t
-
---             Nothing ->
---                 Left $ SemanticError range $ UndefinedFunction name
-
 merge :: (a -> b -> c) -> Either [x] a -> Either [x] b -> Either [x] c
 merge _ (Left errors1) (Left errors2) = Left $ errors1 ++ errors2
 merge _ (Right {}) (Left errors) = Left errors
 merge _ (Left errors) (Right {}) = Left errors
 merge f (Right result1) (Right results2) = Right $ result1 `f` results2
+
+mergeMany :: Foldable t => t (Either [x] a) -> Either [x] [a]
+mergeMany xs = reverse <$> foldl (merge (flip (:))) (Right []) xs
 
 class CheckSemantics syntaxTree result
     | syntaxTree -> result, result -> syntaxTree where
@@ -144,6 +123,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
         Syntax.LiteralBool x _ -> Right (Bool, LiteralBool x)
         Syntax.LiteralChar x _ -> Right (Char, LiteralChar x)
         Syntax.LiteralString x _ -> Right (String, LiteralString x)
+        Syntax.LiteralPairNull {} -> Right (Pair (Any, Any), LiteralPairNull)
 
         Syntax.Identifier name range ->
             case lookUp state name of
@@ -215,10 +195,71 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
         Syntax.Equal xy range -> checkEquality xy range Equal
         Syntax.NotEqual xy range -> checkEquality xy range NotEqual
 
-        _ -> undefined
-        
+        Syntax.Not e range -> checkUnary e range (Bool, Bool) (Not, InvalidNot)
+        Syntax.Negate e range -> checkUnary e range (Int, Int) (Negate, InvalidNegate)
+        Syntax.Length e range -> checkUnary e range (Array Any, Int) (Length, InvalidLength)
+        Syntax.Order e range -> checkUnary e range (Char, Int) (Order, InvalidOrder)
+        Syntax.Character e range -> checkUnary e range (Int, Char) (Character, InvalidCharacter)
+
+        Syntax.Multiply xy _ -> checkArithmetic xy Multiply
+        Syntax.Divide xy _ -> checkArithmetic xy Divide
+        Syntax.Remainder xy _ -> checkArithmetic xy Remainder
+        Syntax.Add xy _ -> checkArithmetic xy Add
+        Syntax.Subtract xy _ -> checkArithmetic xy Subtract
+
+        Syntax.And xy _ -> checkLogical xy And
+        Syntax.Or xy _ -> checkLogical xy Or
+
+        Syntax.FunctionCall (name, arguments) range -> do
+            case M.lookup name (functionMapping state) of
+                Nothing -> Left [SemanticError range $ UndefinedFunction name]
+                Just (parametersTypes, returnType) -> do
+                    (unzip -> (types, arguments')) <- mergeMany $
+                        check state <$> arguments
+
+                    let parameterChecker expectedType (range', actualType) =
+                            if expectedType <| actualType
+                            then Right expectedType
+                            else Left [SemanticError range' $
+                                        IncompatibleAssignment expectedType actualType]
+
+                    void $ mergeMany $ zipWith parameterChecker
+                        parametersTypes
+                        (zip (expressionRange <$> arguments) types)
+
+                    Right (returnType, FunctionCall name arguments')
         where
-        
+
+        checkLogical (left, right) constructor = do
+            ((leftType, left'), (rightType, right')) <-
+                merge (,) (check state left) (check state right)
+
+            case leftType of
+                Bool -> case rightType of
+                    Bool -> Right (Bool, constructor left' right')
+                    _ -> Left [SemanticError (expressionRange right) $
+                                InvalidLogical OperandRight rightType]
+                _ -> Left [SemanticError (expressionRange left) $
+                            InvalidLogical OperandLeft leftType]
+
+        checkUnary expr range (inputType, outputType) (constructor, error) = do
+            (exprType, e') <- check state expr
+            if inputType <| exprType
+                then Right (outputType, constructor e')
+                else Left [SemanticError range $ error exprType]
+
+        checkArithmetic (left, right) constructor = do
+            ((leftType, left'), (rightType, right')) <-
+                merge (,) (check state left) (check state right)
+
+            case leftType of
+                Int -> case rightType of
+                    Int -> Right (Int, constructor left' right')
+                    _ -> Left [SemanticError (expressionRange right) $
+                                InvalidArithmetic OperandLeft rightType]
+                _ -> Left [SemanticError (expressionRange left) $
+                            InvalidArithmetic OperandRight leftType]
+
         checkComparison (left, right) constructor = do
             ((leftType, left'), (rightType, right')) <-
                 merge (,) (check state left) (check state right)
@@ -277,8 +318,29 @@ instance CheckSemantics [Syntax.Statement] [Statement] where
         _ -> undefined
 
 instance CheckSemantics Syntax.Function Function where
-    check = undefined
+    check state (Syntax.Function (fromSyntaxType -> returnType, name, parameters, body) _) = do
+        undefined
+        where
 
 instance CheckSemantics Syntax.Program Program where
-    check = undefined
+    check state (Syntax.Program (functions, body) _) = do
+        undefined
+        where
 
+        stateBody = state' { functionContext = Nothing }
+
+        state' = state {
+            functionMapping = functionMapping',
+            mappingStack = []
+        }
+
+        functionMapping' = M.fromList
+            [(name, (fromSyntaxType <$> parametersTypes, fromSyntaxType returnType))
+            | Syntax.Function (returnType, name, unzip -> (parametersTypes, _), _) _
+            <- functions]
+
+
+checkProgram
+    :: CheckSemantics syntaxTree result
+    => syntaxTree -> Either [SemanticError] result
+checkProgram = check $ CheckerState undefined undefined undefined
