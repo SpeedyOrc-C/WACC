@@ -7,7 +7,7 @@ import qualified Data.Map as M
 import WACC.Syntax.Parser as Parser
 import WACC.Semantics.Error ( WaccSemanticsErrorType(..) )
 import WACC.Semantics.Structure
-    ( Expression(..), Type(..), Statement(Declare), Function, Program )
+    ( Expression(..), Type(..), Statement(Declare), Function, Program, ComparisonType (..) )
 import WACC.Syntax.Validation (expressionRange)
 
 goDeeper :: CheckerState -> CheckerState
@@ -59,7 +59,7 @@ fromSyntaxType = \case
     Syntax.Pair (Just (a, b)) _ -> Pair (fromSyntaxType a, fromSyntaxType b)
 
 -- | Debug use
-d input =
+db input =
     check (CheckerState {
         inFunctionContext = False,
         functionMapping = M.fromList [
@@ -207,25 +207,42 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 _ -> Left [SemanticError (expressionRange pair) $
                             InvalidPair pairType]
 
-        Syntax.Equal (left, right) range -> do
-            ((leftType, left'), (rightType, right')) <-
-                merge (,) (check state left) (check state right)
+        Syntax.Less xy _ -> checkComparison xy Less
+        Syntax.LessEqual xy _ -> checkComparison xy LessEqual
+        Syntax.Greater xy _ -> checkComparison xy Greater
+        Syntax.GreaterEqual xy _ -> checkComparison xy GreaterEqual
 
-            if leftType == rightType then
-                Right (Bool, Equal leftType left' right')
-            else
-                Left [SemanticError range $ InvalidEqual leftType rightType]
-        
-        Syntax.NotEqual (left, right) range -> do
-            ((leftType, left'), (rightType, right')) <-
-                merge (,) (check state left) (check state right)
-            
-            if leftType == rightType then
-                Right (Bool, Equal leftType left' right')
-            else
-                Left [SemanticError range $ InvalidNotEqual leftType rightType]
+        Syntax.Equal xy range -> checkEquality xy range Equal
+        Syntax.NotEqual xy range -> checkEquality xy range NotEqual
 
         _ -> undefined
+        
+        where
+        
+        checkComparison (left, right) constructor = do
+            ((leftType, left'), (rightType, right')) <-
+                merge (,) (check state left) (check state right)
+
+            case leftType of
+                Int -> case rightType of
+                    Int -> Right (Bool, constructor CompareInt left' right')
+                    _ -> Left [SemanticError (expressionRange right) $
+                                InvalidComparisonRight CompareInt rightType]
+                Char -> case rightType of
+                    Char -> Right (Bool, constructor CompareChar left' right')
+                    _ -> Left [SemanticError (expressionRange right) $
+                                InvalidComparisonRight CompareChar rightType]
+                _ -> Left [SemanticError (expressionRange left) $
+                            InvalidComparisonLeft leftType]
+
+        checkEquality (left, right) range constructor = do
+            ((leftType, left'), (rightType, right')) <-
+                merge (,) (check state left) (check state right)
+
+            if leftType == rightType then
+                Right (Bool, constructor leftType left' right')
+            else
+                Left [SemanticError range $ InvalidEquality leftType rightType]
 
 instance CheckSemantics Syntax.Statement Statement where
     check state = \case

@@ -30,18 +30,10 @@ data WaccSemanticsErrorType
     | InvalidAdd OperandDirection Type
     | InvalidSubtract OperandDirection Type
 
-    | InvalidGreaterChar OperandDirection Type
-    | InvalidGreaterEqualChar OperandDirection Type
-    | InvalidLessChar OperandDirection Type
-    | InvalidLessEqualChar OperandDirection Type
-
-    | InvalidGreaterInt OperandDirection Type
-    | InvalidGreaterEqualInt OperandDirection Type
-    | InvalidLessInt OperandDirection Type
-    | InvalidLessEqualInt OperandDirection Type
+    | InvalidComparisonLeft Type
+    | InvalidComparisonRight ComparisonType Type
+    | InvalidEquality Type Type
     
-    | InvalidEqual Type Type
-    | InvalidNotEqual Type Type
     | InvalidAnd OperandDirection Type
     | InvalidOr OperandDirection Type
     deriving Show

@@ -37,6 +37,8 @@ data Type
     | Pair (Type, Type)
     deriving (Show, Eq)
 
+data ComparisonType = CompareChar | CompareInt deriving Show
+
 data Expression
     = Identifier String
     | LiteralInt Int
@@ -62,15 +64,10 @@ data Expression
     | Add Expression Expression
     | Subtract Expression Expression
 
-    | GreaterInt Expression Expression
-    | GreaterEqual Expression Expression
-    | LessInt Expression Expression
-    | LessEqual Expression Expression
-
-    | GreaterChar Expression Expression
-    | GreaterEqualChar Expression Expression
-    | LessChar Expression Expression
-    | LessEqualChar Expression Expression
+    | Greater ComparisonType Expression Expression
+    | GreaterEqual ComparisonType Expression Expression
+    | Less ComparisonType Expression Expression
+    | LessEqual ComparisonType Expression Expression
 
     | Equal Type Expression Expression
     | NotEqual Type Expression Expression
