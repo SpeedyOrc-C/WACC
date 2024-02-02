@@ -10,30 +10,34 @@ import WACC.Semantics.Structure
     ( Expression(..), Type(..), Statement(Declare), Function, Program )
 import WACC.Syntax.Validation (expressionRange)
 
-type MappingStack = [String `M.Map` Type]
-type FunctionMapping = String `M.Map` ([Type], Type)
-
 goDeeper :: CheckerState -> CheckerState
-goDeeper (CheckerState fm stack) = CheckerState fm (M.empty : stack)
+goDeeper state = state { mappingStack = M.empty : mappingStack state }
 
 addIdentifier :: String -> Type -> CheckerState -> CheckerState
-addIdentifier name t (CheckerState fm stack) = CheckerState fm
-    (M.insert name t (head stack) : tail stack)
+addIdentifier name t state = state {
+    mappingStack =
+        M.insert name t (head (mappingStack state)) :
+        tail (mappingStack state)
+}
 
 lookUp :: CheckerState -> String -> Maybe Type
-lookUp (CheckerState fm mappings) name =
-    case mappings of
-        [] -> Nothing
-        mapping:rest ->
-            case M.lookup name mapping of
-                Just t -> Just t
-                Nothing -> lookUp (CheckerState fm rest) name
+lookUp state name = case mappingStack state of
+    [] -> Nothing
+    mapping:rest ->
+        case M.lookup name mapping of
+            Just t -> Just t
+            Nothing -> lookUp (state {mappingStack = rest}) name
 
 lookUpInnermost :: CheckerState -> String -> Maybe Type
-lookUpInnermost (CheckerState fm mappings) = lookUp (CheckerState fm [head mappings])
+lookUpInnermost state =
+    lookUp $ state { mappingStack = [head (mappingStack state)] }
 
 data SemanticError = SemanticError Range WaccSemanticsErrorType deriving Show
-data CheckerState = CheckerState FunctionMapping MappingStack
+data CheckerState = CheckerState {
+    inFunctionContext :: Bool,
+    functionMapping :: String `M.Map` ([Type], Type),
+    mappingStack :: [String `M.Map` Type]
+}
 
 -- | Can the right type take the place of the left type?
 (<|) :: Type -> Type -> Bool
@@ -57,15 +61,19 @@ fromSyntaxType = \case
 
 -- | Debug use
 d input =
-    check (CheckerState
-    (M.fromList [
-        ("f", ([Int], Char))
-    ])
-    [M.fromList [
-        ("i", Int),
-        ("a", Array $ Array Int),
-        ("p", Pair (Int, Int))
-    ]])
+    check (CheckerState {
+        inFunctionContext = False,
+        functionMapping = M.fromList [
+            ("f", ([Int], Char))
+        ],
+        mappingStack =
+        [M.fromList [
+            ("x", Int), ("y", Int),
+            ("c", Char), ("d", Char),
+            ("a", Array $ Array Int),
+            ("p", Pair (Int, Int))
+        ]]
+    })
     e
     where
     Right (Parsed _ e _) = parseString Parser.statements input
@@ -173,10 +181,10 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                     then case arrayType of
                         Array arrayElementType ->
                             Right (arrayElementType, ArrayElement array' index')
-                
+
                         _ -> Left [SemanticError (expressionRange array) $
                                     InvalidArray arrayType]
-                
+
                     else Left [SemanticError (expressionRange index) $
                                 InvalidIndex indexType]
 
@@ -185,7 +193,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 (check state left) (check state right) of
                 Left x -> Left x
 
-                Right ((leftType, left'), (rightType, right')) -> 
+                Right ((leftType, left'), (rightType, right')) ->
                     Right (Pair (leftType, rightType),
                             LiteralPair (leftType, rightType) (left', right'))
 
@@ -204,11 +212,11 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 Pair (_, rightType) -> Right (rightType, PairSecond pair')
                 _ -> Left [SemanticError (expressionRange pair) $
                             InvalidPair pairType]
-        
+
         Syntax.Equal (left, right) range -> do
             ((leftType, left'), (rightType, right')) <-
                 merge (,) (check state left) (check state right)
-            
+
             if leftType == rightType then
                 Right (Bool, Equal leftType left' right')
             else
@@ -241,7 +249,7 @@ instance CheckSemantics [Syntax.Statement] [Statement] where
 
         (s@(Syntax.Assign {}):ss) ->
             merge (:) (check state s) (check state ss)
-        
+
         (Syntax.Skip {}:ss) -> check state ss
 
         [] -> Right []
