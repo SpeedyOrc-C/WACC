@@ -63,6 +63,7 @@ library wacc25-lib
         WACC.Semantics.Structure,
         WACC.Semantics.Error,
         Text.AnsiEscape,
+        Text.SourceCode,
         Text.Parser
 
     default-extensions:

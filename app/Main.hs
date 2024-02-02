@@ -1,8 +1,9 @@
 module Main where
 
 import System.Environment (getArgs)
+import Text.SourceCode
 import Text.Parser
-    ( parseString, SyntaxError(SyntaxError), textPosition )
+    ( parseString, SyntaxError(SyntaxError) )
 import WACC.Syntax.Parser (program)
 import Data.Foldable (traverse_)
 import Text.AnsiEscape ( gray, red, bold )
@@ -34,22 +35,20 @@ main = do
                     syntaxErrorExit
 
                 Left (Just (SyntaxError pos error')) -> do
-                    let (row, col) = textPosition raw pos
-                        ls = lines raw ++ [""]
-                        distance = 2
-                        upperLines = take (min distance row) $ drop (row - distance) ls
-                        lowerLines = take distance $ drop (row + 1) ls
 
                     putStrLn ""
-                    (putStrLn . gray) `traverse_` upperLines
-                    putStrLn $ ls !! row
-                    putStrLn $ red (replicate col ' ' ++ "^")
-                    (putStrLn . gray) `traverse_` lowerLines
+
+                    putStrLn `traverse_`
+                        underlineTextSection pos (pos+1) (2, '^', red) raw
+
                     putStrLn ""
+
+                    let (row, col) = textPosition raw pos
                     putStrLn $ 
-                        red "[Syntax Error] " ++
+                        red "[Syntax] " ++
                         bold (show (row + 1) ++ ":" ++ show (col + 1)) ++ " " ++
                         show error'
+                    
                     putStrLn ""
 
                     syntaxErrorExit
