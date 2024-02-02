@@ -8,7 +8,7 @@ import Data.List ((\\))
 import WACC.Syntax.Parser as Parser
 import WACC.Semantics.Error ( WaccSemanticsErrorType(..), OperandDirection (OperandLeft, OperandRight) )
 import WACC.Semantics.Structure
-    ( Expression(..), Type(..), Statement(Declare), Function, Program, ComparisonType (..) )
+    ( Expression(..), Type(..), Statement(Declare, Assign), Function, Program, ComparisonType (..) )
 import WACC.Syntax.Validation (expressionRange)
 import Data.Functor ((<&>), void)
 
@@ -299,17 +299,26 @@ instance CheckSemantics Syntax.Statement Statement where
                             IncompatibleAssignment declaredType computedType]
 
             Left x -> Left x
+        
+        Syntax.Assign (left, right) range -> do
+            ((leftType, left'), (rightType, right')) <-
+                merge (,) (check state left) (check state right)
+
+            if leftType <| rightType then 
+                Right (Assign left' right')
+            else
+                Left [SemanticError (expressionRange right) $
+                        IncompatibleAssignment leftType rightType]
 
         _ -> undefined
 
 instance CheckSemantics [Syntax.Statement] [Statement] where
     check state = \case
-        (s@(Syntax.Declare (fromSyntaxType -> declaredType, name, _) _):ss) -> do
-            let state' = addIdentifier name declaredType state
+        (s@(Syntax.Declare (fromSyntaxType -> declaredType, name, _) _):ss) ->
+            let state' = addIdentifier name declaredType state in
             merge (:) (check state s) (check state' ss)
 
-        (s@(Syntax.Assign {}):ss) ->
-            merge (:) (check state s) (check state ss)
+        (s@(Syntax.Assign {}):ss) -> merge (:) (check state s) (check state ss)
 
         (Syntax.Skip {}:ss) -> check state ss
 
