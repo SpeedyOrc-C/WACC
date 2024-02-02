@@ -82,6 +82,11 @@ library wacc25-lib
 executable wacc25
     hs-source-dirs: app
     main-is: Main.hs
+
+    default-extensions:
+        LambdaCase,
+        ViewPatterns,
+        FunctionalDependencies
     
     build-depends:
         wacc25-lib,
@@ -94,6 +99,11 @@ executable wacc25
 test-suite wacc25-test
     hs-source-dirs: test
     main-is: Main.hs
+
+    default-extensions:
+        LambdaCase,
+        ViewPatterns,
+        FunctionalDependencies
 
     build-depends:
         wacc25-lib,

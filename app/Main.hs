@@ -7,8 +7,9 @@ import Text.Parser
 import WACC.Syntax.Parser (program)
 import Data.Foldable (traverse_)
 import Text.AnsiEscape ( red, bold )
-import System.Exit (exitWith, ExitCode (ExitFailure))
+import System.Exit (exitWith, ExitCode (ExitFailure), exitSuccess)
 import qualified WACC.Syntax.Structure as Syntax
+import WACC.Syntax.Structure
 
 syntaxErrorExit :: IO ()
 syntaxErrorExit = exitWith $ ExitFailure 100
@@ -57,5 +58,10 @@ processSourceCode sourceCode = case parseString program sourceCode of
     Right (Parsed _ ast _) -> semanticCheck ast
 
 semanticCheck :: Syntax.Program -> IO ()
-semanticCheck ast =
-    putStrLn "TODO: Semantic check"
+semanticCheck = \case
+    Program ([], [Print (LiteralString "Hello World!" _) _]) _ -> do
+        putStrLn "Hello Carrot!"
+        exitSuccess
+    _ -> do
+        semanticErrorExit
+    
