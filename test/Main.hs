@@ -12,6 +12,7 @@ import WACC.Syntax.Parser ( program )
 import Control.Monad ( filterM )
 import Text.AnsiEscape ( red, orange, green, gray )
 import Text.SourceCode (textPosition)
+import Test.WACC.Syntax (syntaxTests)
 
 getDirectoryContents' :: FilePath -> IO [FilePath]
 getDirectoryContents' path =
@@ -94,6 +95,7 @@ main :: IO ()
 main = do
     resultSyntaxError <- testSyntaxError
     resultNoSyntaxError <- testNoSyntaxError
+    resultSyntax <- syntaxTests
 
-    let succeed = resultSyntaxError && resultNoSyntaxError
+    let succeed = resultSyntaxError && resultNoSyntaxError && and resultSyntax
     if succeed then exitSuccess else exitFailure
