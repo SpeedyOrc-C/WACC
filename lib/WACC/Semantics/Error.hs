@@ -15,6 +15,14 @@ data WaccSemanticsErrorType
     | IncompatibleAssignment Type Type
     | RedefinedFunction String
 
+    | InvalidRead Type
+    | InvalidFree Type
+    | InvalidReturn Type
+    | ReturnInMain
+
+    | InvalidIfCondition Type
+    | InvalidWhileCondition Type
+
     | InvalidArray Type
     | InvalidIndex Type
     | InvalidPair Type

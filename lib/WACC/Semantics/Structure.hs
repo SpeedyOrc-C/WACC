@@ -20,8 +20,8 @@ data Statement
     | Free Expression
     | Return Expression
     | Exit Expression
-    | Print Expression
-    | PrintLine Expression
+    | Print Type Expression
+    | PrintLine Type Expression
     | If Expression [Statement] [Statement]
     | While Expression [Statement]
     | Scope [Statement]

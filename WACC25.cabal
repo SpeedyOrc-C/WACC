@@ -60,6 +60,7 @@ library wacc25-lib
         WACC.Syntax.Error,
         WACC.Syntax.Validation,
         WACC.Semantics.Checker,
+        WACC.Semantics.Utils,
         WACC.Semantics.Structure,
         WACC.Semantics.Error,
         Text.AnsiEscape,

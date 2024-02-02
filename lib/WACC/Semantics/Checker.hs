@@ -1,72 +1,22 @@
 module WACC.Semantics.Checker where
 
 import Prelude hiding (error)
-import Text.Parser (Range, parseString, Parsed (Parsed))
+import Text.Parser (parseString, Parsed (Parsed))
 import qualified WACC.Syntax.Structure as Syntax
 import qualified Data.Map as M
-import Data.List ((\\))
 import WACC.Syntax.Parser as Parser
-import WACC.Semantics.Error ( WaccSemanticsErrorType(..), OperandDirection (OperandLeft, OperandRight) )
+import WACC.Semantics.Error
+    ( WaccSemanticsErrorType(..), OperandDirection (..) )
 import WACC.Semantics.Structure
-    ( Expression(..), Type(..), Statement(Declare, Assign), Function, Program, ComparisonType (..) )
+    ( Expression(..), Type(..), Statement(..), Function, Program, ComparisonType (..) )
 import WACC.Syntax.Validation (expressionRange)
-import Data.Functor ((<&>), void)
-
-goDeeper :: CheckerState -> CheckerState
-goDeeper state = state { mappingStack = M.empty : mappingStack state }
-
-addIdentifier :: String -> Type -> CheckerState -> CheckerState
-addIdentifier name t state = state {
-    mappingStack =
-        M.insert name t (head (mappingStack state)) :
-        tail (mappingStack state)
-}
-
-lookUp :: CheckerState -> String -> Maybe Type
-lookUp state name = case mappingStack state of
-    [] -> Nothing
-    mapping : rest -> case M.lookup name mapping of
-        Just t -> Just t
-        Nothing -> lookUp (state {mappingStack = rest}) name
-
-lookUpInnermost :: CheckerState -> String -> Maybe Type
-lookUpInnermost state =
-    lookUp $ state { mappingStack = [head (mappingStack state)] }
-
-data SemanticError = SemanticError Range WaccSemanticsErrorType deriving Show
-data CheckerState = CheckerState {
-    -- Is it inside a function? If so, what type does this function returns?
-    functionContext :: Maybe Type,
-    -- All functions' types of parameters and return value
-    functionMapping :: String `M.Map` ([Type], Type),
-    -- All variables' types
-    mappingStack :: [String `M.Map` Type]
-}
-
--- | Can the right type take the place of the left type?
-(<|) :: Type -> Type -> Bool
-Any <| _ = True
-_ <| Any = True
-String <| Array Char = True
-String <| Array Any = True
-Array a <| Array b = a <| b
-Pair (a, b) <| Pair (c, d) = a <| c && b <| d
-a <| b = a == b
-
-fromSyntaxType :: Syntax.Type -> Type
-fromSyntaxType = \case
-    Syntax.Int {} -> Int
-    Syntax.Bool {} -> Bool
-    Syntax.Char {} -> Char
-    Syntax.String {} -> String
-    Syntax.Array t _ -> Array (fromSyntaxType t)
-    Syntax.Pair Nothing _ -> Pair (Any, Any)
-    Syntax.Pair (Just (a, b)) _ -> Pair (fromSyntaxType a, fromSyntaxType b)
+import Data.Functor (void)
+import WACC.Semantics.Utils
 
 -- | Debug use
 db input =
     check (CheckerState {
-        functionContext = Nothing,
+        functionContext = Just Char,
         functionMapping = M.fromList [
             ("f", ([Int, Char, String], Bool))
         ],
@@ -82,32 +32,6 @@ db input =
     where
     Right (Parsed _ e _) = parseString Parser.statements input
 
--- | Given that two types are compatible with each other,
---   find the common type between two types. This can find the type of an array.
-common :: Type -> Type -> Type
-common Any t = t
-common t Any = t
-
-common String (Array Char) = String
-common (Array Char) String = String
-
-common (Array Any) String = String
-common String (Array Any) = String
-
-common (Array a) (Array b) = Array (common a b)
-common (Pair (a, b)) (Pair (c, d)) = Pair (common a c, common b d)
-
-common a b = if a == b then a else undefined
-
-merge :: (a -> b -> c) -> Either [x] a -> Either [x] b -> Either [x] c
-merge _ (Left errors1) (Left errors2) = Left $ errors1 ++ errors2
-merge _ (Right {}) (Left errors) = Left errors
-merge _ (Left errors) (Right {}) = Left errors
-merge f (Right result1) (Right results2) = Right $ result1 `f` results2
-
-mergeMany :: Foldable t => t (Either [x] a) -> Either [x] [a]
-mergeMany xs = reverse <$> foldl (merge (flip (:))) (Right []) xs
-
 class CheckSemantics syntaxTree result
     | syntaxTree -> result, result -> syntaxTree where
     {- |
@@ -115,27 +39,27 @@ class CheckSemantics syntaxTree result
     return the new bindings and the tree passed the semantic check,
     Or some errors if the semantic check failed.
     -}
-    check :: CheckerState -> syntaxTree -> Either [SemanticError] result
+    check :: CheckerState -> syntaxTree -> CheckerResult result
 
 instance CheckSemantics Syntax.Expression (Type, Expression) where
     check state = \case
-        Syntax.LiteralInt x _ -> Right (Int, LiteralInt x)
-        Syntax.LiteralBool x _ -> Right (Bool, LiteralBool x)
-        Syntax.LiteralChar x _ -> Right (Char, LiteralChar x)
-        Syntax.LiteralString x _ -> Right (String, LiteralString x)
-        Syntax.LiteralPairNull {} -> Right (Pair (Any, Any), LiteralPairNull)
+        Syntax.LiteralInt x _ -> Ok (Int, LiteralInt x)
+        Syntax.LiteralBool x _ -> Ok (Bool, LiteralBool x)
+        Syntax.LiteralChar x _ -> Ok (Char, LiteralChar x)
+        Syntax.LiteralString x _ -> Ok (String, LiteralString x)
+        Syntax.LiteralPairNull {} -> Ok (Pair (Any, Any), LiteralPairNull)
 
         Syntax.Identifier name range ->
             case lookUp state name of
-                Just t -> Right (t, Identifier name)
-                Nothing -> Left [SemanticError range (UndefinedIdentifier name)]
+                Just t -> Ok (t, Identifier name)
+                Nothing -> Bad [SemanticError range (UndefinedIdentifier name)]
 
         Syntax.LiteralArray array _ -> do
             typesAndExpressions <- check state `mapM` array
 
             case zip (fst <$> typesAndExpressions) (expressionRange <$> array) of
 
-                [] -> Right (Array Any, LiteralArray Any [])
+                [] -> Ok (Array Any, LiteralArray Any [])
 
                 (firstType, _):restTypesAndRanges ->
                     getCommonTypes firstType restTypesAndRanges
@@ -143,48 +67,48 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                     getCommonTypes commonType ((t, range):rest) =
                         if t <| commonType || commonType <| t
                         then getCommonTypes (common commonType t) rest
-                        else Left [SemanticError range $
+                        else Bad [SemanticError range $
                                     InconsistentTypesInArray commonType t]
 
-                    getCommonTypes commonType [] = Right
+                    getCommonTypes commonType [] = Ok
                         (Array commonType, LiteralArray commonType expressions)
                         where expressions = snd <$> typesAndExpressions
 
         Syntax.ArrayElement (array, index) _ -> do
             ((arrayType, array'), (indexType, index')) <-
-                merge (,) (check state array) (check state index)
+                (,) <$> check state array <*> check state index
 
             if Int <| indexType then case arrayType of
                 Array arrayElementType ->
-                    Right (arrayElementType, ArrayElement array' index')
+                    Ok (arrayElementType, ArrayElement array' index')
 
-                _ -> Left [SemanticError (expressionRange array) $
+                _ -> Bad [SemanticError (expressionRange array) $
                             InvalidArray arrayType]
             else
-                Left [SemanticError (expressionRange index) $
+                Bad [SemanticError (expressionRange index) $
                         InvalidIndex indexType]
 
         Syntax.LiteralPair (left, right) _ -> do
-            ((leftType, left'), (rightType, right')) <- merge (,)
-                (check state left) (check state right)
+            ((leftType, left'), (rightType, right')) <-
+                (,) <$> check state left <*> check state right
 
-            Right (Pair (leftType, rightType),
+            Ok (Pair (leftType, rightType),
                     LiteralPair (leftType, rightType) (left', right'))
 
         Syntax.PairFirst pair _ -> do
             (pairType, pair') <- check state pair
 
             case pairType of
-                Pair (leftType, _) -> Right (leftType, PairFirst pair')
-                _ -> Left [SemanticError (expressionRange pair) $
+                Pair (leftType, _) -> Ok (leftType, PairFirst pair')
+                _ -> Bad [SemanticError (expressionRange pair) $
                             InvalidPair pairType]
 
         Syntax.PairSecond pair _ -> do
             (pairType, pair') <- check state pair
 
             case pairType of
-                Pair (_, rightType) -> Right (rightType, PairSecond pair')
-                _ -> Left [SemanticError (expressionRange pair) $
+                Pair (_, rightType) -> Ok (rightType, PairSecond pair')
+                _ -> Bad [SemanticError (expressionRange pair) $
                             InvalidPair pairType]
 
         Syntax.Less xy _ -> checkComparison xy Less
@@ -212,119 +136,178 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
 
         Syntax.FunctionCall (name, arguments) range -> do
             case M.lookup name (functionMapping state) of
-                Nothing -> Left [SemanticError range $ UndefinedFunction name]
+                Nothing -> Bad [SemanticError range $ UndefinedFunction name]
                 Just (parametersTypes, returnType) -> do
                     (unzip -> (types, arguments')) <- mergeMany $
                         check state <$> arguments
 
                     let parameterChecker expectedType (range', actualType) =
                             if expectedType <| actualType
-                            then Right expectedType
-                            else Left [SemanticError range' $
+                            then Ok expectedType
+                            else Bad [SemanticError range' $
                                         IncompatibleAssignment expectedType actualType]
 
                     void $ mergeMany $ zipWith parameterChecker
                         parametersTypes
                         (zip (expressionRange <$> arguments) types)
 
-                    Right (returnType, FunctionCall name arguments')
+                    Ok (returnType, FunctionCall name arguments')
         where
 
         checkLogical (left, right) constructor = do
             ((leftType, left'), (rightType, right')) <-
-                merge (,) (check state left) (check state right)
+                (,) <$> check state left <*> check state right
 
             case leftType of
                 Bool -> case rightType of
-                    Bool -> Right (Bool, constructor left' right')
-                    _ -> Left [SemanticError (expressionRange right) $
+                    Bool -> Ok (Bool, constructor left' right')
+                    _ -> Bad [SemanticError (expressionRange right) $
                                 InvalidLogical OperandRight rightType]
-                _ -> Left [SemanticError (expressionRange left) $
+                _ -> Bad [SemanticError (expressionRange left) $
                             InvalidLogical OperandLeft leftType]
 
         checkUnary expr range (inputType, outputType) (constructor, error) = do
             (exprType, e') <- check state expr
             if inputType <| exprType
-                then Right (outputType, constructor e')
-                else Left [SemanticError range $ error exprType]
+                then Ok (outputType, constructor e')
+                else Bad [SemanticError range $ error exprType]
 
         checkArithmetic (left, right) constructor = do
             ((leftType, left'), (rightType, right')) <-
-                merge (,) (check state left) (check state right)
+                (,) <$> check state left <*> check state right
 
             case leftType of
                 Int -> case rightType of
-                    Int -> Right (Int, constructor left' right')
-                    _ -> Left [SemanticError (expressionRange right) $
+                    Int -> Ok (Int, constructor left' right')
+                    _ -> Bad [SemanticError (expressionRange right) $
                                 InvalidArithmetic OperandLeft rightType]
-                _ -> Left [SemanticError (expressionRange left) $
+                _ -> Bad [SemanticError (expressionRange left) $
                             InvalidArithmetic OperandRight leftType]
 
         checkComparison (left, right) constructor = do
             ((leftType, left'), (rightType, right')) <-
-                merge (,) (check state left) (check state right)
+                (,) <$> check state left <*> check state right
 
             case leftType of
                 Int -> case rightType of
-                    Int -> Right (Bool, constructor CompareInt left' right')
-                    _ -> Left [SemanticError (expressionRange right) $
+                    Int -> Ok (Bool, constructor CompareInt left' right')
+                    _ -> Bad [SemanticError (expressionRange right) $
                                 InvalidComparisonRight CompareInt rightType]
                 Char -> case rightType of
-                    Char -> Right (Bool, constructor CompareChar left' right')
-                    _ -> Left [SemanticError (expressionRange right) $
+                    Char -> Ok (Bool, constructor CompareChar left' right')
+                    _ -> Bad [SemanticError (expressionRange right) $
                                 InvalidComparisonRight CompareChar rightType]
-                _ -> Left [SemanticError (expressionRange left) $
+                _ -> Bad [SemanticError (expressionRange left) $
                             InvalidComparisonLeft leftType]
 
         checkEquality (left, right) range constructor = do
             ((leftType, left'), (rightType, right')) <-
-                merge (,) (check state left) (check state right)
+                (,) <$> check state left <*> check state right
 
             if leftType == rightType then
-                Right (Bool, constructor leftType left' right')
+                Ok (Bool, constructor leftType left' right')
             else
-                Left [SemanticError range $ InvalidEquality leftType rightType]
+                Bad [SemanticError range $ InvalidEquality leftType rightType]
 
 instance CheckSemantics Syntax.Statement Statement where
     check state = \case
         Syntax.Declare (fromSyntaxType -> declaredType, name, value) range
             -> case check state value of
-            Right (computedType, newValue) ->
+            Ok (computedType, newValue) ->
                 if declaredType <| computedType then
                     case lookUpInnermost state name of
-                        Nothing -> Right (Declare declaredType name newValue)
-                        Just {} -> Left [SemanticError range $ RedefinedIdentifier name]
+                        Nothing -> Ok (Declare declaredType name newValue)
+                        Just {} -> Bad [SemanticError range $ RedefinedIdentifier name]
                 else
-                    Left [SemanticError range $
+                    Bad [SemanticError range $
                             IncompatibleAssignment declaredType computedType]
 
-            Left x -> Left x
-        
+            Bad x -> Bad x
+
         Syntax.Assign (left, right) range -> do
             ((leftType, left'), (rightType, right')) <-
-                merge (,) (check state left) (check state right)
+                (,) <$> check state left <*> check state right
 
-            if leftType <| rightType then 
-                Right (Assign left' right')
+            if leftType <| rightType then
+                Ok (Assign left' right')
             else
-                Left [SemanticError (expressionRange right) $
+                Bad [SemanticError (expressionRange right) $
                         IncompatibleAssignment leftType rightType]
 
-        _ -> undefined
+        Syntax.Read destination range -> do
+            (destinationType, destination') <- check state destination
+            if Int <| destinationType || Char <| destinationType
+                then Ok (Read destination')
+                else Bad [SemanticError range $ InvalidRead destinationType]
+
+        Syntax.Free address range -> do
+            (addressType, address') <- check state address
+            if Array Any <| addressType || Pair (Any, Any) <| addressType
+                then Ok (Free address')
+                else Bad [SemanticError range $ InvalidFree addressType]
+
+        Syntax.Return value range -> do
+            (valueType, value') <- check state value
+            case functionContext state of
+                Just expectedType ->
+                    if expectedType <| valueType
+                        then Ok (Return value')
+                        else Bad [SemanticError (expressionRange value) $
+                                    InvalidReturn valueType]
+                Nothing -> Bad [SemanticError range $ ReturnInMain]
+
+        Syntax.Exit number range -> do
+            (numberType, number') <- check state number
+            if Int <| numberType
+                then Ok (Exit number')
+                else Bad [SemanticError range $ InvalidReturn numberType]
+
+        Syntax.Print value _ -> do
+            (valueType, value') <- check state value
+            Ok (Print valueType value')
+
+        Syntax.PrintLine value _ -> do
+            (valueType, value') <- check state value
+            Ok (PrintLine valueType value')
+
+        Syntax.If (condition, thenBranch, elseBranch) _ -> do
+            ((conditionType, condition'), thenBranch', elseBranch') <- (,,)
+                <$> check state condition
+                <*> check (goDeeper state) thenBranch
+                <*> check (goDeeper state) elseBranch
+            
+            if Bool <| conditionType
+                then Ok (If condition' thenBranch' elseBranch')
+                else Bad [SemanticError (expressionRange condition) $
+                            InvalidIfCondition conditionType]
+        
+        Syntax.While (condition, body) _ -> do
+            ((conditionType, condition'), body') <- (,)
+                <$> check state condition
+                <*> check (goDeeper state) body
+            
+            if Bool <| conditionType
+                then Ok (While condition' body')
+                else Bad [SemanticError (expressionRange condition) $
+                            InvalidWhileCondition conditionType]
+        
+        Syntax.Skip {} -> undefined
+
+        Syntax.Scope statements _ -> do
+            statements' <- check (goDeeper state) statements
+            Ok (Scope statements')
 
 instance CheckSemantics [Syntax.Statement] [Statement] where
     check state = \case
-        (s@(Syntax.Declare (fromSyntaxType -> declaredType, name, _) _):ss) ->
-            let state' = addIdentifier name declaredType state in
-            merge (:) (check state s) (check state' ss)
-
-        (s@(Syntax.Assign {}):ss) -> merge (:) (check state s) (check state ss)
+        [] -> Ok []
 
         (Syntax.Skip {}:ss) -> check state ss
 
-        [] -> Right []
+        (s@(Syntax.Declare (fromSyntaxType -> declaredType, name, _) _):ss) ->
+            let state' = addIdentifier name declaredType state in
+            (:) <$> check state s <*> check state' ss
 
-        _ -> undefined
+        (s : ss) -> (:) <$> check state s <*> check state ss
 
 instance CheckSemantics Syntax.Function Function where
     check state (Syntax.Function (fromSyntaxType -> returnType, name, parameters, body) _) = do
@@ -348,8 +331,7 @@ instance CheckSemantics Syntax.Program Program where
             | Syntax.Function (returnType, name, unzip -> (parametersTypes, _), _) _
             <- functions]
 
-
 checkProgram
     :: CheckSemantics syntaxTree result
-    => syntaxTree -> Either [SemanticError] result
+    => syntaxTree -> CheckerResult result
 checkProgram = check $ CheckerState undefined undefined undefined
