@@ -23,10 +23,9 @@ addIdentifier name t state = state {
 lookUp :: CheckerState -> String -> Maybe Type
 lookUp state name = case mappingStack state of
     [] -> Nothing
-    mapping:rest ->
-        case M.lookup name mapping of
-            Just t -> Just t
-            Nothing -> lookUp (state {mappingStack = rest}) name
+    mapping : rest -> case M.lookup name mapping of
+        Just t -> Just t
+        Nothing -> lookUp (state {mappingStack = rest}) name
 
 lookUpInnermost :: CheckerState -> String -> Maybe Type
 lookUpInnermost state =
@@ -163,39 +162,34 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                     where
                     getCommonTypes commonType ((t, range):rest) =
                         if t <| commonType || commonType <| t
-                            then getCommonTypes (common commonType t) rest
-                            else Left [SemanticError range $
-                                       InconsistentTypesInArray commonType t]
+                        then getCommonTypes (common commonType t) rest
+                        else Left [SemanticError range $
+                                    InconsistentTypesInArray commonType t]
+
                     getCommonTypes commonType [] = Right
                         (Array commonType, LiteralArray commonType expressions)
                         where expressions = snd <$> typesAndExpressions
 
-        Syntax.ArrayElement (array, index) _ ->
-            case merge (,)
-                (check state array) (check state index) of
-                Left x -> Left x
+        Syntax.ArrayElement (array, index) _ -> do
+            ((arrayType, array'), (indexType, index')) <-
+                merge (,) (check state array) (check state index)
 
-                Right ((arrayType, array'), (indexType, index')) ->
-                    if Int <| indexType
+            if Int <| indexType then case arrayType of
+                Array arrayElementType ->
+                    Right (arrayElementType, ArrayElement array' index')
 
-                    then case arrayType of
-                        Array arrayElementType ->
-                            Right (arrayElementType, ArrayElement array' index')
+                _ -> Left [SemanticError (expressionRange array) $
+                            InvalidArray arrayType]
+            else
+                Left [SemanticError (expressionRange index) $
+                        InvalidIndex indexType]
 
-                        _ -> Left [SemanticError (expressionRange array) $
-                                    InvalidArray arrayType]
+        Syntax.LiteralPair (left, right) _ -> do
+            ((leftType, left'), (rightType, right')) <- merge (,)
+                (check state left) (check state right)
 
-                    else Left [SemanticError (expressionRange index) $
-                                InvalidIndex indexType]
-
-        Syntax.LiteralPair (left, right) _ ->
-            case merge (,)
-                (check state left) (check state right) of
-                Left x -> Left x
-
-                Right ((leftType, left'), (rightType, right')) ->
-                    Right (Pair (leftType, rightType),
-                            LiteralPair (leftType, rightType) (left', right'))
+            Right (Pair (leftType, rightType),
+                    LiteralPair (leftType, rightType) (left', right'))
 
         Syntax.PairFirst pair _ -> do
             (pairType, pair') <- check state pair
@@ -221,23 +215,32 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 Right (Bool, Equal leftType left' right')
             else
                 Left [SemanticError range $ InvalidEqual leftType rightType]
+        
+        Syntax.NotEqual (left, right) range -> do
+            ((leftType, left'), (rightType, right')) <-
+                merge (,) (check state left) (check state right)
+            
+            if leftType == rightType then
+                Right (Bool, Equal leftType left' right')
+            else
+                Left [SemanticError range $ InvalidNotEqual leftType rightType]
 
         _ -> undefined
 
 instance CheckSemantics Syntax.Statement Statement where
     check state = \case
-        Syntax.Declare (fromSyntaxType -> declaredType, name, value) range ->
-            case check state value of
-                Right (computedType, newValue) ->
-                    if declaredType <| computedType then
-                        case lookUpInnermost state name of
-                            Nothing -> Right (Declare declaredType name newValue)
-                            Just {} -> Left [SemanticError range $ RedefinedIdentifier name]
-                    else
-                        Left [SemanticError range $
-                                IncompatibleAssignment declaredType computedType]
+        Syntax.Declare (fromSyntaxType -> declaredType, name, value) range
+            -> case check state value of
+            Right (computedType, newValue) ->
+                if declaredType <| computedType then
+                    case lookUpInnermost state name of
+                        Nothing -> Right (Declare declaredType name newValue)
+                        Just {} -> Left [SemanticError range $ RedefinedIdentifier name]
+                else
+                    Left [SemanticError range $
+                            IncompatibleAssignment declaredType computedType]
 
-                Left x -> Left x
+            Left x -> Left x
 
         _ -> undefined
 
@@ -253,6 +256,8 @@ instance CheckSemantics [Syntax.Statement] [Statement] where
         (Syntax.Skip {}:ss) -> check state ss
 
         [] -> Right []
+
+        _ -> undefined
 
 instance CheckSemantics Syntax.Function Function where
     check = undefined
