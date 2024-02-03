@@ -4,7 +4,7 @@ import Prelude hiding (error)
 import Text.Parser (parseString, Parsed (Parsed))
 import qualified WACC.Syntax.Structure as Syntax
 import qualified Data.Map as M
-import WACC.Syntax.Parser as Parser
+import qualified WACC.Syntax.Parser as Parser
 import WACC.Semantics.Error
     ( WaccSemanticsErrorType(..), OperandDirection (..) )
 import WACC.Semantics.Structure
@@ -12,26 +12,11 @@ import WACC.Semantics.Structure
 import WACC.Syntax.Validation (expressionRange)
 import WACC.Semantics.Utils
 import Data.List ((\\))
-import WACC.Syntax.Structure (Name(..))
 
 -- | Debug use
-db input =
-    check (CheckerState {
-        functionContext = Nothing,
-        functionMapping = M.fromList [
-            -- ("f", ([Int, Char, String], Bool))
-        ],
-        mappingStack =
-        [M.fromList [
-            -- ("x", Int), ("y", Int),
-            -- ("c", Char), ("d", Char),
-            -- ("a", Array $ Array Int),
-            -- ("p", Pair (Int, Int))
-        ]]
-    })
-    e
+db input = check (CheckerState undefined undefined undefined) e
     where
-    Right (Parsed _ e _) = parseString Parser.function input
+    Right (Parsed _ e _) = parseString Parser.program input
 
 class CheckSemantics syntaxTree result
     | syntaxTree -> result, result -> syntaxTree where
@@ -329,19 +314,20 @@ findRepetition entries =
 instance CheckSemantics Syntax.Function Function where
     check state (Syntax.Function
                     (fromSyntaxType -> returnType,
-                    Name functionName _,
+                    Syntax.Name functionName _,
                     params,
                     body) _) =
         let
-        paramsWithRange = [(param, (range, fromSyntaxType t))
-                            | (Name param range, t) <- params]
+        paramsWithRange =
+            [(param, (range, fromSyntaxType t))
+            | (Syntax.Name param range, t) <- params]
 
         (maybeParamsRepeated, params') = findRepetition paramsWithRange
 
         parameterCheck = case maybeParamsRepeated of
-            Just paramsRepeated -> Log [SemanticError range $
-                RedefinedParameter nameRepeated
-                | (nameRepeated, (range, _)) <- paramsRepeated]
+            Just paramsRepeated -> Log [
+                SemanticError range $ RedefinedParameter name
+                | (name, (range, _)) <- paramsRepeated]
             Nothing -> Ok ()
 
         paramsMappingLayer = [(param, t) | (param, (_, t)) <- params']
@@ -354,9 +340,34 @@ instance CheckSemantics Syntax.Function Function where
 instance CheckSemantics Syntax.Program Program where
     check state (Syntax.Program (functions, body) _) =
         let
-        
+        functionsWithRange =
+            [(name, (range, paramsType, returnType))
+            | Syntax.Function (
+                fromSyntaxType -> returnType,
+                Syntax.Name name range,
+                map (fromSyntaxType . snd) -> paramsType,
+                _) _ <- functions]
+
+        (maybeFunctionsRepeated, functions') = findRepetition functionsWithRange
+
+        functionCheck = case maybeFunctionsRepeated of
+            Just functionsRepeated -> Log [
+                SemanticError range $ RedefinedFunction name
+                | (name, (range, _, _)) <- functionsRepeated]
+            Nothing -> Ok ()
+
+        state' = state {
+            functionMapping = M.fromList
+                [(name, (paramsType, returnType))
+                | (name, (_, paramsType, returnType)) <- functions']
+        }
+
         in do
-        undefined
+        functionCheck
+        Program
+            <$> ((\fs -> M.fromList [(name, f) | f@(Function _ name _ _) <- fs])
+                <$> mapM (check state') functions)
+            <*> check state' body
 
 checkProgram
     :: CheckSemantics syntaxTree result
