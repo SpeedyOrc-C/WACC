@@ -82,6 +82,7 @@ lookUpInnermost state =
 --
 (<~) :: Type -> Type -> Bool
 Pair(_, _) <~ NullType = True
+Pair(Any, Any) <~ Pair(_, _) = True
 a <~ b = a == b
 
 -- | Can the right type take the place of the left type?
