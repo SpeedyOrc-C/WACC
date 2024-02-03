@@ -34,7 +34,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
         Syntax.LiteralBool x _ -> Ok (Bool, LiteralBool x)
         Syntax.LiteralChar x _ -> Ok (Char, LiteralChar x)
         Syntax.LiteralString x _ -> Ok (String, LiteralString x)
-        Syntax.LiteralPairNull {} -> Ok (Pair (Any, Any), LiteralPairNull)
+        Syntax.LiteralPairNull {} -> Ok (NullType, LiteralPairNull)
 
         -- if left handside is a indentifer which must be in the state
         Syntax.Identifier name range ->
@@ -242,23 +242,32 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
 
 instance CheckSemantics Syntax.Statement Statement where
     check state = \case
+        -- firstly use fromSyntaxType to the type of the declare
         Syntax.Declare (fromSyntaxType -> declaredType, name, value) range
             -> case check state value of
+            -- type of the right hand side value
             Ok (computedType, newValue) ->
+                -- if the type at the right hand side can be compatible to the left
+                -- hand side, then it is fine else return error
                 if declaredType <| computedType then
+                    -- the name of the identifier must not appear in the inner most layer
+                    -- of the stack of variable tables
                     case lookUpInnermost state name of
                         Nothing -> Ok (Declare declaredType name newValue)
                         Just {} -> Log [SemanticError range $ RedefinedIdentifier name]
                 else
                     Log [SemanticError range $
                             IncompatibleAssignment declaredType computedType]
-                            
+
             Log x -> Log x
 
         Syntax.Assign (left, right) range -> do
+            -- get the left type and right type from the check expression function
             ((leftType, left'), (rightType, right')) <-
                 (,) <$> check state left <*> check state right
-
+            -- the identifier will be checked in the check function of the expression,
+            -- which will be found in the stack of variable tables
+            -- then left type must be compatible with right type
             if leftType <| rightType then
                 Ok (Assign left' right')
             else
@@ -266,19 +275,25 @@ instance CheckSemantics Syntax.Statement Statement where
                         IncompatibleAssignment leftType rightType]
 
         Syntax.Read destination range -> do
+            -- get the destination type from check
             (destinationType, destination') <- check state destination
+            -- it must be compatible by either Int or Char
             if Int <| destinationType || Char <| destinationType
                 then Ok (Read destination')
                 else Log [SemanticError range $ InvalidRead destinationType]
 
         Syntax.Free address range -> do
             (addressType, address') <- check state address
-            if Array Any <| addressType || Pair (Any, Any) <| addressType
+            -- only arrays or pairs can be freed
+            if isArray addressType || isPair addressType
                 then Ok (Free address')
                 else Log [SemanticError range $ InvalidFree addressType]
 
         Syntax.Return value range -> do
+            -- get the type of the return value
             (valueType, value') <- check state value
+            -- if the expected return type of the function is compatible 
+            -- by the return value type
             case functionContext state of
                 Just expectedType ->
                     if expectedType <| valueType
@@ -289,6 +304,7 @@ instance CheckSemantics Syntax.Statement Statement where
 
         Syntax.Exit number range -> do
             (numberType, number') <- check state number
+            -- exit + a number
             if Int <| numberType
                 then Ok (Exit number')
                 else Log [SemanticError range $ InvalidReturn numberType]
@@ -303,10 +319,14 @@ instance CheckSemantics Syntax.Statement Statement where
 
         Syntax.If (condition, thenBranch, elseBranch) _ -> do
             ((conditionType, condition'), thenBranch', elseBranch') <- (,,)
+                -- get the type of the condition
                 <$> check state condition
+                -- then and else branches is one deeper scope
+                -- get second AST type of all statements in then branch
                 <*> check (goDeeper state) thenBranch
+                -- get second AST type of all statements in else branch
                 <*> check (goDeeper state) elseBranch
-
+            -- condition type must be compatible of bool
             if Bool <| conditionType
                 then Ok (If condition' thenBranch' elseBranch')
                 else Log [SemanticError (expressionRange condition) $
@@ -314,33 +334,43 @@ instance CheckSemantics Syntax.Statement Statement where
 
         Syntax.While (condition, body) _ -> do
             ((conditionType, condition'), body') <- (,)
+                -- get the second type of condition
                 <$> check state condition
+                -- while scope should be one deeper scope
+                -- get the second type of body
                 <*> check (goDeeper state) body
-
+            -- condition type must be compatible by bool
             if Bool <| conditionType
                 then Ok (While condition' body')
                 else Log [SemanticError (expressionRange condition) $
                             InvalidWhileCondition conditionType]
-
+        
+        -- shouldn't be reached
         Syntax.Skip {} -> undefined
 
         Syntax.Scope statements _ -> do
+            -- check all the statements in a deeper scope
             statements' <- check (goDeeper state) statements
             Ok (Scope statements')
 
 instance CheckSemantics [Syntax.Statement] [Statement] where
+    -- check for statements
     check state = \case
         [] -> Ok []
 
+        -- if it is `skip`, the `skip` statement will be skiped
         (Syntax.Skip {}:ss) -> check state ss
 
+        -- if it is a declare, then add the indentifer with the type which get from
+        -- using the check function to the current scope
         (s@(Syntax.Declare (fromSyntaxType -> declaredType, name, _) _):ss) ->
             let state' = addIdentifier name declaredType state in
             (:) <$> check state s <*> check state' ss
 
         (s : ss) -> (:) <$> check state s <*> check state ss
 
--- | If no repetition found, which is good, nothing happens.
+-- | Try to find repetition in a map.
+--   If no repetition found, which is good, nothing happens.
 --   Otherwise returns the repeated entries.
 findRepetition :: (Ord k, Eq a) => [(k, a)] -> (Maybe [(k, a)], [(k, a)])
 findRepetition entries =
@@ -351,28 +381,38 @@ findRepetition entries =
     entriesNoRepeat = M.toList (M.fromList entries)
 
 instance CheckSemantics Syntax.Function Function where
+    -- use fromSyntaxType to let return type get type in second AST form
     check state (Syntax.Function
                     (fromSyntaxType -> returnType,
                     Syntax.Name functionName _,
                     params,
-                    body) _) =
+                    body)
+                _) =
         let
+        -- get the range of each parameter
         paramsWithRange =
             [(param, (range, fromSyntaxType t))
-            | (Syntax.Name param range, t) <- params]
+                | (Syntax.Name param range, t) <- params]
 
+        -- find the repeatation in the parameters
         (maybeParamsRepeated, params') = findRepetition paramsWithRange
 
         parameterCheck = case maybeParamsRepeated of
+            -- if there is repetation in the parameter names
             Just paramsRepeated -> Log [
                 SemanticError range $ RedefinedParameter name
                 | (name, (range, _)) <- paramsRepeated]
             Nothing -> Ok ()
 
+        -- remove the range
         paramsMappingLayer = [(param, t) | (param, (_, t)) <- params']
         in do
+        -- check the repetation in the parameter names
         parameterCheck
+        -- second AST type of functions
         Function returnType functionName paramsMappingLayer
+            -- add two scope the inner one is empty and the second inner one is
+            -- parameter mapping layer which contains the parameters
             <$> check (addMappingLayer paramsMappingLayer $
                         state {functionContext = Just returnType}) body
 
@@ -381,26 +421,28 @@ instance CheckSemantics Syntax.Program Program where
         let
         functionsWithRange =
             [(name, (range, paramsType, returnType))
-            | Syntax.Function (
-                fromSyntaxType -> returnType,
-                Syntax.Name name range,
-                map (fromSyntaxType . snd) -> paramsType,
-                _) _ <- functions]
+                | Syntax.Function (
+                    fromSyntaxType -> returnType,
+                    Syntax.Name name range,
+                    map (fromSyntaxType . snd) -> paramsType,
+                    _) _ <- functions]
 
         (maybeFunctionsRepeated, functions') = findRepetition functionsWithRange
 
+        -- check if function name is unique
         functionCheck = case maybeFunctionsRepeated of
             Just functionsRepeated -> Log [
                 SemanticError range $ RedefinedFunction name
                 | (name, (range, _, _)) <- functionsRepeated]
             Nothing -> Ok ()
-
+        
+        -- put the function mapping in the state
         state' = state {
             functionMapping = M.fromList
                 [(name, (paramsType, returnType))
-                | (name, (_, paramsType, returnType)) <- functions']
+                    | (name, (_, paramsType, returnType)) <- functions']
         }
-
+        
         in do
         functionCheck
         Program
