@@ -5,8 +5,10 @@ import Text.Parser ( Range )
 data Program = Program ([Function], [Statement]) Range
     deriving Show
 
-data Function = Function (Type, String, [(Type, String)], [Statement]) Range
+data Function = Function (Type, Name, [(Name, Type)], [Statement]) Range
     deriving Show
+
+data Name = Name String Range deriving (Show, Eq)
 
 data Statement
     = Skip () Range
@@ -30,7 +32,7 @@ data Type
     | String () Range
     | Array Type Range
     | Pair (Maybe (Type, Type)) Range
-    deriving Show
+    deriving (Show, Eq)
 
 type Unary = Expression
 type Binary = (Expression, Expression)

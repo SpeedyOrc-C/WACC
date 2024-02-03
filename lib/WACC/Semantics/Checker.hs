@@ -8,31 +8,30 @@ import WACC.Syntax.Parser as Parser
 import WACC.Semantics.Error
     ( WaccSemanticsErrorType(..), OperandDirection (..) )
 import WACC.Semantics.Structure
-    ( Expression(..), Type(..), Statement(..), Function, Program, ComparisonType (..) )
+    ( Expression(..), Type(..), Statement(..), Function(..), Program(..), ComparisonType (..) )
 import WACC.Syntax.Validation (expressionRange)
-import Data.Functor (void)
 import WACC.Semantics.Utils
-import Control.Monad (zipWithM_)
-import Data.Foldable (sequenceA_)
+import Data.List ((\\))
+import WACC.Syntax.Structure (Name(..))
 
 -- | Debug use
 db input =
     check (CheckerState {
-        functionContext = Just Char,
+        functionContext = Nothing,
         functionMapping = M.fromList [
-            ("f", ([Int, Char, String], Bool))
+            -- ("f", ([Int, Char, String], Bool))
         ],
         mappingStack =
         [M.fromList [
-            ("x", Int), ("y", Int),
-            ("c", Char), ("d", Char),
-            ("a", Array $ Array Int),
-            ("p", Pair (Int, Int))
+            -- ("x", Int), ("y", Int),
+            -- ("c", Char), ("d", Char),
+            -- ("a", Array $ Array Int),
+            -- ("p", Pair (Int, Int))
         ]]
     })
     e
     where
-    Right (Parsed _ e _) = parseString Parser.statements input
+    Right (Parsed _ e _) = parseString Parser.function input
 
 class CheckSemantics syntaxTree result
     | syntaxTree -> result, result -> syntaxTree where
@@ -152,7 +151,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                         paramsTypes
                         argsTypes
                         (expressionRange <$> args)
-                    
+
                     case compare (length args) (length paramsTypes) of
                         EQ -> Ok (returnType, FunctionCall name args')
                         GT -> Log [SemanticError range $ TooManyArguments
@@ -317,27 +316,47 @@ instance CheckSemantics [Syntax.Statement] [Statement] where
 
         (s : ss) -> (:) <$> check state s <*> check state ss
 
+-- | If no repetition found, which is good, nothing happens.
+--   Otherwise returns the repeated entries.
+findRepetition :: (Ord k, Eq a) => [(k, a)] -> (Maybe [(k, a)], [(k, a)])
+findRepetition entries =
+    if length entries == length entriesNoRepeat
+        then (Nothing, entriesNoRepeat)
+        else (Just (entries \\ entriesNoRepeat), entriesNoRepeat)
+    where
+    entriesNoRepeat = M.toList (M.fromList entries)
+
 instance CheckSemantics Syntax.Function Function where
-    check state (Syntax.Function (fromSyntaxType -> returnType, name, parameters, body) _) = do
-        undefined
-        where
+    check state (Syntax.Function
+                    (fromSyntaxType -> returnType,
+                    Name functionName _,
+                    params,
+                    body) _) =
+        let
+        paramsWithRange = [(param, (range, fromSyntaxType t))
+                            | (Name param range, t) <- params]
+
+        (maybeParamsRepeated, params') = findRepetition paramsWithRange
+
+        parameterCheck = case maybeParamsRepeated of
+            Just paramsRepeated -> Log [SemanticError range $
+                RedefinedParameter nameRepeated
+                | (nameRepeated, (range, _)) <- paramsRepeated]
+            Nothing -> Ok ()
+
+        paramsMappingLayer = [(param, t) | (param, (_, t)) <- params']
+        in do
+        parameterCheck
+        Function returnType functionName paramsMappingLayer
+            <$> check (addMappingLayer paramsMappingLayer $
+                        state {functionContext = Just returnType}) body
 
 instance CheckSemantics Syntax.Program Program where
-    check state (Syntax.Program (functions, body) _) = do
+    check state (Syntax.Program (functions, body) _) =
+        let
+        
+        in do
         undefined
-        where
-
-        stateBody = state' { functionContext = Nothing }
-
-        state' = state {
-            functionMapping = functionMapping',
-            mappingStack = []
-        }
-
-        functionMapping' = M.fromList
-            [(name, (fromSyntaxType <$> parametersTypes, fromSyntaxType returnType))
-            | Syntax.Function (returnType, name, unzip -> (parametersTypes, _), _) _
-            <- functions]
 
 checkProgram
     :: CheckSemantics syntaxTree result

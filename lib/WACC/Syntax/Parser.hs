@@ -442,12 +442,15 @@ statementSep = void $ surroundManyWhites (char ';')
 statements :: WaccParser [Statement]
 statements = statement `separatedBy` statementSep
 
-parameter :: WaccParser (Type, String)
+name :: WaccParser Name
+name = Name ~ identifierString
+
+parameter :: WaccParser (Name, Type)
 parameter = do
     t <- type'
     _ <- some white
-    name <- identifierString
-    return (t, name)
+    p <- name
+    return (p, t)
 
 statementMustNotReturn :: WaccParser Statement
 statementMustNotReturn = statement `that` (not . willReturn)
@@ -459,7 +462,7 @@ function :: WaccParser Function
 function = Function ~ do
     t <- type'
     _ <- some white
-    name <- identifierString
+    name <- name
     _ <- many white
     _ <- char '('
     parameters <- optional $ surroundManyWhites $

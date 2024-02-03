@@ -10,7 +10,7 @@ syntactic and semantic analysis.
 data Program = Program (Map String Function) [Statement]
     deriving Show
 
-data Function = Function Type String [(Type, String)] [Statement]
+data Function = Function Type String [(String, Type)] [Statement]
     deriving Show
 
 data Statement

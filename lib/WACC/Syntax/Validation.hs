@@ -37,7 +37,7 @@ expressionRange expr = case expr of
     FunctionCall _ r -> r
 
 statementRange :: Statement -> Range
-statementRange stmt = case stmt of
+statementRange = \case
     Skip _ r -> r
     Declare _ r -> r
     Assign _ r -> r
@@ -50,6 +50,15 @@ statementRange stmt = case stmt of
     If _ r -> r
     While _ r -> r
     Scope _ r -> r
+
+typeRange :: Type -> Range
+typeRange = \case
+    Int _ r -> r
+    Bool _ r -> r
+    Char _ r -> r
+    String _ r -> r
+    Array _ r -> r
+    Pair _ r -> r
 
 isLeftValue :: Expression -> Bool
 isLeftValue = \case

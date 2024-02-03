@@ -1,4 +1,5 @@
 module WACC.Syntax.Error where
+import WACC.Syntax.Structure (Name (..))
 
 data WaccSyntaxErrorType
     = ExpectOperand String
@@ -35,7 +36,7 @@ data WaccSyntaxErrorType
     | IntegerOverflow Int
     | ExpectProgramBegin
     | ExpectProgramEnd
-    | FunctionDoesNotReturn String
+    | FunctionDoesNotReturn Name
     | UnexpectedCodeAfterProgramEnd
 
 instance Show WaccSyntaxErrorType where
@@ -115,7 +116,7 @@ instance Show WaccSyntaxErrorType where
         "Expect “begin” keyword at the beginning of program"
     show ExpectProgramEnd =
         "Expect “end” keyword at the end of program"
-    show (FunctionDoesNotReturn name) =
+    show (FunctionDoesNotReturn (Name name _)) =
         "There is a path in function “" ++ name ++ "” that does not return"
     show UnexpectedCodeAfterProgramEnd =
         "There is unexpected code after “end” keyword"
