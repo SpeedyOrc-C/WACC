@@ -8,7 +8,6 @@ data WaccSemanticsErrorType
     = UndefinedIdentifier String
     | UndefinedFunction String
     | RedefinedIdentifier String
-    | NotCallable String Type
     | TooManyArguments Int Int
     | TooFewArguments Int Int
     | InconsistentTypesInArray Type Type
@@ -35,12 +34,6 @@ data WaccSemanticsErrorType
     | InvalidLength Type
     | InvalidOrder Type
     | InvalidCharacter Type
-
-    | InvalidMultiply OperandDirection Type
-    | InvalidDivide OperandDirection Type
-    | InvalidRemainder OperandDirection Type
-    | InvalidAdd OperandDirection Type
-    | InvalidSubtract OperandDirection Type
 
     | InvalidArithmetic OperandDirection Type
     | InvalidComparisonLeft Type
