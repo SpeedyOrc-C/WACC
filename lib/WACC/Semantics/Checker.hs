@@ -372,4 +372,4 @@ instance CheckSemantics Syntax.Program Program where
 checkProgram
     :: CheckSemantics syntaxTree result
     => syntaxTree -> LogEither SemanticError result
-checkProgram = check $ CheckerState undefined undefined undefined
+checkProgram = check $ CheckerState Nothing M.empty [M.empty]
