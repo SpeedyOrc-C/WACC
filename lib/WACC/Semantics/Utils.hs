@@ -59,7 +59,7 @@ goDeeper state = state { mappingStack = M.empty : mappingStack state }
 
 addMappingLayer :: [(String, Type)] -> CheckerState -> CheckerState
 addMappingLayer mapping state =
-    state { mappingStack = M.fromList mapping : mappingStack state }
+    goDeeper state { mappingStack = M.fromList mapping : mappingStack state }
 
 addIdentifier :: String -> Type -> CheckerState -> CheckerState
 addIdentifier name t state = state {
@@ -85,9 +85,17 @@ Any <| _ = True
 _ <| Any = True
 String <| Array Char = True
 String <| Array Any = True
-Pair(a, b) <| NullType = True
-Array a <| Array Any = True
+Pair(_, _) <| NullType = True
+Array _ <| Array Any = True
 a <| b = a == b
+
+isArray :: Type -> Bool
+isArray (Array _) = True
+isArray _ = False
+
+isPair :: Type -> Bool
+isPair (Pair(_, _)) = True
+isPair _ = False
 
 fromSyntaxType :: Syntax.Type -> Type
 fromSyntaxType = \case
