@@ -85,8 +85,8 @@ Any <| _ = True
 _ <| Any = True
 String <| Array Char = True
 String <| Array Any = True
-Array a <| Array b = a <| b
-Pair (a, b) <| Pair (c, d) = a <| c && b <| d
+Pair(a, b) <| NullType = True
+Array a <| Array Any = True
 a <| b = a == b
 
 fromSyntaxType :: Syntax.Type -> Type

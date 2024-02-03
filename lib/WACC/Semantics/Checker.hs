@@ -27,6 +27,7 @@ class CheckSemantics syntaxTree result
     -}
     check :: CheckerState -> syntaxTree -> LogEither SemanticError result
 
+-- function to check semantically of each sentances
 instance CheckSemantics Syntax.Expression (Type, Expression) where
     check state = \case
         Syntax.LiteralInt x _ -> Ok (Int, LiteralInt x)
@@ -35,64 +36,80 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
         Syntax.LiteralString x _ -> Ok (String, LiteralString x)
         Syntax.LiteralPairNull {} -> Ok (Pair (Any, Any), LiteralPairNull)
 
+        -- if left handside is a indentifer which must be in the state
         Syntax.Identifier name range ->
             case lookUp state name of
                 Just t -> Ok (t, Identifier name)
                 Nothing -> Log [SemanticError range (UndefinedIdentifier name)]
 
         Syntax.LiteralArray array _ -> do
+            -- check if the elements by themselves in the array are semantically legal
             typesAndExpressions <- check state `mapM` array
 
             case zip (fst <$> typesAndExpressions) (expressionRange <$> array) of
 
                 [] -> Ok (Array Any, LiteralArray Any [])
-
+                -- it is kind of foldl to fold all types to common type
                 (firstType, _):restTypesAndRanges ->
                     getCommonTypes firstType restTypesAndRanges
                     where
                     getCommonTypes commonType ((t, range):rest) =
+                        -- if one of each is compactable with th other, then
+                        -- the type of this array must be the common type of both
                         if t <| commonType || commonType <| t
                         then getCommonTypes (common commonType t) rest
                         else Log [SemanticError range $
                                     InconsistentTypesInArray commonType t]
-
+                    
+                    -- if it is empty then this array is fine
                     getCommonTypes commonType [] = Ok
                         (Array commonType, LiteralArray commonType expressions)
                         where expressions = snd <$> typesAndExpressions
 
+        -- the case of array[index]
         Syntax.ArrayElement (array, index) _ -> do
+            -- get the type of array and index from state
             ((arrayType, array'), (indexType, index')) <-
                 (,) <$> check state array <*> check state index
 
+            -- if the index type is compatible of Int type (which is the only 
+            -- type in the wacc that can be index type then check if the array type
+            -- is a type of Array)
             if Int <| indexType then case arrayType of
                 Array arrayElementType ->
                     Ok (arrayElementType, ArrayElement array' index')
-
+                -- if the array is not a type of array then report error
                 _ -> Log [SemanticError (expressionRange array) $
                             InvalidArray arrayType]
             else
+                -- if index type is not compatible to int
                 Log [SemanticError (expressionRange index) $
                         InvalidIndex indexType]
 
+        -- case of newpair
         Syntax.LiteralPair (left, right) _ -> do
+            -- using check to get the type of left and right
             ((leftType, left'), (rightType, right')) <-
                 (,) <$> check state left <*> check state right
 
             Ok (Pair (leftType, rightType),
                     LiteralPair (leftType, rightType) (left', right'))
 
+        -- get the first element of a pair
         Syntax.PairFirst pair _ -> do
             (pairType, pair') <- check state pair
 
             case pairType of
+                -- the indentifer must be of pair type to allow using fst
                 Pair (leftType, _) -> Ok (leftType, PairFirst pair')
                 _ -> Log [SemanticError (expressionRange pair) $
                             InvalidPair pairType]
-
+        -- get the second element of a pair
         Syntax.PairSecond pair _ -> do
             (pairType, pair') <- check state pair
 
             case pairType of
+                -- the indentifer must be of pair type to allow using snd
                 Pair (_, rightType) -> Ok (rightType, PairSecond pair')
                 _ -> Log [SemanticError (expressionRange pair) $
                             InvalidPair pairType]
@@ -121,22 +138,30 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
         Syntax.Or xy _ -> checkLogical xy Or
 
         Syntax.FunctionCall (name, args) range -> do
+            -- firstly check if the function appears in the function mapping, 
+            -- which contains all functions name in the current program
             case M.lookup name (functionMapping state) of
                 Nothing -> Log [SemanticError range $ UndefinedFunction name]
                 Just (paramsTypes, returnType) -> do
+                    -- get the type of each arguments
                     (unzip -> (argsTypes, args')) <- check state `traverse` args
 
+                    -- check if the argument type being compatible of the parameter
+                    -- type
                     let checkParamsArgsTypes paramType argType range' =
                             if paramType <| argType
                             then Ok paramType
                             else Log [SemanticError range' $
                                         IncompatibleArgument paramType argType]
 
+                    -- using the checkParamsArgTypes to check if the type of each
+                    -- arguments is compatible to the type of the coresponding parameter
                     sequence_ $ zipWith3 checkParamsArgsTypes
                         paramsTypes
                         argsTypes
                         (expressionRange <$> args)
 
+                    -- check if the number of parameters the same as the arguments number
                     case compare (length args) (length paramsTypes) of
                         EQ -> Ok (returnType, FunctionCall name args')
                         GT -> Log [SemanticError range $ TooManyArguments
@@ -145,11 +170,12 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                                     (length paramsTypes) (length args)]
 
         where
-
         checkLogical (left, right) constructor = do
+            -- using check get the type of the left and right
             ((leftType, left'), (rightType, right')) <-
                 (,) <$> check state left <*> check state right
 
+            -- the left type and right type must be Bool type
             case leftType of
                 Bool -> case rightType of
                     Bool -> Ok (Bool, constructor left' right')
@@ -158,16 +184,22 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 _ -> Log [SemanticError (expressionRange left) $
                             InvalidLogical OperandLeft leftType]
 
+        -- chekc the unary operator
         checkUnary expr range (inputType, outputType) (constructor, error) = do
+            -- using check to get the type of expr
             (exprType, e') <- check state expr
+            -- the expr type must be compatible with the input type
             if inputType <| exprType
                 then Ok (outputType, constructor e')
                 else Log [SemanticError range $ error exprType]
 
         checkArithmetic (left, right) constructor = do
+            -- using check to get the type of left and right
             ((leftType, left'), (rightType, right')) <-
                 (,) <$> check state left <*> check state right
 
+            -- as it is arithmetic
+            -- left and right must be of Int type
             case leftType of
                 Int -> case rightType of
                     Int -> Ok (Int, constructor left' right')
@@ -177,15 +209,20 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                             InvalidArithmetic OperandLeft leftType]
 
         checkComparison (left, right) constructor = do
+            -- using check to get the type of left and right
             ((leftType, left'), (rightType, right')) <-
                 (,) <$> check state left <*> check state right
 
             case leftType of
                 Int -> case rightType of
+                    -- if left and right of compare are of Int type,
+                    -- then convert the AST to compare Int
+                    -- so that in the back-end it won't be re analysis
                     Int -> Ok (Bool, constructor CompareInt left' right')
                     _ -> Log [SemanticError (expressionRange right) $
                                 InvalidComparisonRight CompareInt rightType]
                 Char -> case rightType of
+                    -- if left and right of compare are of Char type,
                     Char -> Ok (Bool, constructor CompareChar left' right')
                     _ -> Log [SemanticError (expressionRange right) $
                                 InvalidComparisonRight CompareChar rightType]
@@ -193,10 +230,12 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                             InvalidComparisonLeft leftType]
 
         checkEquality (left, right) range constructor = do
+            -- using check to get the type of left and right
             ((leftType, left'), (rightType, right')) <-
                 (,) <$> check state left <*> check state right
 
-            if leftType == rightType then
+            -- left type must be compatible with right type or another way around
+            if leftType <| rightType || rightType <| leftType then
                 Ok (Bool, constructor leftType left' right')
             else
                 Log [SemanticError range $ InvalidEquality leftType rightType]
@@ -213,7 +252,7 @@ instance CheckSemantics Syntax.Statement Statement where
                 else
                     Log [SemanticError range $
                             IncompatibleAssignment declaredType computedType]
-
+                            
             Log x -> Log x
 
         Syntax.Assign (left, right) range -> do
