@@ -73,51 +73,54 @@ instance Show WaccSemanticsErrorType where
     show (RedefinedParameter identifier) =
         "Illegal redeclaration of parameter " ++ identifier ++ "."
         ++ " Please rename this parameter " ++ identifier ++ "."
-    show (InvalidRead type) = 
-        "Unexpected read type " ++ show type ++ ", expected char or int."
-    show (InvalidFree type) =
-        "Unexpected free type " ++ show type ++ ", expected pair or array."
+    show (InvalidRead invalidType) = 
+        "Unexpected read type " ++ show invalidType 
+        ++ ", expected char or int."
+    show (InvalidFree invalidType) =
+        "Unexpected free type " ++ show invalidType 
+        ++ ", expected pair or array."
     show ReturnInMain =
         "Unexpected return instruction in Main function."
-    show (InvalidIfCondition type) = 
+    show (InvalidIfCondition invalidType) = 
         "Invalid if condition type: unexcepted "
-        ++ show type ++ ", expected bool."
-    show (InvalidWhileCondition type) = 
+        ++ show invalidType ++ ", expected bool."
+    show (InvalidWhileCondition invalidType) = 
         "Invalid while condition type: unexcepted "
-        ++ show type ++ ", expected bool."
-    show (InvalidArray type) = 
-        "Invalid type: unexpected " ++ show type ++ ", expected array."
-    show (InvalidIndex type) = 
-        "Invalid index type: unexpected " ++ show type ++ ", expected int."
-    show (InvalidPair type) = 
-        "Invalid type: unexpected " ++ show type ++ ", expected pair."
-    show (InvalidNot type) = 
-        "Invalid type for '!': unexpected " ++ show type 
+        ++ show invalidType ++ ", expected bool."
+    show (InvalidArray invalidType) = 
+        "Invalid type: unexpected " ++ show invalidType ++ ", expected array."
+    show (InvalidIndex invalidType) = 
+        "Invalid index type: unexpected " ++ show invalidType
+        ++ ", expected int."
+    show (InvalidPair invalidType) = 
+        "Invalid type: unexpected " ++ show invalidType ++ ", expected pair."
+    show (InvalidNot invalidType) = 
+        "Invalid type for '!': unexpected " ++ show invalidType 
         ++ ", expected boolean."
-    show (InvalidNegate type) = 
-        "Invalid type for '-': unexpected " ++ show type 
+    show (InvalidNegate invalidType) = 
+        "Invalid type for '-': unexpected " ++ show invalidType
         ++ ", expected int."
-    show (InvalidLength type) = 
-        "Invalid type for 'len': unexpected " ++ show type 
+    show (InvalidLength invalidType) = 
+        "Invalid type for 'len': unexpected " ++ show invalidType
         ++ ", expected array."
-    show (InvalidOrder type) = 
-        "Invalid type for 'ord': unexpected " ++ show type 
+    show (InvalidOrder invalidType) = 
+        "Invalid type for 'ord': unexpected " ++ show invalidType 
         ++ ", expected char."
-    show (InvalidCharacter type) = 
-        "Invalid type for 'chr': unexpected " ++ show type 
+    show (InvalidCharacter invalidType) = 
+        "Invalid type for 'chr': unexpected " ++ show invalidType
         ++ ", expected int."
-    show (InvalidArithmetic _ type) =
+    show (InvalidArithmetic _ invalidType) =
         "Invalid type for arithmetic operator: unexpected " 
-        ++ show type ++ ", expected int."
-    show (InvalidComparisonLeft type) = 
+        ++ show invalidType ++ ", expected int."
+    show (InvalidComparisonLeft invalidType) = 
         "Invalid type for comparison operator: unexpected " 
-        ++ show type ++ ", expected int or char."
+        ++ show invalidType ++ ", expected int or char."
     show (InvalidComparisonRight expect actual) =
         "Invalid type for comparison operator: unexpected " 
         ++ show actual ++ ", expected " ++ show expect ++ "."
     show (InvalidEquality expect actual) =
         "Invalid type for equality operator: unexpected " 
         ++ show actual ++ ", expected " ++ show expect ++ "."
-    show (InvalidLogical direction type) = 
+    show (InvalidLogical direction invalidType) = 
         "Invalid type for logical operator: unexpected " 
-        ++ show type ++ ", expected bool."
+        ++ show invalidType ++ ", expected bool."
