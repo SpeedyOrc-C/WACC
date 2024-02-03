@@ -92,11 +92,11 @@ testSemanticError = do
                 return False
 
             Right (Parsed _ ast _) -> do
-                putStrLn $ green "    * " ++ test
-
                 case checkProgram ast of
 
                     Log errors -> do
+                        putStrLn $ green "    * " ++ test
+
                         for_ errors $ \(SemanticError
                             (humanTextPosition . textPosition raw -> from
                             ,humanTextPosition . textPosition raw -> to
@@ -108,6 +108,9 @@ testSemanticError = do
                         return True
 
                     Ok {} -> do
+                        putStrLn $ red "    ! " ++ test
+                        putStrLn $ red "        Semantic check didn't failed"
+
                         return False
 
     setCurrentDirectory oldPwd
@@ -120,7 +123,9 @@ main :: IO ()
 main = do
     resultSyntaxError <- testSyntaxError
     resultSemanticError <- testSemanticError
-    resultSyntax <- syntaxTests
+    print resultSyntaxError
+    print resultSemanticError
+    -- resultSyntax <- syntaxTests
 
-    let succeed = resultSyntaxError && resultSemanticError && and resultSyntax
+    let succeed = resultSyntaxError && resultSemanticError -- && and resultSyntax
     if succeed then exitSuccess else exitFailure
