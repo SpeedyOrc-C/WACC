@@ -278,7 +278,7 @@ instance CheckSemantics Syntax.Statement Statement where
             -- get the destination type from check
             (destinationType, destination') <- check state destination
             -- it must be compatible by either Int or Char
-            if Int <| destinationType || Char <| destinationType
+            if Int == destinationType || Char == destinationType
                 then Ok (Read destination')
                 else Log [SemanticError range $ InvalidRead destinationType]
 
