@@ -81,3 +81,8 @@ underlineTextSection fromIndex toIndex (padding, lineStyle, modifier) input =
         unmodifiedLinesCount = min padding fromRow
         unmodifiedLines = take unmodifiedLinesCount $ drop droppedLinesCount ls
         rest = drop fromRow ls
+
+removeTabs :: String -> String
+removeTabs s = s >>= \case
+    '\t' -> "    "
+    c -> [c]
