@@ -13,7 +13,10 @@ data WaccSemanticsErrorType
     | TooFewArguments Int Int
     | InconsistentTypesInArray Type Type
     | IncompatibleAssignment Type Type
+
+    | IncompatibleArgument Type Type
     | RedefinedFunction String
+    | RedefinedParameter String
 
     | InvalidRead Type
     | InvalidFree Type

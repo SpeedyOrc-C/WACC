@@ -6,42 +6,47 @@ import WACC.Semantics.Structure (Type (..))
 import qualified WACC.Syntax.Structure as Syntax
 import qualified Data.Map as M
 
-data SemanticError = SemanticError Range WaccSemanticsErrorType deriving Show
+data SemanticError = SemanticError Range WaccSemanticsErrorType
+
+instance Show SemanticError where
+    show (SemanticError range error') = show range ++ " " ++ show error'
 
 -- | A special case of the built-in Either type,
 --   where the Left errors are collected.
-data CheckerResult a = Bad [SemanticError] | Ok a deriving Show
+data LogEither log a = Log [log] | Ok a deriving Show
 
-instance Functor CheckerResult where
-    fmap :: (a -> b) -> CheckerResult a -> CheckerResult b
-    fmap _ (Bad errors) = Bad errors
+instance Functor (LogEither log) where
+    fmap :: (a -> b) -> LogEither log a -> LogEither log b
+    fmap _ (Log errors) = Log errors
     fmap f (Ok result) = Ok $ f result
 
-instance Applicative CheckerResult where
-    pure :: a -> CheckerResult a
+instance Applicative (LogEither log) where
+    pure :: a -> LogEither log a
     pure = Ok
 
-    (<*>) :: CheckerResult (a -> b) -> CheckerResult a -> CheckerResult b
+    (<*>) :: LogEither log (a -> b) -> LogEither log a -> LogEither log b
     -- Here, the errors are collected.
     -- But the Either type only collects the first error.
-    Bad errors <*> Bad errors' = Bad $ errors ++ errors'
-    _ <*> Bad errors = Bad errors
-    Bad errors <*> _ = Bad errors
+    Log errors <*> Log errors' = Log $ errors ++ errors'
+    _ <*> Log errors = Log errors
+    Log errors <*> _ = Log errors
     Ok f <*> Ok x = Ok $ f x
 
-instance Monad CheckerResult where
-    return :: a -> CheckerResult a
+instance Monad (LogEither log) where
+    return :: a -> LogEither log a
     return = pure
 
-    (>>=) :: CheckerResult a -> (a -> CheckerResult b) -> CheckerResult b
-    Bad errors >>= _ = Bad errors
-    Ok result >>= f = f result
+    (>>) :: LogEither log a -> LogEither log b -> LogEither log b
+    (>>) = (*>)
 
-mergeMany :: Foldable t => t (CheckerResult a) -> CheckerResult [a]
-mergeMany xs = reverse <$> foldl (\b a -> (:) <$> a <*> b) (Ok []) xs
+    (>>=) :: LogEither log a -> (a -> LogEither log b) -> LogEither log b
+    Log errors >>= _ = Log errors
+    Ok result >>= f = f result
 
 data CheckerState = CheckerState {
     -- Is it inside a function? If so, what type does this function returns?
+    -- Nothing - in main program
+    -- Just t  - in a function that returns type "t"
     functionContext :: Maybe Type,
     -- All functions' types of parameters and return value
     functionMapping :: String `M.Map` ([Type], Type),
