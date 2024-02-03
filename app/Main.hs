@@ -10,6 +10,7 @@ import qualified WACC.Syntax.Parser
 import qualified WACC.Syntax.Structure
 import qualified WACC.Semantics.Checker
 import qualified WACC.Semantics.Utils
+import Text.SourceCode (removeTabs)
 
 syntaxErrorExit :: IO ()
 syntaxErrorExit = exitWith $ ExitFailure 100
@@ -31,7 +32,7 @@ main = do
             processSourceCode sourceCode
 
 processSourceCode :: String -> IO ()
-processSourceCode sourceCode =
+processSourceCode (removeTabs -> sourceCode) =
     case Text.Parser.parseString WACC.Syntax.Parser.program sourceCode of
 
     Left Nothing -> do
