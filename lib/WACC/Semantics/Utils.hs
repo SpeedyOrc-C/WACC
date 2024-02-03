@@ -79,6 +79,11 @@ lookUpInnermost :: CheckerState -> String -> Maybe Type
 lookUpInnermost state =
     lookUp $ state { mappingStack = [head (mappingStack state)] }
 
+--
+(<~) :: Type -> Type -> Bool
+Pair(_, _) <~ NullType = True
+a <~ b = a == b
+
 -- | Can the right type take the place of the left type?
 (<|) :: Type -> Type -> Bool
 Any <| _ = True
@@ -86,7 +91,10 @@ _ <| Any = True
 String <| Array Char = True
 String <| Array Any = True
 Pair(_, _) <| NullType = True
+Pair(a, b) <| Pair(a' , b') = a <~ a' && b <~ b'
 Array _ <| Array Any = True
+-- base type for the arrays
+Array Any <| Array _ = True
 a <| b = a == b
 
 isArray :: Type -> Bool
