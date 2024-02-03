@@ -140,9 +140,9 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                     case compare (length args) (length paramsTypes) of
                         EQ -> Ok (returnType, FunctionCall name args')
                         GT -> Log [SemanticError range $ TooManyArguments
-                                    (length paramsTypes) (length args)]
+                                    name (length paramsTypes) (length args)]
                         LT -> Log [SemanticError range $ TooFewArguments
-                                    (length paramsTypes) (length args)]
+                                    name (length paramsTypes) (length args)]
 
         where
 
