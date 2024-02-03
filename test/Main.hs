@@ -81,14 +81,10 @@ testSemanticError = do
         raw <- readFile test
         case parseString program raw of
 
-            Left (Just (SyntaxError pos msg)) -> do
+            Left {} -> do
                 putStrLn $ red $ "    ! " ++ test
                 putStrLn $ red   "        Syntax error found"
                 print raw
-                return False
-
-            Left Nothing -> do
-                putStrLn $ red   "    ! " ++ test
                 return False
 
             Right (Parsed _ ast _) -> do
@@ -117,15 +113,56 @@ testSemanticError = do
 
     return $ and result
 
+testValid :: IO Bool
+testValid = do
+    putStrLn "# Valid"
 
+    oldPwd <- getCurrentDirectory
+    setCurrentDirectory "example/valid"
+
+    tests <- allFilesRecursive "."
+    result <- for tests $ \test -> do
+
+        raw <- readFile test
+        case parseString program raw of
+
+            Left {} -> do
+                putStrLn $ red $ "    ! " ++ test
+                putStrLn $ red   "        Syntax error found"
+                print raw
+                return False
+            
+            Right (Parsed _ ast _) -> do
+                case checkProgram ast of
+
+                    Log errors -> do
+                        putStrLn $ red "    ! " ++ test
+
+                        for_ errors $ \(SemanticError
+                            (humanTextPosition . textPosition raw -> from
+                            ,humanTextPosition . textPosition raw -> to
+                            ) error ) -> do
+
+                            putStrLn . gray $ "        " ++
+                                show from ++ "-" ++ show to ++ " : " ++ show error
+                        
+                        return False
+                    
+                    Ok {} -> do
+                        putStrLn $ green "    * " ++ test
+                        return True
+    
+    setCurrentDirectory oldPwd
+
+    return $ and result
 
 main :: IO ()
 main = do
     resultSyntaxError <- testSyntaxError
     resultSemanticError <- testSemanticError
-    print resultSyntaxError
-    print resultSemanticError
+    resultValid <- testValid
     -- resultSyntax <- syntaxTests
 
-    let succeed = resultSyntaxError && resultSemanticError -- && and resultSyntax
+    let succeed = resultSyntaxError && resultSemanticError && resultValid
+    -- && and resultSyntax
     if succeed then exitSuccess else exitFailure
