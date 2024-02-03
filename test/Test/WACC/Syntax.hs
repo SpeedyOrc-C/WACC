@@ -18,10 +18,16 @@ test name input parser f = case parseString (strict parser) input of
         return False
 
 testString1 :: IO Bool
-testString1 = test "literal string 1"
+testString1 = test "check normal string"
     "\"Hello\""
     expressionLiteralString
     (\case (LiteralString s _) -> s == "Hello" ; _ -> False)
+
+-- testString2 :: IO Bool
+-- testString2 = test "check error string"
+--     "\"Hello\"\""
+--     expressionLiteralString
+--     (\case ())
 
 syntaxTests :: IO [Bool]
 syntaxTests = sequence [
