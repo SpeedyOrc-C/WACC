@@ -116,3 +116,5 @@ instance Show WaccSemanticsErrorType where
     show (InvalidLogical direction invalidType) = 
         "Invalid type for logical operator: unexpected " 
         ++ show invalidType ++ ", expected bool."
+    
+    show _ = "To be continued..."
