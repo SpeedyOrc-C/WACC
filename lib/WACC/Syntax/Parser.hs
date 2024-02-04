@@ -10,39 +10,61 @@ import Data.Functor
 import Data.Maybe
 import WACC.Syntax.Validation
 
+{- Define a SyntaxParser which can identify a SyntaxError 
+   within the range of our `WaccSyntaxErrorType`. -}
 type WaccParser a = Parser WaccSyntaxErrorType a
 
+{- It takes a constructor function, a parser, and returns a new parser. 
+   This parser modifies the result of parsing by applying the constructor
+   to include a range information. -}
 addRange :: (info -> Range -> node) -> Parser error info -> Parser error node
 addRange constructor parser = Parser $ \input -> do
     Parsed range result rest <- parse parser input
     Right (Parsed range (constructor result range) rest)
 
+{- An abbreviated symbol for addRange. -}
 (~) :: (info -> Range -> node) -> WaccParser info -> WaccParser node
 (~) = addRange
 
+{- It consumes a single character as long as 
+   it is not a newline or a carriage return. -}
 nonLineBreak :: Parser error ()
 nonLineBreak = void $ charThat (`notElem` ['\r', '\n'])
 
+{- The white parser tries to parse either the whitespace characters 
+   (space, tab, carriage return, or newline) or the comment parser below. -}
 white :: Parser error ()
 white = void (asum $ char <$> [' ', '\t', '\r', '\n']) <|> comment
 
+{- The comment parser firstly parse `#` and ignore the result, 
+   then it uses `nonLineBreak` parser to handle the rest of this line. -}
 comment :: Parser error ()
 comment = void $ do
     _ <- char '#'
     many nonLineBreak
 
+{- This function takes a parser as parameter and generates a new parser by
+   using `surroundedBy`, which parses an object surrounded by two surrounders
+   (the surrounders here is many white). It can handle a statement surrounded
+   by arbitary number of `white`s. -}
 surroundManyWhites :: Parser error a -> Parser error a
 surroundManyWhites = (`surroundedBy` many white)
 
+{- This is a parser which handles two different linebreaks. -}
 linebreak :: Parser error ()
 linebreak = void (char '\n') <|> void (str "\r\n")
 
+{- It is a list of all digit chars. -}
 digits :: [Char]
 digits = ['0'..'9']
 
+{- It is a list of all valid chars for the `tail` of an identifier. -}
 identifierTailChars :: [Char]
 identifierTailChars = '_' : ['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9']
 
+{- This parser checks if the identifier is valid and not a reserved keyword.
+   If it is invalid or it is a keyword, then it fails using empty. 
+   Otherwise, it returns the parsed identifier. -}
 identifierString :: Parser error String
 identifierString = do
     c <- charThat (`elem` headChars)
@@ -58,6 +80,8 @@ identifierString = do
     where
     headChars = '_' : ['A'..'Z'] ++ ['a'..'z']
 
+{- It is a parser that handles escaped characters in character literals 
+   and returns the corresponding Char. -}
 charEscaped :: WaccParser Char
 charEscaped = (
         ('\'' <$ char '\'')
@@ -71,6 +95,10 @@ charEscaped = (
     <|> ('\0' <$ char '0')
     ) `syntaxError` MissingEscapedChar
 
+{- It is a parser that parses the first char of input stream.
+   It checks if the parsed character is greater than '~' or less than ' ',
+   if so, it will detect this syntax error and fail. Otherwise, it will handle
+   escaped chars or return this char. -}
 charInner :: WaccParser Char
 charInner = do
     c <- (one
@@ -86,17 +114,21 @@ charInner = do
 
 -- Expression
 
+{- This parser parses an identifier according to its range. -}
 expressionIdentifier :: WaccParser Expression
 expressionIdentifier = Identifier ~ identifierString
 
+{- This parser parses a bool literal according to its range. -}
 expressionLiteralBool :: WaccParser Expression
 expressionLiteralBool = LiteralBool ~
     ((True <$ str "true") <|> (False <$ str "false"))
 
+{- This parser parses an int literal without sign according to its range. -}
 expressionNoSignLiteralInt :: WaccParser Expression
 expressionNoSignLiteralInt = LiteralInt ~ do
     read <$> some (charThat (`elem` digits))
 
+{- This parser parses an int literal with sign according to its range. -}
 expressionLiteralInt :: WaccParser Expression
 expressionLiteralInt = LiteralInt ~ do
     sign <- optional (char '-' <|> char '+')
@@ -108,6 +140,8 @@ expressionLiteralInt = LiteralInt ~ do
             \((from, _), x) -> SyntaxError from (IntegerOverflow x)
             )
 
+{- This parser parses a char literal according to its range.
+   -}
 expressionLiteralChar :: WaccParser Expression
 expressionLiteralChar = LiteralChar ~ do
     _ <- char '\''
@@ -115,6 +149,7 @@ expressionLiteralChar = LiteralChar ~ do
     _ <- char '\'' `syntaxError` UnmatchedSingleQuote
     return c
 
+{- This parser parses a string literal according to its range. -}
 expressionLiteralString :: WaccParser Expression
 expressionLiteralString = LiteralString ~ do
     _ <- char '"'
@@ -175,7 +210,8 @@ indexOperator higherParser = do
     indices <- many $ do
         _ <- many white
         _ <- char '['
-        index <- getRangeA $ surroundManyWhites expression `syntaxError` ExpectIndexInBracket
+        index <- getRangeA $ surroundManyWhites expression `syntaxError` 
+        ExpectIndexInBracket
         _ <- char ']' `syntaxError` UnmatchedSquareBracket
         return index
 
@@ -472,7 +508,8 @@ function = Function ~ do
     body <- statements `syntaxErrorWhen` (
         not . willReturn . last,
         \(_, body) ->
-            SyntaxError (fst (statementRange (last body))) (FunctionDoesNotReturn name)
+            SyntaxError (fst (statementRange (last body))) 
+            (FunctionDoesNotReturn name)
         )
     _ <- many white
     _ <- str "end"
