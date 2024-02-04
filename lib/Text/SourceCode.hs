@@ -86,7 +86,8 @@ underlineTextSection fromIndex toIndex (padding, lineStyle, modifier) input =
     f :: (Int, Int) -> (Int, Int) -> [String] -> [String]
     f _ _ [] = []
 
-    {- Ensures that there are `padding` number of original lines below the underlined section. -}
+    {- Ensures that there are `padding` number of original lines below the 
+    underlined section. -}
     f (0, fromCol) (0, toCol) (line:rest) =
         underlineLineSection fromCol toCol (lineStyle, modifier) line ++
         take padding rest
@@ -95,7 +96,8 @@ underlineTextSection fromIndex toIndex (padding, lineStyle, modifier) input =
         underlineFrom fromCol (lineStyle, modifier) line ++
         f (0, 0) (toRow - 1, toCol) rest
 
-    {- Ensures that there are `padding` number of original lines above the underlined section. -}
+    {- Ensures that there are `padding` number of original lines above the 
+    underlined section. -}
     f (fromRow, fromCol) (toRow, toCol) ls =
         unmodifiedLines ++
         f (0, fromCol) (toRow - fromRow, toCol) rest
