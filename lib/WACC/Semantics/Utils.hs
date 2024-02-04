@@ -96,9 +96,7 @@ String <| Array Char = True
 String <| Array Any = True
 Pair(_, _) <| NullType = True
 Pair(a, b) <| Pair(a' , b') = a <~ a' && b <~ b'
-Array _ <| Array Any = True
--- base type for the arrays
-Array Any <| Array _ = True
+Array a <| Array a' = a <~ a'
 a <| b = a == b
 
 isArray :: Type -> Bool
