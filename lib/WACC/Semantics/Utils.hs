@@ -79,7 +79,7 @@ lookUpInnermost :: CheckerState -> String -> Maybe Type
 lookUpInnermost state =
     lookUp $ state { mappingStack = [head (mappingStack state)] }
 
---
+-- used for noncovariance type checking - array and pair
 (<~) :: Type -> Type -> Bool
 Pair(_, _) <~ NullType = True
 Pair(a, b) <~ Pair(a', b') = a <~ a' && b <~ b'
