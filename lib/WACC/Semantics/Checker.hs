@@ -296,7 +296,7 @@ instance CheckSemantics Syntax.Statement Statement where
                     if functionReturnType <| valueType
                         then Ok (Return value')
                         else Log [SemanticError (expressionRange value) $
-                                    InvalidReturn valueType]
+                                    InvalidReturn functionReturnType valueType]
 
         -- Exit with an integer exit code
         Syntax.Exit code range -> do
@@ -304,7 +304,7 @@ instance CheckSemantics Syntax.Statement Statement where
 
             if Int <| codeType
                 then Ok (Exit code')
-                else Log [SemanticError range $ InvalidReturn codeType]
+                else Log [SemanticError range $ InvalidExit codeType]
 
         -- Print the value to the standard output.
         Syntax.Print value _ -> do
