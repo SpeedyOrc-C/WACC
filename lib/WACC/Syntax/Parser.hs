@@ -140,8 +140,7 @@ expressionLiteralInt = LiteralInt ~ do
             \((from, _), x) -> SyntaxError from (IntegerOverflow x)
             )
 
-{- This parser parses a char literal according to its range.
-   -}
+{- This parser parses a char literal according to its range. -}
 expressionLiteralChar :: WaccParser Expression
 expressionLiteralChar = LiteralChar ~ do
     _ <- char '\''
@@ -157,6 +156,7 @@ expressionLiteralString = LiteralString ~ do
     _ <- char '"' `syntaxError` UnmatchedDoubleQuote
     return s
 
+{- This parser parses an array literal according to its range. -}
 expressionLiteralArray :: WaccParser Expression
 expressionLiteralArray = LiteralArray ~ do
     _ <- char '['
@@ -166,6 +166,7 @@ expressionLiteralArray = LiteralArray ~ do
     _ <- char ']'
     return $ if null es then [] else fromJust es
 
+{- This parser parses a pair literal according to its range. -}
 expressionLiteralPair :: WaccParser Expression
 expressionLiteralPair = LiteralPair ~ do
     _ <- str "newpair"
@@ -177,9 +178,12 @@ expressionLiteralPair = LiteralPair ~ do
     _ <- char ')'
     return (a, b)
 
+{- This parser is used for a null pair. -}
 expressionLiteralPairNull :: WaccParser Expression
 expressionLiteralPairNull = LiteralPairNull ~ void (str "null")
 
+{- This parser parses a function call, it returns the function name
+   and a list of parameters. -}
 expressionFunctionCall :: WaccParser Expression
 expressionFunctionCall = FunctionCall ~ do
     _        <- str "call"
@@ -190,6 +194,8 @@ expressionFunctionCall = FunctionCall ~ do
     _        <- char ')'
     return (name, if null paraList then [] else fromJust paraList)
 
+{- It is a parser that parses expressions. It tries each one type in order
+   until one of them succeeds. If none of them succeeds, it fails. -}
 expressionBase :: WaccParser Expression
 expressionBase = asum [
     expressionWithBrackets,
@@ -210,8 +216,7 @@ indexOperator higherParser = do
     indices <- many $ do
         _ <- many white
         _ <- char '['
-        index <- getRangeA $ surroundManyWhites expression `syntaxError` 
-        ExpectIndexInBracket
+        index <- getRangeA $ surroundManyWhites expression `syntaxError` ExpectIndexInBracket
         _ <- char ']' `syntaxError` UnmatchedSquareBracket
         return index
 
@@ -508,8 +513,7 @@ function = Function ~ do
     body <- statements `syntaxErrorWhen` (
         not . willReturn . last,
         \(_, body) ->
-            SyntaxError (fst (statementRange (last body))) 
-            (FunctionDoesNotReturn name)
+            SyntaxError (fst (statementRange (last body))) (FunctionDoesNotReturn name)
         )
     _ <- many white
     _ <- str "end"

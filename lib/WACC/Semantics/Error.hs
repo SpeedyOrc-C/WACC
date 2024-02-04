@@ -67,46 +67,46 @@ instance Show WaccSemanticsErrorType where
         ++ " Please rename this parameter " ++ identifier ++ "."
     show (InvalidRead invalidType) = 
         "Unexpected read type " ++ show invalidType 
-        ++ ", expected char or int."
+        ++ ", expected Char or Int."
     show (InvalidFree invalidType) =
         "Unexpected free type " ++ show invalidType 
-        ++ ", expected pair or array."
+        ++ ", expected Pair or Array."
     show ReturnInMain =
-        "Unexpected return instruction in Main function."
+        "Unexpected return instruction in Main program."
     show (InvalidIfCondition invalidType) = 
         "Invalid if condition type: unexcepted "
-        ++ show invalidType ++ ", expected bool."
+        ++ show invalidType ++ ", expected Bool."
     show (InvalidWhileCondition invalidType) = 
         "Invalid while condition type: unexcepted "
-        ++ show invalidType ++ ", expected bool."
+        ++ show invalidType ++ ", expected Bool."
     show (InvalidArray invalidType) = 
-        "Invalid type: unexpected " ++ show invalidType ++ ", expected array."
+        "Invalid type: unexpected " ++ show invalidType ++ ", expected Array."
     show (InvalidIndex invalidType) = 
         "Invalid index type: unexpected " ++ show invalidType
-        ++ ", expected int."
+        ++ ", expected Int."
     show (InvalidPair invalidType) = 
-        "Invalid type: unexpected " ++ show invalidType ++ ", expected pair."
+        "Invalid type: unexpected " ++ show invalidType ++ ", expected Pair."
     show (InvalidNot invalidType) = 
         "Invalid type for '!': unexpected " ++ show invalidType 
-        ++ ", expected boolean."
+        ++ ", expected Boolean."
     show (InvalidNegate invalidType) = 
         "Invalid type for '-': unexpected " ++ show invalidType
-        ++ ", expected int."
+        ++ ", expected Int."
     show (InvalidLength invalidType) = 
         "Invalid type for 'len': unexpected " ++ show invalidType
-        ++ ", expected array."
+        ++ ", expected Array."
     show (InvalidOrder invalidType) = 
         "Invalid type for 'ord': unexpected " ++ show invalidType 
-        ++ ", expected char."
+        ++ ", expected Char."
     show (InvalidCharacter invalidType) = 
         "Invalid type for 'chr': unexpected " ++ show invalidType
-        ++ ", expected int."
+        ++ ", expected Int."
     show (InvalidArithmetic _ invalidType) =
         "Invalid type for arithmetic operator: unexpected " 
-        ++ show invalidType ++ ", expected int."
+        ++ show invalidType ++ ", expected Int."
     show (InvalidComparisonLeft invalidType) = 
         "Invalid type for comparison operator: unexpected " 
-        ++ show invalidType ++ ", expected int or char."
+        ++ show invalidType ++ ", expected Int or Char."
     show (InvalidComparisonRight expect actual) =
         "Invalid type for comparison operator: unexpected " 
         ++ show actual ++ ", expected " ++ show expect ++ "."
@@ -115,6 +115,6 @@ instance Show WaccSemanticsErrorType where
         ++ show actual ++ ", expected " ++ show expect ++ "."
     show (InvalidLogical direction invalidType) = 
         "Invalid type for logical operator: unexpected " 
-        ++ show invalidType ++ ", expected bool."
+        ++ show invalidType ++ ", expected Bool."
     
     show _ = "To be continued..."
