@@ -29,7 +29,6 @@ data Statement
 
 data Type
     = Any
-    | NullType
     | Int
     | Bool
     | Char

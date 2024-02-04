@@ -34,7 +34,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
         Syntax.LiteralBool x _ -> Ok (Bool, LiteralBool x)
         Syntax.LiteralChar x _ -> Ok (Char, LiteralChar x)
         Syntax.LiteralString x _ -> Ok (String, LiteralString x)
-        Syntax.LiteralPairNull {} -> Ok (NullType, LiteralPairNull)
+        Syntax.LiteralPairNull {} -> Ok (Pair(Any, Any), LiteralPairNull)
 
         -- if left handside is a indentifer which must be in the state
         Syntax.Identifier name range ->

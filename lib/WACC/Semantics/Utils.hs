@@ -81,7 +81,6 @@ lookUpInnermost state =
 
 -- used for noncovariance type checking - array and pair
 (<~) :: Type -> Type -> Bool
-Pair(_, _) <~ NullType = True
 Pair(a, b) <~ Pair(a', b') = a <~ a' && b <~ b'
 Any <~ _ = True
 _ <~ Any = True
