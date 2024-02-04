@@ -93,7 +93,6 @@ Any <| _ = True
 _ <| Any = True
 String <| Array Char = True
 String <| Array Any = True
-Pair(_, _) <| NullType = True
 Pair(a, b) <| Pair(a' , b') = a <~ a' && b <~ b'
 Array a <| Array a' = a <~ a'
 a <| b = a == b
