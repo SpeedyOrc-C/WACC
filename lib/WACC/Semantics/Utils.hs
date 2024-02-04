@@ -54,12 +54,8 @@ data CheckerState = CheckerState {
     mappingStack :: [String `M.Map` Type]
 }
 
-goDeeper :: CheckerState -> CheckerState
-goDeeper state = state { mappingStack = M.empty : mappingStack state }
-
-addMappingLayer :: [(String, Type)] -> CheckerState -> CheckerState
-addMappingLayer mapping state =
-    goDeeper state { mappingStack = M.fromList mapping : mappingStack state }
+addScope :: CheckerState -> CheckerState
+addScope state = state { mappingStack = M.empty : mappingStack state }
 
 addIdentifier :: String -> Type -> CheckerState -> CheckerState
 addIdentifier name t state = state {

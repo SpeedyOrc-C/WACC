@@ -2,6 +2,7 @@ module WACC.Semantics.Checker where
 
 import Prelude hiding (error)
 
+import qualified Prelude  as P
 import qualified Data.Map as M
 import qualified Data.Set as S
 import           Data.List
@@ -239,7 +240,7 @@ instance CheckSemantics Syntax.Statement Statement where
         -- firstly use fromSyntaxType to the type of the declare
         Syntax.Declare (fromSyntaxType -> declaredType, name, value) range
             -> case check state value of
-            -- type of the right hand side value
+            
             Ok (computedType, newValue) ->
                 -- if the type at the right hand side can be compatible to the left
                 -- hand side, then it is fine else return error
@@ -249,78 +250,75 @@ instance CheckSemantics Syntax.Statement Statement where
                     case lookUpInnermost state name of
                         Nothing -> Ok (Declare declaredType name newValue)
                         Just {} -> Log [SemanticError range $ RedefinedIdentifier name]
-                else
-                    Log [SemanticError range $
+                
+                else Log [SemanticError range $
                             IncompatibleAssignment declaredType computedType]
 
             Log x -> Log x
 
-        Syntax.Assign (left, right) range -> do
-            -- get the left type and right type from the check expression function
+        Syntax.Assign (left, right) _ -> do
             ((leftType, left'), (rightType, right')) <-
                 (,) <$> check state left <*> check state right
-            -- the identifier will be checked in the check function of the expression,
-            -- which will be found in the stack of variable tables
-            -- then left type must be compatible with right type
-            if leftType <| rightType then
-                Ok (Assign left' right')
-            else
-                Log [SemanticError (expressionRange right) $
-                        IncompatibleAssignment leftType rightType]
+            
+            if leftType <| rightType
+                then Ok (Assign left' right')
+                else Log [SemanticError (expressionRange right) $
+                            IncompatibleAssignment leftType rightType]
 
+        -- Read an character or an integer.
         Syntax.Read destination range -> do
-            -- get the destination type from check
             (destinationType, destination') <- check state destination
-            -- it must be compatible by either Int or Char
+
             if Int == destinationType || Char == destinationType
                 then Ok (Read destination')
                 else Log [SemanticError range $ InvalidRead destinationType]
 
+        -- Free an array or a pair, this does not include string.
         Syntax.Free address range -> do
             (addressType, address') <- check state address
-            -- only arrays or pairs can be freed
+
             if isArray addressType || isPair addressType
                 then Ok (Free address')
                 else Log [SemanticError range $ InvalidFree addressType]
 
+        -- Return a value when it is in a function context.
         Syntax.Return value range -> do
-            -- get the type of the return value
             (valueType, value') <- check state value
-            -- if the expected return type of the function is compatible 
-            -- by the return value type
+
             case functionContext state of
-                Just expectedType ->
-                    if expectedType <| valueType
+                -- Cannot return in main program, use `exit` instead.
+                Nothing -> Log [SemanticError range ReturnInMain]
+                -- Type of return value must match function's definition.
+                Just functionReturnType ->
+                    if functionReturnType <| valueType
                         then Ok (Return value')
                         else Log [SemanticError (expressionRange value) $
                                     InvalidReturn valueType]
-                Nothing -> Log [SemanticError range $ ReturnInMain]
 
-        Syntax.Exit number range -> do
-            (numberType, number') <- check state number
-            -- exit + a number
-            if Int <| numberType
-                then Ok (Exit number')
-                else Log [SemanticError range $ InvalidReturn numberType]
+        -- Exit with an integer exit code
+        Syntax.Exit code range -> do
+            (codeType, code') <- check state code
 
+            if Int <| codeType
+                then Ok (Exit code')
+                else Log [SemanticError range $ InvalidReturn codeType]
+
+        -- Print the value to the standard output.
         Syntax.Print value _ -> do
             (valueType, value') <- check state value
             Ok (Print valueType value')
 
+        -- Same as `print` but with an additional line break.
         Syntax.PrintLine value _ -> do
             (valueType, value') <- check state value
             Ok (PrintLine valueType value')
 
         Syntax.If (condition, thenBranch, elseBranch) _ -> do
             ((conditionType, condition'), thenBranch', elseBranch') <- (,,)
-                -- get the type of the condition
-                <$> check state condition
-                -- then and else branches is one deeper scope
-                -- get second AST type of all statements in then branch
-                <*> check (goDeeper state) thenBranch
-                -- get second AST type of all statements in else branch
-                <*> check (goDeeper state) elseBranch
-            -- condition type must be compatible of bool
+                <$> check           state  condition
+                <*> check (addScope state) thenBranch
+                <*> check (addScope state) elseBranch
+            
             if Bool <| conditionType
                 then Ok (If condition' thenBranch' elseBranch')
                 else Log [SemanticError (expressionRange condition) $
@@ -328,42 +326,40 @@ instance CheckSemantics Syntax.Statement Statement where
 
         Syntax.While (condition, body) _ -> do
             ((conditionType, condition'), body') <- (,)
-                -- get the second type of condition
-                <$> check state condition
-                -- while scope should be one deeper scope
-                -- get the second type of body
-                <*> check (goDeeper state) body
-            -- condition type must be compatible by bool
+                <$> check           state  condition
+                <*> check (addScope state) body
+            
             if Bool <| conditionType
                 then Ok (While condition' body')
                 else Log [SemanticError (expressionRange condition) $
                             InvalidWhileCondition conditionType]
         
-        -- shouldn't be reached
-        Syntax.Skip {} -> undefined
-
-        Syntax.Scope statements _ -> do
-            -- check all the statements in a deeper scope
-            statements' <- check (goDeeper state) statements
-            Ok (Scope statements')
+        Syntax.Scope statements _ -> Scope <$> check (addScope state) statements
+        
+        Syntax.Skip {} -> P.error "`skip` statement is not eradicated."
 
 instance CheckSemantics [Syntax.Statement] [Statement] where
     -- check for statements
     check state = \case
         [] -> Ok []
 
-        -- if it is `skip`, the `skip` statement will be skiped
-        (Syntax.Skip {}:ss) -> check state ss
+        -- `skip` does nothing in WACC, ignore it.
+        (Syntax.Skip {} : ss) -> check state ss
 
         -- if it is a declare, then add the indentifer with the type which get from
         -- using the check function to the current scope
-        (s@(Syntax.Declare (fromSyntaxType -> declaredType, name, _) _):ss) ->
-            let state' = addIdentifier name declaredType state in
-            (:) <$> check state s <*> check state' ss
+        (s@(Syntax.Declare (fromSyntaxType -> declaredType, name, _) _) : ss) ->
+            let state' = state {
+                mappingStack = case mappingStack state of
+                    m : ms -> M.insert name declaredType m : ms
+                    _ -> P.error "Mapping stack is empty."
+                }
+            in (:) <$> check state s <*> check state' ss
 
+        -- Other statements do not affect the state.
         (s : ss) -> (:) <$> check state s <*> check state ss
 
--- | Try to find repetition in a map.
+-- | Try to find repetition in a list of entries.
 --   If no repetition found, which is good, nothing happens.
 --   Otherwise returns the repeated entries.
 findRepetition :: (Ord k, Eq a) => [(k, a)] -> (Maybe [(k, a)], [(k, a)])
@@ -375,40 +371,45 @@ findRepetition entries =
     entriesNoRepeat = M.toList (M.fromList entries)
 
 instance CheckSemantics Syntax.Function Function where
-    -- use fromSyntaxType to let return type get type in second AST form
     check state (Syntax.Function
                     (fromSyntaxType -> returnType,
                     Syntax.Name functionName _,
                     params,
                     body)
-                _) =
-        let
-        -- get the range of each parameter
-        paramsWithRange =
-            [(param, (range, fromSyntaxType t))
-                | (Syntax.Name param range, t) <- params]
+                _) = do
+        let paramsWithRange = [(param, (range, fromSyntaxType t))
+                                | (Syntax.Name param range, t) <- params]
 
-        -- find the repeatation in the parameters
-        (maybeParamsRepeated, params') = findRepetition paramsWithRange
+        -- Find repeated parameter definitions.
+        let (maybeParamsRepeated, paramsNoRepeat) =
+                findRepetition paramsWithRange
 
-        parameterCheck = case maybeParamsRepeated of
-            -- if there is repetation in the parameter names
-            Just paramsRepeated -> Log [
-                SemanticError range $ RedefinedParameter name
-                | (name, (range, _)) <- paramsRepeated]
+        case maybeParamsRepeated of
             Nothing -> Ok ()
+            -- Any of two parameters cannot have identical names.
+            Just paramsRepeated -> Log
+                [SemanticError range $ RedefinedParameter name
+                    | (name, (range, _)) <- paramsRepeated]
+        
+        let paramsMapping = (snd <$>) <$> paramsNoRepeat
+        
+        let state' = state {
+                mappingStack =
+                    -- Variables in the body can shadow parameters.
+                    M.empty :
 
-        -- remove the range
-        paramsMappingLayer = [(param, t) | (param, (_, t)) <- params']
-        in do
-        -- check the repetation in the parameter names
-        parameterCheck
-        -- second AST type of functions
-        Function returnType functionName paramsMappingLayer
-            -- add two scope the inner one is empty and the second inner one is
-            -- parameter mapping layer which contains the parameters
-            <$> check (addMappingLayer paramsMappingLayer $
-                        state {functionContext = Just returnType}) body
+                    -- Function's body can access parameters.
+                    M.fromList paramsMapping :
+                    
+                    mappingStack state,
+                
+                -- Function's body allows `return` statement.
+                functionContext = Just returnType
+            }
+        
+        let body' = check state' body
+        
+        Function returnType functionName paramsMapping <$> body'
 
 instance CheckSemantics Syntax.Program Program where
     check state (Syntax.Program (functions, body) _) = do
@@ -420,22 +421,27 @@ instance CheckSemantics Syntax.Program Program where
                     _
                     ) _ <- functions]
 
-        let (maybeFunctionsRepeated, functionsNoRepeat) = findRepetition functionsWithRange
+        -- Find repeated function definitions.
+        let (maybeFunctionsRepeated, functionsNoRepeat) =
+                findRepetition functionsWithRange
 
         case maybeFunctionsRepeated of
             Nothing -> Ok ()
+            -- Any of two functions cannot have identical names.
             Just functionsRepeated -> Log
                 [SemanticError range (RedefinedFunction name)
                     | (name, range) <- (fst <$>) <$> functionsRepeated]
 
         let state' = state {
+                -- In both main program and functions' body
+                -- can access other functions.
                 functionMapping = M.fromList ((snd <$>) <$> functionsNoRepeat)
             }
         let functions' = S.fromList <$> check state' `mapM` functions
         let body'      =                check state'        body
+
         Program <$> functions' <*> body'
 
-checkProgram
-    :: CheckSemantics syntaxTree result
+checkProgram :: CheckSemantics syntaxTree result
     => syntaxTree -> LogEither SemanticError result
 checkProgram = check $ CheckerState Nothing M.empty [M.empty]
