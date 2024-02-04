@@ -1,22 +1,16 @@
 module WACC.Semantics.Checker where
 
 import Prelude hiding (error)
-import Text.Parser (parseString, Parsed (Parsed))
-import qualified WACC.Syntax.Structure as Syntax
-import qualified Data.Map as M
-import qualified WACC.Syntax.Parser as Parser
-import WACC.Semantics.Error
-    ( WaccSemanticsErrorType(..), OperandDirection (..) )
-import WACC.Semantics.Structure
-    ( Expression(..), Type(..), Statement(..), Function(..), Program(..), ComparisonType (..) )
-import WACC.Syntax.Validation (expressionRange)
-import WACC.Semantics.Utils
-import Data.List ((\\))
 
--- | Debug use
-db input = check (CheckerState undefined undefined undefined) e
-    where
-    Right (Parsed _ e _) = parseString Parser.program input
+import qualified Data.Map as M
+import qualified Data.Set as S
+import           Data.List
+
+import qualified WACC.Syntax.Structure as Syntax
+import           WACC.Semantics.Error
+import           WACC.Semantics.Structure
+import           WACC.Semantics.Utils
+import           WACC.Syntax.Validation
 
 class CheckSemantics syntaxTree result
     | syntaxTree -> result, result -> syntaxTree where
@@ -30,16 +24,16 @@ class CheckSemantics syntaxTree result
 -- function to check semantically of each sentances
 instance CheckSemantics Syntax.Expression (Type, Expression) where
     check state = \case
-        Syntax.LiteralInt x _ -> Ok (Int, LiteralInt x)
-        Syntax.LiteralBool x _ -> Ok (Bool, LiteralBool x)
-        Syntax.LiteralChar x _ -> Ok (Char, LiteralChar x)
-        Syntax.LiteralString x _ -> Ok (String, LiteralString x)
-        Syntax.LiteralPairNull {} -> Ok (Pair(Any, Any), LiteralPairNull)
+        Syntax.LiteralInt      x _ -> Ok (Int            , LiteralInt x)
+        Syntax.LiteralBool     x _ -> Ok (Bool           , LiteralBool x)
+        Syntax.LiteralChar     x _ -> Ok (Char           , LiteralChar x)
+        Syntax.LiteralString   x _ -> Ok (String         , LiteralString x)
+        Syntax.LiteralPairNull {}  -> Ok (Pair (Any, Any), LiteralPairNull)
 
         -- if left handside is a indentifer which must be in the state
         Syntax.Identifier name range ->
             case lookUp state name of
-                Just t -> Ok (t, Identifier name)
+                Just t  -> Ok (t, Identifier name)
                 Nothing -> Log [SemanticError range (UndefinedIdentifier name)]
 
         Syntax.LiteralArray array _ -> do
@@ -60,7 +54,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                         then getCommonTypes (common commonType t) rest
                         else Log [SemanticError range $
                                     InconsistentTypesInArray commonType t]
-                    
+
                     -- if it is empty then this array is fine
                     getCommonTypes commonType [] = Ok
                         (Array commonType, LiteralArray commonType expressions)
@@ -417,38 +411,29 @@ instance CheckSemantics Syntax.Function Function where
                         state {functionContext = Just returnType}) body
 
 instance CheckSemantics Syntax.Program Program where
-    check state (Syntax.Program (functions, body) _) =
-        let
-        functionsWithRange =
-            [(name, (range, paramsType, returnType))
+    check state (Syntax.Program (functions, body) _) = do
+        let functionsWithRange = [(name, (range, (paramsTypes, returnType)))
                 | Syntax.Function (
                     fromSyntaxType -> returnType,
                     Syntax.Name name range,
-                    map (fromSyntaxType . snd) -> paramsType,
-                    _) _ <- functions]
+                    map (fromSyntaxType . snd) -> paramsTypes,
+                    _
+                    ) _ <- functions]
 
-        (maybeFunctionsRepeated, functions') = findRepetition functionsWithRange
+        let (maybeFunctionsRepeated, functionsNoRepeat) = findRepetition functionsWithRange
 
-        -- check if function name is unique
-        functionCheck = case maybeFunctionsRepeated of
-            Just functionsRepeated -> Log [
-                SemanticError range $ RedefinedFunction name
-                | (name, (range, _, _)) <- functionsRepeated]
+        case maybeFunctionsRepeated of
             Nothing -> Ok ()
-        
-        -- put the function mapping in the state
-        state' = state {
-            functionMapping = M.fromList
-                [(name, (paramsType, returnType))
-                    | (name, (_, paramsType, returnType)) <- functions']
-        }
-        
-        in do
-        functionCheck
-        Program
-            <$> ((\fs -> M.fromList [(name, f) | f@(Function _ name _ _) <- fs])
-                <$> mapM (check state') functions)
-            <*> check state' body
+            Just functionsRepeated -> Log
+                [SemanticError range (RedefinedFunction name)
+                    | (name, range) <- (fst <$>) <$> functionsRepeated]
+
+        let state' = state {
+                functionMapping = M.fromList ((snd <$>) <$> functionsNoRepeat)
+            }
+        let functions' = S.fromList <$> check state' `mapM` functions
+        let body'      =                check state'        body
+        Program <$> functions' <*> body'
 
 checkProgram
     :: CheckSemantics syntaxTree result
