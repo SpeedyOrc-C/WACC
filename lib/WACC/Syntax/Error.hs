@@ -1,6 +1,7 @@
 module WACC.Syntax.Error where
 import WACC.Syntax.Structure (Name (..))
 
+{- Defines all types of syntax error in WACC -}
 data WaccSyntaxErrorType
     = ExpectOperand String
     | ExpectRightOperand String
@@ -39,6 +40,8 @@ data WaccSyntaxErrorType
     | FunctionDoesNotReturn Name
     | UnexpectedCodeAfterProgramEnd
 
+{- Makes WaccSyntaxErrorType an instance of type class Show to display helpful 
+error messages. -}
 instance Show WaccSyntaxErrorType where
     show :: WaccSyntaxErrorType -> String
     show (ExpectOperand operator) =
@@ -121,8 +124,10 @@ instance Show WaccSyntaxErrorType where
     show UnexpectedCodeAfterProgramEnd =
         "There is unexpected code after “end” keyword"
 
+{- The smallest allowed integer literal. -}
 intLowerBound :: Int
 intLowerBound = -(2::Int)^(31::Int)
 
+{- The biggest allowed integer literal. -}
 intUpperBound :: Int
 intUpperBound = (2::Int)^(31::Int) - 1

@@ -3,6 +3,7 @@ module WACC.Syntax.Validation where
 import Text.Parser ( Range )
 import WACC.Syntax.Structure ( Expression(..), Type(..), Statement(..) )
 
+{- Extracts the range from the expression. -}
 expressionRange :: Expression -> Range
 expressionRange expr = case expr of
     LiteralInt _ r -> r
@@ -36,6 +37,7 @@ expressionRange expr = case expr of
     Or _ r -> r
     FunctionCall _ r -> r
 
+{- Extracts the range from the statement. -}
 statementRange :: Statement -> Range
 statementRange = \case
     Skip _ r -> r
@@ -51,6 +53,7 @@ statementRange = \case
     While _ r -> r
     Scope _ r -> r
 
+{- Extracts the range from the type. -}
 typeRange :: Type -> Range
 typeRange = \case
     Int _ r -> r
@@ -60,6 +63,7 @@ typeRange = \case
     Array _ r -> r
     Pair _ r -> r
 
+{- Checks whether the given expression is a left value. -}
 isLeftValue :: Expression -> Bool
 isLeftValue = \case
     Identifier _ _ -> True
@@ -68,18 +72,21 @@ isLeftValue = \case
     PairSecond e _ -> isLeftValue e
     _ -> False
 
+{- Checks whether the given expression is a pair element. -}
 isPairElement :: Expression -> Bool
 isPairElement = \case
     PairFirst e _ -> isLeftValue e
     PairSecond e _ -> isLeftValue e
     _ -> False
 
+{- Checks whether the given expression is an array element. -}
 isArrayElement :: Expression -> Bool
 isArrayElement = \case
     Identifier {} -> True
     ArrayElement (a, i) _ -> isArrayElement a && isExpression i
     _ -> False
 
+{- Checks whether the given expression is indeed a valid expression in WACC. -}
 isExpression :: Expression -> Bool
 isExpression = \case
     LiteralInt {} -> True
@@ -109,21 +116,25 @@ isExpression = \case
     Or (a, b) _ -> isExpression a && isExpression b
     _ -> False
 
+{- Checks whether the given expression is an array literal. -}
 isLiteralArray :: Expression -> Bool
 isLiteralArray = \case
     LiteralArray a _ -> all isExpression a
     _ -> False
 
+{- Checks whether the given expression is a newpair(e1, e2). -}
 isLiteralPair :: Expression -> Bool
 isLiteralPair = \case
     LiteralPair (a, b) _ -> isExpression a && isExpression b
     _ -> False
 
+{- Checks whether the given expression is a function call. -}
 isFunctionCall :: Expression -> Bool
 isFunctionCall = \case
     FunctionCall (_, a) _ -> all isExpression a
     _ -> False
 
+{- Checks whether the given expression is a right value. -}
 isRightValue :: Expression -> Bool
 isRightValue e = or [
     isExpression e,
@@ -133,9 +144,11 @@ isRightValue e = or [
     isFunctionCall e
     ]
 
+{- Checks whether the given type is a valid type in WACC. -}
 isType :: Type -> Bool
 isType t = isTypeBase t || isTypeArray t || isTypePair t
 
+{- Checks whether the given type is a base type. -}
 isTypeBase :: Type -> Bool
 isTypeBase = \case
     Int {} -> True
@@ -144,25 +157,28 @@ isTypeBase = \case
     String {} -> True
     _ -> False
 
+{- Checks whether the given type is an array type. -}
 isTypeArray :: Type -> Bool
 isTypeArray = \case
     Array t _ -> isType t
     _ -> False
 
+{- Checks whether the given type is a pair type. -}
 isTypePair :: Type -> Bool
 isTypePair = \case
     Pair (Just (a, b)) _ -> isTypePairElement a && isTypePairElement b
     _ -> False
 
+{- Checks whether the given type is a pair element type. -}
 isTypePairElement :: Type -> Bool
 isTypePairElement = \case
     Pair Nothing _ -> True
     t -> isTypeBase t || isTypeArray t
 
+{- Checks whether the statement can exit a function properly. -}
 willReturn :: Statement -> Bool
 willReturn (Return {}) = True
 willReturn (Exit {}) = True
 willReturn (If (_, t, e) _) = any willReturn t && any willReturn e
 willReturn (Scope s _) = any willReturn s
 willReturn _ = False
-
