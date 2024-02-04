@@ -34,6 +34,7 @@ data WaccSemanticsErrorType
     | InvalidComparisonRight ComparisonType Type
     | InvalidEquality Type Type
     | InvalidLogical OperandDirection Type
+    | BothSideAnyAssignment
 
 instance Show WaccSemanticsErrorType where
     show :: WaccSemanticsErrorType -> String
@@ -116,5 +117,6 @@ instance Show WaccSemanticsErrorType where
     show (InvalidLogical direction invalidType) = 
         "Invalid type for logical operator: unexpected " 
         ++ show invalidType ++ ", expected bool."
-    
+    show BothSideAnyAssignment =
+        "..."
     show _ = "To be continued..."
