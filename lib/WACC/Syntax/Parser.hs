@@ -216,7 +216,8 @@ indexOperator higherParser = do
     indices <- many $ do
         _ <- many white
         _ <- char '['
-        index <- getRangeA $ surroundManyWhites expression `syntaxError` ExpectIndexInBracket
+        index <- getRangeA $ surroundManyWhites expression `syntaxError` 
+            ExpectIndexInBracket
         _ <- char ']' `syntaxError` UnmatchedSquareBracket
         return index
 
