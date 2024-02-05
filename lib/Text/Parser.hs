@@ -2,7 +2,7 @@ module Text.Parser where
 
 import Prelude hiding (error)
 
-import Control.Applicative
+import Control.Applicative ( Alternative((<|>), empty, many) )
 
 {- (fromIndex, toIndex) -}
 type Range = (Int, Int)

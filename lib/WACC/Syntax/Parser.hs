@@ -1,10 +1,11 @@
 module WACC.Syntax.Parser where
 
+import GHC.Generics (Associativity(..))
+
 import Control.Monad
 import Control.Applicative
 import Data.Functor
 import Data.Maybe
-import GHC.Generics (Associativity(..))
 
 import Text.Parser
 import WACC.Syntax.Structure
@@ -40,9 +41,7 @@ white = void (asum $ char <$> [' ', '\t', '\r', '\n']) <|> comment
 {- The comment parser firstly parse `#` and ignore the result, 
    then it uses `nonLineBreak` parser to handle the rest of this line. -}
 comment :: Parser error ()
-comment = void $ do
-    _ <- char '#'
-    many nonLineBreak
+comment = void $ char '#' *> many nonLineBreak
 
 {- This function takes a parser as parameter and generates a new parser by
    using `surroundedBy`, which parses an object surrounded by two surrounders
@@ -68,18 +67,20 @@ identifierTailChars = '_' : ['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9']
    Otherwise, it returns the parsed identifier. -}
 identifierString :: Parser error String
 identifierString = do
-    c <- charThat (`elem` headChars)
-    s <- many (charThat (`elem` identifierTailChars))
-    let name = c:s
-    if name `elem` ["len", "ord", "chr", "call", "true", "false",
-                    "begin", "end", "is",
-                    "if", "then", "else", "fi",
-                    "while", "do", "done",
-                    "skip", "read", "free", "return", "exit", "print", "println",
-                    "int", "string", "pair", "char", "null", "newpair"]
-        then empty else return name
+    s <- (:)
+        <$> charThat (`elem` headChars)
+        <*> many (charThat (`elem` identifierTailChars))
+    
+    if s `elem` keywords then empty else return s
+
     where
     headChars = '_' : ['A'..'Z'] ++ ['a'..'z']
+    keywords = ["len", "ord", "chr", "call", "true", "false",
+                "begin", "end", "is",
+                "if", "then", "else", "fi",
+                "while", "do", "done",
+                "skip", "read", "free", "return", "exit", "print", "println",
+                "int", "string", "pair", "char", "null", "newpair"]
 
 {- It is a parser that handles escaped characters in character literals 
    and returns the corresponding Char. -}
@@ -88,12 +89,12 @@ charEscaped = (
         ('\'' <$ char '\'')
     <|> ('\"' <$ char '\"')
     <|> ('\\' <$ char '\\')
-    <|> ('\r' <$ char 'r')
-    <|> ('\n' <$ char 'n')
-    <|> ('\t' <$ char 't')
-    <|> ('\b' <$ char 'b')
-    <|> ('\f' <$ char 'f')
-    <|> ('\0' <$ char '0')
+    <|> ('\r' <$ char 'r' )
+    <|> ('\n' <$ char 'n' )
+    <|> ('\t' <$ char 't' )
+    <|> ('\b' <$ char 'b' )
+    <|> ('\f' <$ char 'f' )
+    <|> ('\0' <$ char '0' )
     ) `syntaxError` MissingEscapedChar
 
 {- It is a parser that parses the first char of input stream.
@@ -160,11 +161,11 @@ expressionLiteralString = LiteralString ~ do
 
 expressionLiteralArray :: WaccParser Expression
 expressionLiteralArray = LiteralArray ~ do
-    _ <- char '['
-    _ <- many white
+    _  <- char '['
+    _  <- many white
     es <- optional $ expression `separatedBy` surroundManyWhites (char ',')
-    _ <- many white
-    _ <- char ']'
+    _  <- many white
+    _  <- char ']'
     return $ if null es then [] else fromJust es
 
 expressionLiteralPair :: WaccParser Expression
@@ -183,13 +184,13 @@ expressionLiteralPairNull = LiteralPairNull ~ void (str "null")
 
 expressionFunctionCall :: WaccParser Expression
 expressionFunctionCall = FunctionCall ~ do
-    _        <- str "call"
-    name     <- surroundManyWhites identifierString
-    _        <- char '('
-    paraList <- optional $ surroundManyWhites $
+    _    <- str "call"
+    f    <- surroundManyWhites identifierString
+    _    <- char '('
+    args <- optional $ surroundManyWhites $
                 expression `separatedBy` surroundManyWhites (char ',')
-    _        <- char ')'
-    return (name, if null paraList then [] else fromJust paraList)
+    _    <- char ')'
+    return (f, if null args then [] else fromJust args)
 
 expressionBase :: WaccParser Expression
 expressionBase = asum [
@@ -209,11 +210,11 @@ indexOperator :: WaccParser Expression -> WaccParser Expression
 indexOperator higherParser = do
     ((from, _), array) <- getRangeA higherParser
     indices <- many $ do
-        _ <- many white
-        _ <- char '['
+        _     <- many white
+        _     <- char '['
         index <- getRangeA $ surroundManyWhites expression `syntaxError`
-            ExpectIndexInBracket
-        _ <- char ']' `syntaxError` UnmatchedSquareBracket
+                    ExpectIndexInBracket
+        _     <- char ']' `syntaxError` UnmatchedSquareBracket
         return index
 
     let mergeArrayElement x ((_, to), y) = ArrayElement (x, y) (from, to)
@@ -240,7 +241,7 @@ unaryOperator higherParser (wordOperators, symbolOperators) = do
                     case operator of
                         "!" -> str operator <* many white
                         "-" -> (str operator <* many white)
-                            `notFollowedBy` expressionNoSignLiteralInt
+                                `notFollowedBy` expressionNoSignLiteralInt
                         _ -> error "unreachable"
 
         constructorParsers = wordOperatorsParsers ++ symbolOperatorParsers
@@ -276,17 +277,17 @@ binaryOperator ::
     -> (Associativity, [(String, (Expression, Expression) -> Range -> Expression)])
     -> WaccParser Expression
 binaryOperator higherParser (associativity, operators) = do
+    firstExpression <- getRangeA higherParser
+
+    rightExpressionsAndConstructors <-
+        many . asum $ operators <&> \(symbol, constructor) -> do
+            _ <- surroundManyWhites $ getRangeA $ str symbol
+            (rightRange, right) <- getRangeA $ higherParser
+                                    `syntaxError` ExpectRightOperand
+            return (constructor, (rightRange, right))
+
     case associativity of
         LeftAssociative -> do
-            firstExpression <- getRangeA higherParser
-
-            rightExpressionsAndConstructors <-
-                many . asum $ operators <&> \(symbol, constructor) -> do
-                    _ <- surroundManyWhites $ getRangeA $ str symbol
-                    (rightRange, right) <- getRangeA $ higherParser
-                                            `syntaxError` ExpectRightOperand
-                    return (constructor, (rightRange, right))
-
             let merge ((from, _), x) (constructor, ((_, to), y)) =
                     ((from, to), constructor (x, y) (from, to))
 
@@ -294,16 +295,8 @@ binaryOperator higherParser (associativity, operators) = do
                 foldl merge firstExpression rightExpressionsAndConstructors
 
         RightAssociative -> do
-            left <- getRangeA higherParser
-
-            (unzip -> (constructors, rights)) <-
-                many . asum $ operators <&> \(symbol, constructor) -> do
-                    _ <- surroundManyWhites $ getRangeA $ str symbol
-                    (rightRange, right) <- getRangeA $ higherParser
-                                            `syntaxError` ExpectRightOperand
-                    return (constructor, (rightRange, right))
-
-            let expressions = left : rights
+            let (constructors, rights) = unzip rightExpressionsAndConstructors
+            let expressions = firstExpression : rights
             let leftExpressionsAndConstructors = zip expressions constructors
             let lastExpression = last expressions
 
@@ -395,22 +388,22 @@ statementIf = If ~ do
 
 statementWhile :: WaccParser Statement
 statementWhile = While ~ do
-    _ <- str "while"
-    _ <- some white
+    _         <- str "while"
+    _         <- some white
     condition <- expression `syntaxError` ExpectConditionWhile
-    _ <- some white
-    _ <- str "do"
-    _ <- some white
-    body <- statements `syntaxError` ExpectWhileBody
-    _ <- some white
-    _ <- str "done"
+    _         <- some white
+    _         <- str "do"
+    _         <- some white
+    body      <- statements `syntaxError` ExpectWhileBody
+    _         <- some white
+    _         <- str "done"
     return (condition, body)
 
 statementScope :: WaccParser Statement
 statementScope = Scope ~ do
-    _ <- str "begin"
+    _    <- str "begin"
     body <- surroundManyWhites statements `syntaxError` ExpectScopeBody
-    _ <- str "end"
+    _    <- str "end"
     return body
 
 typeInt :: WaccParser Type
@@ -475,17 +468,17 @@ type' = typeArray `syntaxErrorWhen` (not . isType, \(_, t) -> findError t)
 
 statementDeclare :: WaccParser Statement
 statementDeclare = Declare ~ do
-    t <- type'
-    _ <- some white
-    name <- identifierString `syntaxError` ExpectIdentifierInDeclaration
-    _ <- surroundManyWhites $ char '=' `syntaxError` ExpectEqualSign
+    t     <- type'
+    _     <- some white
+    n     <- identifierString `syntaxError` ExpectIdentifierInDeclaration
+    _     <- surroundManyWhites $ char '=' `syntaxError` ExpectEqualSign
     value <- rightValue `syntaxError` ExpectOneExpression
-    return (t, name, value)
+    return (t, n, value)
 
 statementAssign :: WaccParser Statement
 statementAssign = Assign ~ do
-    left <- leftValue
-    _ <- surroundManyWhites $ char '=' `syntaxError` ExpectEqualSign
+    left  <- leftValue
+    _     <- surroundManyWhites $ char '=' `syntaxError` ExpectEqualSign
     right <- rightValue `syntaxError` ExpectOneExpression
     return (left, right)
 
@@ -529,32 +522,32 @@ statementMustReturn = statement `that` willReturn
 
 function :: WaccParser Function
 function = Function ~ do
-    t <- type'
-    _ <- some white
-    name <- name
-    _ <- many white
-    _ <- char '('
+    t          <- type'
+    _          <- some white
+    n          <- name
+    _          <- many white
+    _          <- char '('
     parameters <- optional $ surroundManyWhites $
-        parameter `separatedBy` surroundManyWhites (char ',')
-    _ <- char ')'
-    _ <- surroundManyWhites $ str "is"
-    body <- statements `syntaxErrorWhen` (
-        not . willReturn . last,
-        \(_, body) ->
-            SyntaxError (fst (statementRange (last body)))
-            (FunctionDoesNotReturn name)
-        )
-    _ <- many white
-    _ <- str "end"
-    return (t, name, if null parameters then [] else fromJust parameters, body)
+                    parameter `separatedBy` surroundManyWhites (char ',')
+    _          <- char ')'
+    _          <- surroundManyWhites $ str "is"
+    body       <- statements `syntaxErrorWhen` (
+                    not . willReturn . last,
+                    \(_, body) ->
+                        SyntaxError (fst (statementRange (last body)))
+                        (FunctionDoesNotReturn n)
+                    )
+    _          <- many white
+    _          <- str "end"
+    return (t, n, if null parameters then [] else fromJust parameters, body)
 
 program' :: WaccParser ([Function], [Statement])
 program' = do
-    _ <- surroundManyWhites (str "begin" `syntaxError` ExpectProgramBegin)
+    _         <- surroundManyWhites (str "begin" `syntaxError` ExpectProgramBegin)
     functions <- optional $ function `separatedBy` many white
-    _ <- many white
-    body <- statements
-    _ <- surroundManyWhites (str "end" `syntaxError` ExpectProgramEnd)
+    _         <- many white
+    body      <- statements
+    _         <- surroundManyWhites (str "end" `syntaxError` ExpectProgramEnd)
 
     return (if null functions then [] else fromJust functions, body)
 
