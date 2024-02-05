@@ -1,1 +1,1 @@
-cabal run . -- %1
+cabal run . -- %1 --no-text-deco

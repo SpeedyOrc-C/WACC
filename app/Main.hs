@@ -21,9 +21,28 @@ syntaxErrorExit = exitWith $ ExitFailure 100
 semanticErrorExit :: IO ()
 semanticErrorExit = exitWith $ ExitFailure 200
 
+splitFlags :: [String] -> ([String], [String])
+splitFlags args = (filter ((== "--") . take 2) args, filter ((/= "--") . take 2) args)
+
+data Flags = Flags {
+    noTextDecoration :: Bool
+} deriving Show
+
+flagsFromArgs :: [String] -> Flags
+flagsFromArgs args = Flags {
+    noTextDecoration = "--no-text-deco" `elem` args
+}
+
+preventTextDecoration :: Bool -> (a -> a) -> a -> a
+preventTextDecoration False color = color
+preventTextDecoration True _ = id
+
 main :: IO ()
 main = do
-    args <- getArgs
+    (splitFlags -> (flagsArgs, args)) <- getArgs
+
+    let flags = flagsFromArgs flagsArgs
+
     case args of
 
         [] -> putStrLn "Please provide a .wacc file to compile."
@@ -32,10 +51,10 @@ main = do
 
         path:_ -> do
             sourceCode <- readFile path
-            processSourceCode sourceCode
+            processSourceCode flags sourceCode
 
-processSourceCode :: String -> IO ()
-processSourceCode (removeTabs -> sourceCode) =
+processSourceCode :: Flags -> String -> IO ()
+processSourceCode flags (removeTabs -> sourceCode) =
     case Parser.parseString Syntax.Parser.program sourceCode of
 
     Left Nothing -> do
@@ -47,24 +66,28 @@ processSourceCode (removeTabs -> sourceCode) =
         putStrLn ""
 
         putStrLn `traverse_`
-            underlineTextSection pos (pos+1) (2, '^', red) sourceCode
+            underlineTextSection pos (pos+1)
+                (2, '^', preventTextDecoration (noTextDecoration flags) red)
+                sourceCode
 
         putStrLn ""
 
         let (row, col) = textPosition sourceCode pos
         putStrLn $
-            red "[Syntax] " ++
-            bold (show (row + 1) ++ ":" ++ show (col + 1)) ++ " " ++
+            preventTextDecoration (noTextDecoration flags) red
+                "[Syntax] " ++
+            preventTextDecoration (noTextDecoration flags) bold
+                (show (row + 1) ++ ":" ++ show (col + 1)) ++ " " ++
             show error'
 
         putStrLn ""
 
         syntaxErrorExit
 
-    Right (Parser.Parsed _ ast _) -> semanticCheck ast sourceCode
+    Right (Parser.Parsed _ ast _) -> semanticCheck flags ast sourceCode
 
-semanticCheck :: Syntax.Structure.Program -> String -> IO ()
-semanticCheck program sourceCode =
+semanticCheck :: Flags -> Syntax.Structure.Program -> String -> IO ()
+semanticCheck flags program sourceCode =
     case Semantics.Checker.checkProgram program of
 
     Semantics.Utils.Ok {} -> do
@@ -79,17 +102,19 @@ semanticCheck program sourceCode =
             let (fromRow, fromCol) = textPosition sourceCode from
 
             putStrLn `traverse_`
-                underlineTextSection from to (2, '^', red) sourceCode
+                underlineTextSection from to
+                    (2, '^', preventTextDecoration (noTextDecoration flags) red)
+                    sourceCode
 
             putStrLn ""
 
             putStrLn $
-                red "[Semantics] " ++
-                bold (show (fromRow + 1) ++ ":" ++ show (fromCol + 1)) ++ " " ++
+                preventTextDecoration (noTextDecoration flags)
+                    red "[Semantics] " ++
+                preventTextDecoration (noTextDecoration flags) bold
+                    (show (fromRow + 1) ++ ":" ++ show (fromCol + 1)) ++ " " ++
                 show error
 
             putStrLn ""
 
         semanticErrorExit
-
-
