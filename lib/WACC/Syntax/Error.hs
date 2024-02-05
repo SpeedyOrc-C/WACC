@@ -4,7 +4,7 @@ import WACC.Syntax.Structure (Name (..))
 {- Defines all types of syntax error in WACC -}
 data WaccSyntaxErrorType
     = ExpectOperand String
-    | ExpectRightOperand String
+    | ExpectRightOperand
     | ExpectExpressionInBracket
     | UnmatchedBracket
     | ExpectIndexInBracket
@@ -46,8 +46,8 @@ instance Show WaccSyntaxErrorType where
     show :: WaccSyntaxErrorType -> String
     show (ExpectOperand operator) =
         "Expect operand for operator “" ++ operator ++ "”"
-    show (ExpectRightOperand operator) =
-        "Expect right operand for operator “" ++ operator ++ "”"
+    show ExpectRightOperand =
+        "Expect right operand"
     show ExpectExpressionInBracket =
         "Expect an expression in bracket"
     show UnmatchedBracket =

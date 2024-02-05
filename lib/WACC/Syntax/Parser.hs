@@ -1,13 +1,14 @@
 module WACC.Syntax.Parser where
 
-import WACC.Syntax.Structure
-import Text.Parser
-import WACC.Syntax.Error
-
 import Control.Monad
 import Control.Applicative
 import Data.Functor
 import Data.Maybe
+import GHC.Generics (Associativity(..))
+
+import Text.Parser
+import WACC.Syntax.Structure
+import WACC.Syntax.Error
 import WACC.Syntax.Validation
 
 {- Define a SyntaxParser which can identify a SyntaxError 
@@ -210,7 +211,7 @@ indexOperator higherParser = do
     indices <- many $ do
         _ <- many white
         _ <- char '['
-        index <- getRangeA $ surroundManyWhites expression `syntaxError` 
+        index <- getRangeA $ surroundManyWhites expression `syntaxError`
             ExpectIndexInBracket
         _ <- char ']' `syntaxError` UnmatchedSquareBracket
         return index
@@ -272,30 +273,62 @@ expressionUnaryOperation =
 
 binaryOperator ::
     WaccParser Expression
-    -> [(String, (Expression, Expression) -> Range -> Expression)]
+    -> (Associativity, [(String, (Expression, Expression) -> Range -> Expression)])
     -> WaccParser Expression
-binaryOperator higherParser operators = do
-    ((from, _), e) <- getRangeA higherParser
+binaryOperator higherParser (associativity, operators) = do
+    case associativity of
+        LeftAssociative -> do
+            firstExpression <- getRangeA higherParser
 
-    es <- many . asum . map getRangeA $ operators <&>
-        \(symbol, constructor) -> do
-            _ <- surroundManyWhites $ str symbol
-            right <- higherParser `syntaxError` ExpectRightOperand symbol
-            return (constructor, right)
+            rightExpressionsAndConstructors <-
+                many . asum $ operators <&> \(symbol, constructor) -> do
+                    _ <- surroundManyWhites $ getRangeA $ str symbol
+                    (rightRange, right) <- getRangeA $ higherParser
+                                            `syntaxError` ExpectRightOperand
+                    return (constructor, (rightRange, right))
 
-    let mergeBinaryExpression x ((_, to), (constructor, y)) =
-            constructor (x, y) (from, to)
+            let merge ((from, _), x) (constructor, ((_, to), y)) =
+                    ((from, to), constructor (x, y) (from, to))
 
-    return $ foldl mergeBinaryExpression e es
+            return $ snd $
+                foldl merge firstExpression rightExpressionsAndConstructors
+
+        RightAssociative -> do
+            left <- getRangeA higherParser
+
+            (unzip -> (constructors, rights)) <-
+                many . asum $ operators <&> \(symbol, constructor) -> do
+                    _ <- surroundManyWhites $ getRangeA $ str symbol
+                    (rightRange, right) <- getRangeA $ higherParser
+                                            `syntaxError` ExpectRightOperand
+                    return (constructor, (rightRange, right))
+
+            let expressions = left : rights
+            let leftExpressionsAndConstructors = zip expressions constructors
+            let lastExpression = last expressions
+
+            let merge (((from, _), x), constructor) ((_, to), y) =
+                    ((from, to), constructor (x, y) (from, to))
+
+            return $ snd $
+                foldr merge lastExpression leftExpressionsAndConstructors
+
+        NotAssociative -> error "WACC does not have this kind of operator!"
 
 expressionBinaryOperation :: WaccParser Expression
 expressionBinaryOperation = foldl binaryOperator expressionUnaryOperation [
-    [("*", Multiply) ,("/", Divide) ,("%", Remainder)],
-    [("+", Add) ,("-", Subtract)],
-    [("<=", LessEqual) ,("<", Less) ,(">=", GreaterEqual) ,(">", Greater)],
-    [("==", Equal) ,("!=", NotEqual)],
-    [("&&", And)],
-    [("||", Or)]
+    (LeftAssociative,
+        [("*", Multiply), ("/", Divide), ("%", Remainder)]),
+    (LeftAssociative,
+        [("+", Add), ("-", Subtract)]),
+    (LeftAssociative,
+        [("<=", LessEqual), ("<", Less), (">=", GreaterEqual), (">", Greater)]),
+    (LeftAssociative,
+        [("==", Equal), ("!=", NotEqual)]),
+    (RightAssociative,
+        [("&&", And)]),
+    (RightAssociative,
+        [("||", Or)])
     ]
 
 expressionWithBrackets :: WaccParser Expression
@@ -508,7 +541,7 @@ function = Function ~ do
     body <- statements `syntaxErrorWhen` (
         not . willReturn . last,
         \(_, body) ->
-            SyntaxError (fst (statementRange (last body))) 
+            SyntaxError (fst (statementRange (last body)))
             (FunctionDoesNotReturn name)
         )
     _ <- many white
