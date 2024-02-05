@@ -1,16 +1,19 @@
 module Main where
 
-import System.Environment (getArgs)
-import Text.SourceCode ( textPosition, underlineTextSection )
-import Data.Foldable (traverse_, for_)
-import Text.AnsiEscape ( red, bold )
-import System.Exit (exitWith, ExitCode (ExitFailure), exitSuccess)
-import qualified Text.Parser
-import qualified WACC.Syntax.Parser
-import qualified WACC.Syntax.Structure
-import qualified WACC.Semantics.Checker
-import qualified WACC.Semantics.Utils
-import Text.SourceCode (removeTabs)
+import Prelude hiding (error)
+
+import System.Environment ( getArgs )
+import System.Exit ( ExitCode(ExitFailure), exitSuccess, exitWith )
+
+import Data.Foldable ( for_, traverse_ )
+
+import Text.SourceCode ( textPosition, underlineTextSection, removeTabs )
+import Text.AnsiEscape ( bold, red )
+import qualified Text.Parser            as Parser
+import qualified WACC.Syntax.Parser     as Syntax.Parser
+import qualified WACC.Syntax.Structure  as Syntax.Structure
+import qualified WACC.Semantics.Checker as Semantics.Checker
+import qualified WACC.Semantics.Utils   as Semantics.Utils
 
 syntaxErrorExit :: IO ()
 syntaxErrorExit = exitWith $ ExitFailure 100
@@ -33,13 +36,13 @@ main = do
 
 processSourceCode :: String -> IO ()
 processSourceCode (removeTabs -> sourceCode) =
-    case Text.Parser.parseString WACC.Syntax.Parser.program sourceCode of
+    case Parser.parseString Syntax.Parser.program sourceCode of
 
     Left Nothing -> do
         putStrLn "Unknown syntax error."
         syntaxErrorExit
 
-    Left (Just (Text.Parser.SyntaxError pos error')) -> do
+    Left (Just (Parser.SyntaxError pos error')) -> do
 
         putStrLn ""
 
@@ -58,20 +61,20 @@ processSourceCode (removeTabs -> sourceCode) =
 
         syntaxErrorExit
 
-    Right (Text.Parser.Parsed _ ast _) -> semanticCheck ast sourceCode
+    Right (Parser.Parsed _ ast _) -> semanticCheck ast sourceCode
 
-semanticCheck :: WACC.Syntax.Structure.Program -> String -> IO ()
+semanticCheck :: Syntax.Structure.Program -> String -> IO ()
 semanticCheck program sourceCode =
-    case WACC.Semantics.Checker.checkProgram program of
+    case Semantics.Checker.checkProgram program of
 
-    WACC.Semantics.Utils.Ok {} -> do
+    Semantics.Utils.Ok {} -> do
         exitSuccess
 
-    WACC.Semantics.Utils.Log semanticErrors -> do
+    Semantics.Utils.Log semanticErrors -> do
 
         putStrLn ""
 
-        for_ semanticErrors $ \(WACC.Semantics.Utils.SemanticError range error) -> do
+        for_ semanticErrors $ \(Semantics.Utils.SemanticError range error) -> do
             let (from, to) = range
             let (fromRow, fromCol) = textPosition sourceCode from
 
