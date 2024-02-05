@@ -17,6 +17,7 @@ import WACC.Semantics.Checker (checkProgram)
 import WACC.Semantics.Utils (LogEither(..))
 import Data.Foldable (for_)
 import WACC.Semantics.Utils (SemanticError(..))
+import Data.List (sort)
 
 getDirectoryContents' :: FilePath -> IO [FilePath]
 getDirectoryContents' path =
@@ -24,10 +25,10 @@ getDirectoryContents' path =
 
 allFilesRecursive :: FilePath -> IO [FilePath]
 allFilesRecursive path = do
-    contents <- getDirectoryContents' path
-    files <- filterM doesFileExist $ ((path ++ "/") ++) <$> contents
-    dirs <- filterM doesDirectoryExist $ ((path ++ "/") ++ ) <$> contents
-    files' <- for dirs allFilesRecursive
+    (sort -> contents) <- getDirectoryContents' path
+    (sort -> files) <- filterM doesFileExist $ ((path ++ "/") ++) <$> contents
+    (sort -> dirs) <- filterM doesDirectoryExist $ ((path ++ "/") ++ ) <$> contents
+    (sort -> files') <- for dirs allFilesRecursive
 
     return $ files ++ concat files'
 
@@ -84,7 +85,7 @@ testSemanticError = do
             Left {} -> do
                 putStrLn $ red $ "    ! " ++ test
                 putStrLn $ red   "        Syntax error found"
-                print raw
+                
                 return False
 
             Right (Parsed _ ast _) -> do
@@ -127,9 +128,9 @@ testValid = do
         case parseString program raw of
 
             Left {} -> do
-                putStrLn $ red $ "    ! " ++ test
-                putStrLn $ red   "        Syntax error found"
-                print raw
+                putStrLn $ red "    ! " ++ test
+                putStrLn $ red "        Syntax error found"
+                
                 return False
             
             Right (Parsed _ ast _) -> do
@@ -161,8 +162,6 @@ main = do
     resultSyntaxError <- testSyntaxError
     resultSemanticError <- testSemanticError
     resultValid <- testValid
-    -- resultSyntax <- syntaxTests
 
     let succeed = resultSyntaxError && resultSemanticError && resultValid
-    -- && and resultSyntax
     if succeed then exitSuccess else exitFailure

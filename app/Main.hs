@@ -1,16 +1,19 @@
 module Main where
 
-import System.Environment (getArgs)
-import Text.SourceCode ( textPosition, underlineTextSection )
-import Data.Foldable (traverse_, for_)
-import Text.AnsiEscape ( red, bold )
-import System.Exit (exitWith, ExitCode (ExitFailure), exitSuccess)
-import qualified Text.Parser
-import qualified WACC.Syntax.Parser
-import qualified WACC.Syntax.Structure
-import qualified WACC.Semantics.Checker
-import qualified WACC.Semantics.Utils
-import Text.SourceCode (removeTabs)
+import Prelude hiding (error)
+
+import System.Environment ( getArgs )
+import System.Exit ( ExitCode(ExitFailure), exitSuccess, exitWith )
+
+import Data.Foldable ( for_, traverse_ )
+
+import Text.SourceCode ( textPosition, underlineTextSection, removeTabs )
+import Text.AnsiEscape ( bold, red )
+import qualified Text.Parser            as Parser
+import qualified WACC.Syntax.Parser     as Syntax.Parser
+import qualified WACC.Syntax.Structure  as Syntax.Structure
+import qualified WACC.Semantics.Checker as Semantics.Checker
+import qualified WACC.Semantics.Utils   as Semantics.Utils
 
 syntaxErrorExit :: IO ()
 syntaxErrorExit = exitWith $ ExitFailure 100
@@ -18,9 +21,28 @@ syntaxErrorExit = exitWith $ ExitFailure 100
 semanticErrorExit :: IO ()
 semanticErrorExit = exitWith $ ExitFailure 200
 
+splitFlags :: [String] -> ([String], [String])
+splitFlags args = (filter ((== "--") . take 2) args, filter ((/= "--") . take 2) args)
+
+data Flags = Flags {
+    noTextDecoration :: Bool
+} deriving Show
+
+flagsFromArgs :: [String] -> Flags
+flagsFromArgs args = Flags {
+    noTextDecoration = "--no-text-deco" `elem` args
+}
+
+preventTextDecoration :: Bool -> (a -> a) -> a -> a
+preventTextDecoration False color = color
+preventTextDecoration True _ = id
+
 main :: IO ()
 main = do
-    args <- getArgs
+    (splitFlags -> (flagsArgs, args)) <- getArgs
+
+    let flags = flagsFromArgs flagsArgs
+
     case args of
 
         [] -> putStrLn "Please provide a .wacc file to compile."
@@ -29,64 +51,70 @@ main = do
 
         path:_ -> do
             sourceCode <- readFile path
-            processSourceCode sourceCode
+            processSourceCode flags sourceCode
 
-processSourceCode :: String -> IO ()
-processSourceCode (removeTabs -> sourceCode) =
-    case Text.Parser.parseString WACC.Syntax.Parser.program sourceCode of
+processSourceCode :: Flags -> String -> IO ()
+processSourceCode flags (removeTabs -> sourceCode) =
+    case Parser.parseString Syntax.Parser.program sourceCode of
 
     Left Nothing -> do
         putStrLn "Unknown syntax error."
         syntaxErrorExit
 
-    Left (Just (Text.Parser.SyntaxError pos error')) -> do
+    Left (Just (Parser.SyntaxError pos error')) -> do
 
         putStrLn ""
 
         putStrLn `traverse_`
-            underlineTextSection pos (pos+1) (2, '^', red) sourceCode
+            underlineTextSection pos (pos+1)
+                (2, '^', preventTextDecoration (noTextDecoration flags) red)
+                sourceCode
 
         putStrLn ""
 
         let (row, col) = textPosition sourceCode pos
         putStrLn $
-            red "[Syntax] " ++
-            bold (show (row + 1) ++ ":" ++ show (col + 1)) ++ " " ++
+            preventTextDecoration (noTextDecoration flags) red
+                "[Syntax] " ++
+            preventTextDecoration (noTextDecoration flags) bold
+                (show (row + 1) ++ ":" ++ show (col + 1)) ++ " " ++
             show error'
 
         putStrLn ""
 
         syntaxErrorExit
 
-    Right (Text.Parser.Parsed _ ast _) -> semanticCheck ast sourceCode
+    Right (Parser.Parsed _ ast _) -> semanticCheck flags ast sourceCode
 
-semanticCheck :: WACC.Syntax.Structure.Program -> String -> IO ()
-semanticCheck program sourceCode =
-    case WACC.Semantics.Checker.checkProgram program of
+semanticCheck :: Flags -> Syntax.Structure.Program -> String -> IO ()
+semanticCheck flags program sourceCode =
+    case Semantics.Checker.checkProgram program of
 
-    WACC.Semantics.Utils.Ok {} -> do
+    Semantics.Utils.Ok {} -> do
         exitSuccess
 
-    WACC.Semantics.Utils.Log semanticErrors -> do
+    Semantics.Utils.Log semanticErrors -> do
 
         putStrLn ""
 
-        for_ semanticErrors $ \(WACC.Semantics.Utils.SemanticError range error) -> do
+        for_ semanticErrors $ \(Semantics.Utils.SemanticError range error) -> do
             let (from, to) = range
             let (fromRow, fromCol) = textPosition sourceCode from
 
             putStrLn `traverse_`
-                underlineTextSection from to (2, '^', red) sourceCode
+                underlineTextSection from to
+                    (2, '^', preventTextDecoration (noTextDecoration flags) red)
+                    sourceCode
 
             putStrLn ""
 
             putStrLn $
-                red "[Semantics] " ++
-                bold (show (fromRow + 1) ++ ":" ++ show (fromCol + 1)) ++ " " ++
+                preventTextDecoration (noTextDecoration flags)
+                    red "[Semantics] " ++
+                preventTextDecoration (noTextDecoration flags) bold
+                    (show (fromRow + 1) ++ ":" ++ show (fromCol + 1)) ++ " " ++
                 show error
 
             putStrLn ""
 
         semanticErrorExit
-
-

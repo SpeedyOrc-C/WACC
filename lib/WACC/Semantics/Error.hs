@@ -17,7 +17,7 @@ data WaccSemanticsErrorType
     | RedefinedParameter String
     | InvalidRead Type
     | InvalidFree Type
-    | InvalidReturn Type
+    | InvalidReturn Type Type
     | ReturnInMain
     | InvalidIfCondition Type
     | InvalidWhileCondition Type
@@ -35,6 +35,7 @@ data WaccSemanticsErrorType
     | InvalidEquality Type Type
     | InvalidLogical OperandDirection Type
     | BothSideAnyAssignment
+    | InvalidExit Type
 
 instance Show WaccSemanticsErrorType where
     show :: WaccSemanticsErrorType -> String
@@ -119,4 +120,9 @@ instance Show WaccSemanticsErrorType where
         ++ show invalidType ++ ", expected bool."
     show BothSideAnyAssignment =
         "..."
-    show _ = "To be continued..."
+    show (InvalidExit invalidType) =
+        "Invalid type for exit: unexpected " 
+        ++ show invalidType ++ ", expected Int."
+    show (InvalidReturn validType invalidType) =
+        "Invalid return type for return: unexpected "
+        ++ show invalidType ++ ", expected " ++ show validType ++ "." 
