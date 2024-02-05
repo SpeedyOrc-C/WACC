@@ -534,19 +534,6 @@ function = Function ~ do
     _          <- many white
     _          <- char '('
     parameters <- optional $ surroundManyWhites $
-<<<<<<< HEAD
-        parameter `separatedBy` surroundManyWhites (char ',')
-    _ <- char ')'
-    _ <- surroundManyWhites $ str "is"
-    body <- statements `syntaxErrorWhen` (
-        not . willReturn . last,
-        \(_, body) ->
-            SyntaxError (fst (statementRange (last body))) (FunctionDoesNotReturn name)
-        )
-    _ <- many white
-    _ <- str "end"
-    return (t, name, if null parameters then [] else fromJust parameters, body)
-=======
                     parameter `separatedBy` surroundManyWhites (char ',')
     _          <- char ')'
     _          <- surroundManyWhites $ str "is"
@@ -559,7 +546,6 @@ function = Function ~ do
     _          <- many white
     _          <- str "end"
     return (t, n, if null parameters then [] else fromJust parameters, body)
->>>>>>> 980e7d3b35c2466f00cdfbcd5d02244f5b479809
 
 program' :: WaccParser ([Function], [Statement])
 program' = do
