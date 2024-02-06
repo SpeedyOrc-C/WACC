@@ -257,8 +257,7 @@ unaryOperator higherParser (wordOperators, symbolOperators) = do
 
     ((_, to), e) <- if null operatorStrings
         then getRangeA higherParser
-        else getRangeA higherParser
-            `syntaxError` ExpectOperand (last operatorStrings)
+        else getRangeA higherParser `syntaxError` ExpectOperand
 
     let mergeUnaryExpression x ((from, _), (_, constructor)) =
             constructor x (from, to)
@@ -289,7 +288,7 @@ binaryOperator higherParser (associativity, operators) = do
         many . asum $ operators <&> \(symbol, constructor) -> do
             _ <- surroundManyWhites $ getRangeA $ str symbol
             (rightRange, right) <- getRangeA $ higherParser
-                                    `syntaxError` ExpectRightOperand
+                                    `syntaxError` ExpectOperand
             return (constructor, (rightRange, right))
 
     case associativity of
@@ -477,14 +476,14 @@ statementDeclare = Declare ~ do
     t     <- type'
     _     <- some white
     n     <- identifierString `syntaxError` ExpectIdentifierInDeclaration
-    _     <- surroundManyWhites $ char '=' `syntaxError` ExpectEqualSign
+    _     <- surroundManyWhites $ char '=' `syntaxError` ExpectDeclareEqualSign
     value <- rightValue `syntaxError` ExpectOneExpression
     return (t, n, value)
 
 statementAssign :: WaccParser Statement
 statementAssign = Assign ~ do
     left  <- leftValue
-    _     <- surroundManyWhites $ char '=' `syntaxError` ExpectEqualSign
+    _     <- surroundManyWhites $ char '=' `syntaxError` ExpectAssignEqualSign
     right <- rightValue `syntaxError` ExpectOneExpression
     return (left, right)
 

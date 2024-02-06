@@ -3,8 +3,7 @@ import WACC.Syntax.Structure (Name (..))
 
 {- Defines all types of syntax error in WACC -}
 data WaccSyntaxErrorType
-    = ExpectOperand String
-    | ExpectRightOperand
+    = ExpectOperand
     | ExpectExpressionInBracket
     | UnmatchedBracket
     | ExpectIndexInBracket
@@ -22,6 +21,7 @@ data WaccSyntaxErrorType
     | ExpectElseClause
     | ExpectFi
     | ExpectConditionWhile
+    | ExpectDo
     | ExpectWhileBody
     | ExpectStatementAfterSemicolon
     | ExpectScopeBody
@@ -32,7 +32,8 @@ data WaccSyntaxErrorType
     | InvalidLeftValue
     | InvalidRightValue
     | ExpectOneStatement
-    | ExpectEqualSign
+    | ExpectAssignEqualSign
+    | ExpectDeclareEqualSign
     | ExpectOneExpression
     | IntegerOverflow Int
     | ExpectProgramBegin
@@ -44,20 +45,18 @@ data WaccSyntaxErrorType
 error messages. -}
 instance Show WaccSyntaxErrorType where
     show :: WaccSyntaxErrorType -> String
-    show (ExpectOperand operator) =
-        "Expect operand for operator “" ++ operator ++ "”"
-    show ExpectRightOperand =
-        "Expect right operand"
+    show ExpectOperand =
+        "Expect an operand."
     show ExpectExpressionInBracket =
-        "Expect an expression in bracket"
+        "Expect an expression in bracket."
     show UnmatchedBracket =
-        "Unmatched bracket in expression"
+        "Cannot find \")\"."
     show ExpectIndexInBracket =
         "Expect an index in bracket"
     show UnmatchedSquareBracket =
         "Unmatched square bracket in index"
     show MissingEscapedChar =
-        "Missing escaped charater"
+        "Missing escaped character."
     show (NonGraphicChar c) =
         "Non graphic character " ++ show c ++ " is not allowed"
     show (NonAsciiChar c)
@@ -76,23 +75,25 @@ instance Show WaccSyntaxErrorType where
     show ExpectConditionIf =
         "Expect condition after “if” keyword"
     show ExpectThen =
-        "Expect “then” keyword after condition"
+        "Expect \"then\" keyword (or extend the condition with more operators)."
     show ExpectThenClause =
-        "Expect “then” clause after condition"
+        "Expect \"then\" clause after condition"
     show ExpectElse =
-        "Expect “else” keyword after “then” clause"
+        "Expect \"else\" keyword after \"then\" clause."
     show ExpectElseClause =
-        "Expect “else” clause after “then” clause"
+        "Expect \"else\" clause after \"then\" clause."
     show ExpectFi =
-        "Expect “fi” keyword after “then” clause"
+        "Expect \"fi\" keyword after \"then\" clause."
     show ExpectConditionWhile =
-        "Expect condition after “while” keyword"
+        "Expect condition after \"while\" keyword"
+    show ExpectDo =
+        "Expect \"do\" keyword (or extend the condition with more operators)."
     show ExpectWhileBody =
-        "Expect body after “while” condition"
+        "Expect body after \"while\" condition"
     show ExpectStatementAfterSemicolon =
         "Expect a statement after semicolon"
     show ExpectScopeBody =
-        "Expect body after “begin” keyword"
+        "Expect body after \"begin\" keyword"
     show PairTypeErased =
         "Pair type here should have inner types"
     show PairTypeInPairTypeNotErased =
@@ -107,8 +108,10 @@ instance Show WaccSyntaxErrorType where
         "Invalid right value"
     show ExpectOneStatement =
         "Expect one statement"
-    show ExpectEqualSign =
-        "Expect “=” sign for assignment"
+    show ExpectAssignEqualSign =
+        "Expect \"=\" sign for assignment (or extend it with array indices)."
+    show ExpectDeclareEqualSign =
+        "Expect \"=\" sign for declaration."
     show ExpectOneExpression =
         "Expect one expression for assignment"
     show (IntegerOverflow i) =
@@ -116,13 +119,13 @@ instance Show WaccSyntaxErrorType where
         (if i < intLowerBound then "small" else "big") ++ ", " ++
         "and should be in range -2^31 and 2^31-1"
     show ExpectProgramBegin =
-        "Expect “begin” keyword at the beginning of program"
+        "Expect \"begin\" keyword at the beginning of program"
     show ExpectProgramEnd =
-        "Expect “end” keyword at the end of program"
+        "Expect \"end\" keyword at the end of program"
     show (FunctionDoesNotReturn (Name name _)) =
         "There is a path in function “" ++ name ++ "” that does not return"
     show UnexpectedCodeAfterProgramEnd =
-        "There is unexpected code after “end” keyword"
+        "There is unexpected code after \"end\" keyword"
 
 {- The smallest allowed integer literal. -}
 intLowerBound :: Int
