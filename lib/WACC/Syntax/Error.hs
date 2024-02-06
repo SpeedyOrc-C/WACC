@@ -40,6 +40,7 @@ data WaccSyntaxErrorType
     | ExpectProgramEnd
     | FunctionDoesNotReturn Name
     | UnexpectedCodeAfterProgramEnd
+    deriving Eq
 
 {- Makes WaccSyntaxErrorType an instance of type class Show to display helpful 
 error messages. -}
