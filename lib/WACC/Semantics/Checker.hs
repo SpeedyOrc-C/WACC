@@ -240,11 +240,11 @@ instance CheckSemantics Syntax.Statement Statement where
         -- firstly use fromSyntaxType to the type of the declare
         Syntax.Declare (fromSyntaxType -> declaredType, name, value) range
             -> case check state value of
-            
             Ok (computedType, newValue) ->
                 -- if the type at the right hand side can be compatible to the left
                 -- hand side, then it is fine else return error
-                if declaredType <| computedType then
+                if (isLiterArray value && (declaredType <? computedType)) || (declaredType <| computedType) 
+                    then
                     -- the name of the identifier must not appear in the inner most layer
                     -- of the stack of variable tables
                     case lookUpInnermost state name of
@@ -263,7 +263,7 @@ instance CheckSemantics Syntax.Statement Statement where
             if leftType == Any && rightType == Any
                 then Log [SemanticError (expressionRange right) $
                                 BothSideAnyAssignment]
-                else if leftType <| rightType
+                else if (isLiterArray right && (leftType <? rightType)) || (leftType <| rightType)
                      then Ok (Assign left' right')
                      else Log [SemanticError (expressionRange right) $
                                 IncompatibleAssignment leftType rightType]

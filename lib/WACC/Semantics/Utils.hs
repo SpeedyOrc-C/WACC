@@ -93,9 +93,18 @@ Pair(a, b) <| Pair(a' , b') = a <~ a' && b <~ b'
 Array a <| Array a' = a <~ a'
 a <| b = a == b
 
+(<?) :: Type -> Type -> Bool
+Array a <? Array b = a <| b
+Pair(a, b) <? Pair(a', b') = a <| a' && b <| b'
+_ <? _ = False 
+
 isArray :: Type -> Bool
 isArray (Array _) = True
 isArray _ = False
+
+isLiterArray :: Syntax.Expression -> Bool
+isLiterArray (Syntax.LiteralArray _ _) = True
+isLiterArray _ = False
 
 isPair :: Type -> Bool
 isPair (Pair(_, _)) = True
