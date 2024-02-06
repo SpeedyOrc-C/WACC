@@ -230,10 +230,10 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 (,) <$> check state left <*> check state right
 
             -- left type must be compatible with right type or another way around
-            if leftType <| rightType || rightType <| leftType then
-                Ok (Bool, constructor leftType left' right')
-            else
-                Log [SemanticError range $ InvalidEquality leftType rightType]
+            if leftType <| rightType || rightType <| leftType 
+                then Ok (Bool, constructor leftType left' right')
+                else
+                    Log [SemanticError range $ InvalidEquality leftType rightType]
 
 instance CheckSemantics Syntax.Statement Statement where
     check state = \case
@@ -247,11 +247,11 @@ instance CheckSemantics Syntax.Statement Statement where
                       || (declaredType <| computedType) 
                     -- the name of the identifier must not appear in the inner most layer
                     -- of the stack of variable tables
-                then case lookUpInnermost state name of
+                    then case lookUpInnermost state name of
                         Nothing -> Ok (Declare declaredType name newValue)
                         Just {} -> Log [SemanticError range $ RedefinedIdentifier name]
                 
-                else Log [SemanticError range $
+                    else Log [SemanticError range $
                             IncompatibleAssignment declaredType computedType]
 
             Log x -> Log x
@@ -263,11 +263,12 @@ instance CheckSemantics Syntax.Statement Statement where
             if leftType == Any && rightType == Any
                 then Log [SemanticError (expressionRange right) $
                                 BothSideAnyAssignment]
-                else if (isLiter right && (leftType <? rightType)) 
-                    || (leftType <| rightType)
-                then Ok (Assign left' right')
-                else Log [SemanticError (expressionRange right) $
-                        IncompatibleAssignment leftType rightType]
+                else 
+                    if (isLiter right && (leftType <? rightType)) 
+                            || (leftType <| rightType)
+                        then Ok (Assign left' right')
+                        else Log [SemanticError (expressionRange right) $
+                                IncompatibleAssignment leftType rightType]
 
         -- Read an character or an integer.
         Syntax.Read destination range -> do
