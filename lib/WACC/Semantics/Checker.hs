@@ -243,11 +243,11 @@ instance CheckSemantics Syntax.Statement Statement where
             Ok (computedType, newValue) ->
                 -- if the type at the right hand side can be compatible to the left
                 -- hand side, then it is fine else return error
-                if (isLiterArray value && (declaredType <? computedType)) || (declaredType <| computedType) 
-                    then
+                if (isLiter value && (declaredType <? computedType)) 
+                      || (declaredType <| computedType) 
                     -- the name of the identifier must not appear in the inner most layer
                     -- of the stack of variable tables
-                    case lookUpInnermost state name of
+                then case lookUpInnermost state name of
                         Nothing -> Ok (Declare declaredType name newValue)
                         Just {} -> Log [SemanticError range $ RedefinedIdentifier name]
                 
@@ -263,10 +263,11 @@ instance CheckSemantics Syntax.Statement Statement where
             if leftType == Any && rightType == Any
                 then Log [SemanticError (expressionRange right) $
                                 BothSideAnyAssignment]
-                else if (isLiterArray right && (leftType <? rightType)) || (leftType <| rightType)
-                     then Ok (Assign left' right')
-                     else Log [SemanticError (expressionRange right) $
-                                IncompatibleAssignment leftType rightType]
+                else if (isLiter right && (leftType <? rightType)) 
+                    || (leftType <| rightType)
+                then Ok (Assign left' right')
+                else Log [SemanticError (expressionRange right) $
+                        IncompatibleAssignment leftType rightType]
 
         -- Read an character or an integer.
         Syntax.Read destination range -> do
