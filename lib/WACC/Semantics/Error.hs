@@ -29,11 +29,11 @@ data WaccSemanticsErrorType
     | InvalidLength Type
     | InvalidOrder Type
     | InvalidCharacter Type
-    | InvalidArithmetic OperandDirection Type
+    | InvalidArithmetic Type
     | InvalidComparisonLeft Type
     | InvalidComparisonRight ComparisonType Type
     | InvalidEquality Type Type
-    | InvalidLogical OperandDirection Type
+    | InvalidLogical Type
     | BothSideAnyAssignment
     | InvalidExit Type
 
@@ -103,7 +103,7 @@ instance Show WaccSemanticsErrorType where
     show (InvalidCharacter invalidType) = 
         "Invalid type for 'chr': unexpected " ++ show invalidType
         ++ ", expected Int."
-    show (InvalidArithmetic _ invalidType) =
+    show (InvalidArithmetic invalidType) =
         "Invalid type for arithmetic operator: unexpected " 
         ++ show invalidType ++ ", expected Int."
     show (InvalidComparisonLeft invalidType) = 
@@ -115,7 +115,7 @@ instance Show WaccSemanticsErrorType where
     show (InvalidEquality expect actual) =
         "Invalid type for equality operator: unexpected " 
         ++ show actual ++ ", expected " ++ show expect ++ "."
-    show (InvalidLogical direction invalidType) = 
+    show (InvalidLogical invalidType) = 
         "Invalid type for logical operator: unexpected " 
         ++ show invalidType ++ ", expected bool."
     show BothSideAnyAssignment =

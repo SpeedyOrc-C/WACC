@@ -177,8 +177,9 @@ isTypePairElement = \case
 
 {- Checks whether the statement can exit a function properly. -}
 willReturn :: Statement -> Bool
-willReturn (Return {}) = True
-willReturn (Exit {}) = True
-willReturn (If (_, t, e) _) = any willReturn t && any willReturn e
-willReturn (Scope s _) = any willReturn s
-willReturn _ = False
+willReturn = \case
+    Return {} -> True
+    Exit {} -> True
+    If (_, t, e) _ -> any willReturn t && any willReturn e
+    Scope s _ -> any willReturn s
+    _ -> False

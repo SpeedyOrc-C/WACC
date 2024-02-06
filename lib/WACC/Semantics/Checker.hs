@@ -175,9 +175,9 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 Bool -> case rightType of
                     Bool -> Ok (Bool, constructor left' right')
                     _ -> Log [SemanticError (expressionRange right) $
-                                InvalidLogical OperandRight rightType]
+                                InvalidLogical rightType]
                 _ -> Log [SemanticError (expressionRange left) $
-                            InvalidLogical OperandLeft leftType]
+                            InvalidLogical leftType]
 
         -- chekc the unary operator
         checkUnary expr range (inputType, outputType) (constructor, error) = do
@@ -199,9 +199,9 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 Int -> case rightType of
                     Int -> Ok (Int, constructor left' right')
                     _ -> Log [SemanticError (expressionRange right) $
-                                InvalidArithmetic OperandRight rightType]
+                                InvalidArithmetic rightType]
                 _ -> Log [SemanticError (expressionRange left) $
-                            InvalidArithmetic OperandLeft leftType]
+                            InvalidArithmetic leftType]
 
         checkComparison (left, right) constructor = do
             -- using check to get the type of left and right
