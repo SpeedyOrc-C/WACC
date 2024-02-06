@@ -159,9 +159,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                     -- check if the number of parameters the same as the arguments number
                     case compare (length args) (length paramsTypes) of
                         EQ -> Ok (returnType, FunctionCall name args')
-                        GT -> Log [SemanticError range $ TooManyArguments
-                                    name (length paramsTypes) (length args)]
-                        LT -> Log [SemanticError range $ TooFewArguments
+                        _ -> Log [SemanticError range $ ArgumentNumberMismatch
                                     name (length paramsTypes) (length args)]
 
         where
@@ -325,7 +323,7 @@ instance CheckSemantics Syntax.Statement Statement where
             if Bool <| conditionType
                 then Ok (If condition' thenBranch' elseBranch')
                 else Log [SemanticError (expressionRange condition) $
-                            InvalidIfCondition conditionType]
+                            InvalidCondition conditionType]
 
         Syntax.While (condition, body) _ -> do
             ((conditionType, condition'), body') <- (,)
@@ -335,7 +333,7 @@ instance CheckSemantics Syntax.Statement Statement where
             if Bool <| conditionType
                 then Ok (While condition' body')
                 else Log [SemanticError (expressionRange condition) $
-                            InvalidWhileCondition conditionType]
+                            InvalidCondition conditionType]
         
         Syntax.Scope statements _ -> Scope <$> check (addScope state) statements
         

@@ -8,19 +8,17 @@ data WaccSemanticsErrorType
     = UndefinedIdentifier String
     | UndefinedFunction String
     | RedefinedIdentifier String
-    | TooManyArguments String Int Int
-    | TooFewArguments String Int Int
+    | RedefinedFunction String
+    | ArgumentNumberMismatch String Int Int
     | InconsistentTypesInArray Type Type
     | IncompatibleAssignment Type Type
     | IncompatibleArgument Type Type
-    | RedefinedFunction String
     | RedefinedParameter String
     | InvalidRead Type
     | InvalidFree Type
     | InvalidReturn Type Type
     | ReturnInMain
-    | InvalidIfCondition Type
-    | InvalidWhileCondition Type
+    | InvalidCondition Type
     | InvalidArray Type
     | InvalidIndex Type
     | InvalidPair Type
@@ -40,19 +38,16 @@ data WaccSemanticsErrorType
 instance Show WaccSemanticsErrorType where
     show :: WaccSemanticsErrorType -> String
     show (UndefinedIdentifier identifier) = 
-        "Variable " ++ identifier ++ " has not been declared in this scope."
+        "Variable \"" ++ identifier ++ "\" is not declared."
     show (UndefinedFunction function) = 
-        "Function " ++ function ++ " has not been declared in this scope."
+        "Function \"" ++ function ++ "\" is not declared."
     show (RedefinedIdentifier identifier) = 
-        "Illegal redeclaration of variable " ++ identifier ++ "."
-    show (TooManyArguments name expect actual) = 
-        "Wrong number of arguments provided to function " ++ name
-        ++ " unexpected " ++ show actual ++ " arguments,"
-        ++ " expected " ++ show expect ++ " arguments."
-    show (TooFewArguments name expect actual) = 
-        "Wrong number of arguments provided to function " ++ name
-        ++ " unexpected " ++ show actual ++ " arguments,"
-        ++ " expected " ++ show expect ++ " arguments."
+        "Variable \"" ++ identifier ++ "\" is declared again."
+    show (RedefinedFunction function) = 
+        "Function \"" ++ function ++ "\" is declared again."
+    show (ArgumentNumberMismatch name expect actual) = 
+        "Function \"" ++ name ++ "\" takes " ++ show actual ++ " arguments. " ++
+        "Actual: " ++ show expect
     show (InconsistentTypesInArray typeBefore typeAfter) = 
         "Inconsistent types: type before is " ++ show typeBefore 
         ++ ", type after is " ++ show typeAfter ++ "."
@@ -62,67 +57,49 @@ instance Show WaccSemanticsErrorType where
     show (IncompatibleArgument expectType actualType) = 
         "IncompatibleArgument: expected type " ++ show expectType
         ++ " unexpected " ++ show actualType ++ "."
-    show (RedefinedFunction function) = 
-        "Illegal redeclaration of function " ++ function ++ "."
     show (RedefinedParameter identifier) =
         "Illegal redeclaration of parameter " ++ identifier ++ "."
         ++ " Please rename this parameter " ++ identifier ++ "."
     show (InvalidRead invalidType) = 
-        "Unexpected read type " ++ show invalidType 
-        ++ ", expected Char or Int."
+        "Can only read char or int. Actual: " ++ show invalidType
     show (InvalidFree invalidType) =
-        "Unexpected free type " ++ show invalidType 
-        ++ ", expected Pair or Array."
+        "Can only free pair or array. Actual: " ++ show invalidType
     show ReturnInMain =
-        "Unexpected return instruction in Main program."
-    show (InvalidIfCondition invalidType) = 
-        "Invalid if condition type: unexcepted "
-        ++ show invalidType ++ ", expected Bool."
-    show (InvalidWhileCondition invalidType) = 
-        "Invalid while condition type: unexcepted "
-        ++ show invalidType ++ ", expected Bool."
+        "Unexpected return in main program."
+    show (InvalidCondition invalidType) = 
+        "Condition should be bool. Actual: " ++ show invalidType
     show (InvalidArray invalidType) = 
-        "Invalid type: unexpected " ++ show invalidType ++ ", expected Array."
+        "Only array can be indexed. Actual: " ++ show invalidType
     show (InvalidIndex invalidType) = 
-        "Invalid index type: unexpected " ++ show invalidType
-        ++ ", expected Int."
+        "Array's index should be int. Actual: " ++ show invalidType
     show (InvalidPair invalidType) = 
-        "Invalid type: unexpected " ++ show invalidType ++ ", expected Pair."
+        "\"fst\" and \"snd\" are only for pair. Actual: " ++ show invalidType
     show (InvalidNot invalidType) = 
-        "Invalid type for '!': unexpected " ++ show invalidType 
-        ++ ", expected Boolean."
+        "\"!\" is only for bool. Actual: " ++ show invalidType
     show (InvalidNegate invalidType) = 
-        "Invalid type for '-': unexpected " ++ show invalidType
-        ++ ", expected Int."
+        "\"-\" is only for int. Actual: " ++ show invalidType
     show (InvalidLength invalidType) = 
-        "Invalid type for 'len': unexpected " ++ show invalidType
-        ++ ", expected Array."
+        "\"len\" is only for array. Actual: " ++ show invalidType
     show (InvalidOrder invalidType) = 
-        "Invalid type for 'ord': unexpected " ++ show invalidType 
-        ++ ", expected Char."
+        "\"ord\" is only for char. Actual: " ++ show invalidType
     show (InvalidCharacter invalidType) = 
-        "Invalid type for 'chr': unexpected " ++ show invalidType
-        ++ ", expected Int."
+        "\"chr\" is only for int. Actual: " ++ show invalidType
     show (InvalidArithmetic invalidType) =
-        "Invalid type for arithmetic operator: unexpected " 
-        ++ show invalidType ++ ", expected Int."
+        "Arithmetic operators are only for int. Actual: " ++ show invalidType
     show (InvalidComparisonLeft invalidType) = 
-        "Invalid type for comparison operator: unexpected " 
-        ++ show invalidType ++ ", expected Int or Char."
+        "Can only compare int or char. Actual: " ++ show invalidType
     show (InvalidComparisonRight expect actual) =
-        "Invalid type for comparison operator: unexpected " 
-        ++ show actual ++ ", expected " ++ show expect ++ "."
+        "Can only compare the same type as " ++ show expect ++ ". " ++
+        "Actual: " ++ show actual
     show (InvalidEquality expect actual) =
-        "Invalid type for equality operator: unexpected " 
-        ++ show actual ++ ", expected " ++ show expect ++ "."
+        "Can only check the equality of the same type as " ++ show expect ++ ". " ++
+        "Actual: " ++ show actual
     show (InvalidLogical invalidType) = 
-        "Invalid type for logical operator: unexpected " 
-        ++ show invalidType ++ ", expected bool."
+        "Logical operators are only for bool. Actual: " ++ show invalidType
     show BothSideAnyAssignment =
-        "..."
+        "Types at both sides of assignment are unknown."
     show (InvalidExit invalidType) =
-        "Invalid type for exit: unexpected " 
-        ++ show invalidType ++ ", expected Int."
+        "Exit code should be int. Actual: " ++ show invalidType
     show (InvalidReturn validType invalidType) =
-        "Invalid return type for return: unexpected "
-        ++ show invalidType ++ ", expected " ++ show validType ++ "." 
+        "This function should return " ++ show validType ++ ". " ++
+        "Actual: " ++ show invalidType
