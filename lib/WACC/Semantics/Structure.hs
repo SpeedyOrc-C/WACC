@@ -39,7 +39,17 @@ data Type
     | String
     | Array Type
     | Pair (Type, Type)
-    deriving (Show, Eq)
+    deriving Eq
+
+instance Show Type where
+    show = \case
+        Any -> "any"
+        Int -> "int"
+        Bool -> "bool"
+        Char -> "char"
+        String -> "string"
+        Array t -> show t ++ "[]"
+        Pair (a, b) -> "pair(" ++ show a ++ ", " ++ show b ++ ")"
 
 data ComparisonType = CompareChar | CompareInt deriving (Show, Eq)
 
