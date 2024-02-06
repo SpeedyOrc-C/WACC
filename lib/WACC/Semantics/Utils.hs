@@ -78,37 +78,47 @@ lookUpInnermost state =
 -- used for noncovariance type checking - array and pair
 (<~) :: Type -> Type -> Bool
 Pair(a, b) <~ Pair(a', b') = a <~ a' && b <~ b'
-Any <~ _ = True
-_ <~ Any = True
-a <~ b = a == b
+Any <~ _                   = True
+_ <~ Any                   = True
+a <~ b                     = a == b
 
 -- | Can the right type take the place of the left type?
 (<|) :: Type -> Type -> Bool
-Any <| Any = False
-Any <| _ = True
-_ <| Any = True
-String <| Array Char = True
-String <| Array Any = True
+Any <| Any                  = False
+Any <| _                    = True
+_ <| Any                    = True
+String <| Array Char        = True
+String <| Array Any         = True
 Pair(a, b) <| Pair(a' , b') = a <~ a' && b <~ b'
-Array a <| Array a' = a <~ a'
-a <| b = a == b
+Array a <| Array a'         = a <~ a'
+a <| b                      = a == b
+
+(<?) :: Type -> Type -> Bool
+Array a <? Array b         = a <| b
+Pair(a, b) <? Pair(a', b') = a <| a' && b <| b'
+_ <? _                     = False 
 
 isArray :: Type -> Bool
 isArray (Array _) = True
-isArray _ = False
+isArray _         = False
+
+isLiter :: Syntax.Expression -> Bool
+isLiter (Syntax.LiteralArray _ _) = True
+isLiter (Syntax.LiteralPair _ _)  = True
+isLiter _                         = False
 
 isPair :: Type -> Bool
 isPair (Pair(_, _)) = True
-isPair _ = False
+isPair _            = False
 
 fromSyntaxType :: Syntax.Type -> Type
 fromSyntaxType = \case
-    Syntax.Int {} -> Int
-    Syntax.Bool {} -> Bool
-    Syntax.Char {} -> Char
-    Syntax.String {} -> String
-    Syntax.Array t _ -> Array (fromSyntaxType t)
-    Syntax.Pair Nothing _ -> Pair (Any, Any)
+    Syntax.Int {}               -> Int
+    Syntax.Bool {}              -> Bool
+    Syntax.Char {}              -> Char
+    Syntax.String {}            -> String
+    Syntax.Array t _            -> Array (fromSyntaxType t)
+    Syntax.Pair Nothing _       -> Pair (Any, Any)
     Syntax.Pair (Just (a, b)) _ -> Pair (fromSyntaxType a, fromSyntaxType b)
 
 -- | Given that two types are compatible with each other,
@@ -123,7 +133,7 @@ common (Array Char) String = String
 common (Array Any) String = String
 common String (Array Any) = String
 
-common (Array a) (Array b) = Array (common a b)
+common (Array a) (Array b)         = Array (common a b)
 common (Pair (a, b)) (Pair (c, d)) = Pair (common a c, common b d)
 
 common a b = if a == b then a else undefined

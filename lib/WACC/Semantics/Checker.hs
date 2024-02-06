@@ -228,28 +228,28 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 (,) <$> check state left <*> check state right
 
             -- left type must be compatible with right type or another way around
-            if leftType <| rightType || rightType <| leftType then
-                Ok (Bool, constructor leftType left' right')
-            else
-                Log [SemanticError range $ InvalidEquality leftType rightType]
+            if leftType <| rightType || rightType <| leftType 
+                then Ok (Bool, constructor leftType left' right')
+                else
+                    Log [SemanticError range $ InvalidEquality leftType rightType]
 
 instance CheckSemantics Syntax.Statement Statement where
     check state = \case
         -- firstly use fromSyntaxType to the type of the declare
         Syntax.Declare (fromSyntaxType -> declaredType, name, value) range
             -> case check state value of
-            
             Ok (computedType, newValue) ->
                 -- if the type at the right hand side can be compatible to the left
                 -- hand side, then it is fine else return error
-                if declaredType <| computedType then
+                if (isLiter value && (declaredType <? computedType)) 
+                      || (declaredType <| computedType) 
                     -- the name of the identifier must not appear in the inner most layer
                     -- of the stack of variable tables
-                    case lookUpInnermost state name of
+                    then case lookUpInnermost state name of
                         Nothing -> Ok (Declare declaredType name newValue)
                         Just {} -> Log [SemanticError range $ RedefinedIdentifier name]
                 
-                else Log [SemanticError range $
+                    else Log [SemanticError range $
                             IncompatibleAssignment declaredType computedType]
 
             Log x -> Log x
@@ -261,9 +261,11 @@ instance CheckSemantics Syntax.Statement Statement where
             if leftType == Any && rightType == Any
                 then Log [SemanticError (expressionRange right) $
                                 BothSideAnyAssignment]
-                else if leftType <| rightType
-                     then Ok (Assign left' right')
-                     else Log [SemanticError (expressionRange right) $
+                else 
+                    if (isLiter right && (leftType <? rightType)) 
+                            || (leftType <| rightType)
+                        then Ok (Assign left' right')
+                        else Log [SemanticError (expressionRange right) $
                                 IncompatibleAssignment leftType rightType]
 
         -- Read an character or an integer.
