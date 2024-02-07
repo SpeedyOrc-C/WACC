@@ -57,11 +57,11 @@ processSourceCode :: Flags -> String -> IO ()
 processSourceCode flags (removeTabs -> sourceCode) =
     case Parser.parseString Syntax.Parser.program sourceCode of
 
-    Left (Nothing, _) -> do
+    (_, Left Nothing) -> do
         putStrLn "Unknown syntax error."
         syntaxErrorExit
 
-    Left (Just (Parser.SyntaxError pos error'), expectedHints) -> do
+    (expectedHints, Left (Just (Parser.SyntaxError pos error'))) -> do
 
         putStrLn ""
 
@@ -85,7 +85,7 @@ processSourceCode flags (removeTabs -> sourceCode) =
 
         syntaxErrorExit
 
-    Right (Parser.Parsed _ ast _) -> semanticCheck flags ast sourceCode
+    (_, Right (Parser.Parsed _ ast _)) -> semanticCheck flags ast sourceCode
 
 semanticCheck :: Flags -> Syntax.Structure.Program -> String -> IO ()
 semanticCheck flags program sourceCode =

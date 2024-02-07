@@ -48,17 +48,17 @@ testSyntaxError = do
         raw <- readFile test
         case parseString program raw of
 
-            Right {} -> do
+            (_, Right {}) -> do
                 putStrLn $ red    "    ! " ++ test
                 putStrLn $        "        " ++ red "Parser didn’t fail"
                 return False
 
-            Left (Nothing, _) -> do
+            (_, Left Nothing) -> do
                 putStrLn $ orange "    ? " ++ test
                 putStrLn $        "        " ++ orange "No error message"
                 return False
 
-            Left (Just (SyntaxError pos msg), _) -> do
+            (_, Left (Just (SyntaxError pos msg))) -> do
                 putStrLn $ green  "    * " ++ test
                 putStrLn $ "        " ++ gray (
                     show (humanTextPosition $ textPosition raw pos) ++
@@ -82,13 +82,13 @@ testSemanticError = do
         raw <- readFile test
         case parseString program raw of
 
-            Left {} -> do
+            (_, Left {})-> do
                 putStrLn $ red $ "    ! " ++ test
                 putStrLn $ red   "        Syntax error found"
                 
                 return False
 
-            Right (Parsed _ ast _) -> do
+            (_, Right (Parsed _ ast _)) -> do
                 case checkProgram ast of
 
                     Log errors -> do
@@ -127,13 +127,13 @@ testValid = do
         raw <- readFile test
         case parseString program raw of
 
-            Left {} -> do
+            (_, Left {}) -> do
                 putStrLn $ red "    ! " ++ test
                 putStrLn $ red "        Syntax error found"
                 
                 return False
             
-            Right (Parsed _ ast _) -> do
+            (_, Right (Parsed _ ast _)) -> do
                 case checkProgram ast of
 
                     Log errors -> do
