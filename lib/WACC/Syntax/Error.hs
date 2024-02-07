@@ -1,4 +1,5 @@
 module WACC.Syntax.Error where
+
 import WACC.Syntax.Structure (Name (..))
 
 {- Defines all types of syntax error in WACC -}
@@ -54,13 +55,13 @@ instance Show WaccSyntaxErrorType where
     show UnmatchedBracket =
         "Cannot find \")\"."
     show ExpectIndexInBracket =
-        "Expect an index in bracket"
+        "Expect an index in bracket."
     show UnmatchedSquareBracket =
         "Unmatched square bracket in index."
     show MissingEscapedChar =
         "Missing escaped character."
     show (NonGraphicChar c) =
-        "Non graphic character " ++ show c ++ " is not allowed"
+        "Non graphic character " ++ show c ++ " is not allowed."
     show (NonAsciiChar c)
         | isCJK = "除了 ASCII 字符以外的都不可以，所以汉字“" ++ [c] ++ "”也不行。"
         | isKana = "ASCII 文字以外はダメだから、仮名「" ++ [c] ++ "」もダメだよ。"

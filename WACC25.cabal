@@ -73,6 +73,7 @@ library wacc25-lib
         FunctionalDependencies
 
     build-depends:
+        mtl,
         directory,
         containers,
         base ^>=4.17.1.0
