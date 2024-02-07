@@ -49,22 +49,20 @@ testIdentifier1
   = shouldSucceed "normal identifier"
     "aBW_311"
     expressionIdentifier
-    (\case (identifier s _) -> s == "aBW_311" ; _ -> False)
+    (\case (Identifier s _) -> s == "aBW_311" ; _ -> False)
 
 testBoolLiteral1 :: IO Bool
 testBoolLiteral1
   = shouldSucceed "normal bool literal"
-    "True"
+    "true"
     expressionLiteralBool
-    (\case (identifier b _) -> b == true ; _ -> False)
+    (\case (LiteralBool b _) -> b ; _ -> False)
 
 testBoolLiteral2 :: IO Bool
 testBoolLiteral2
-  = shouldSucceed "normal bool literal (String form)"
+  = shouldFailNothing "error bool literal in double quotes)"
     "\"false\""
     expressionLiteralBool
-    (\case (identifier b _) -> b == false ; _ -> False)
-
 
 testStringLiteral1 :: IO Bool
 testStringLiteral1
@@ -90,5 +88,8 @@ syntaxUnitTests :: IO [Bool]
 syntaxUnitTests = sequence [
     testStringLiteral1,
     testStringLiteral2,
-    testStringLiteral3
+    testStringLiteral3,
+    testIdentifier1,
+    testBoolLiteral1,
+    testBoolLiteral2
   ]
