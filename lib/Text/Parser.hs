@@ -250,8 +250,8 @@ that parser condition = Parser $ \input ->
           if condition result
             then (list, Right $ Parsed range result rest)
             else (Nothing, Left Nothing)
-        (list, _)->
-            (list, Left Nothing)
+        (list, Left x)->
+            (list, Left x)
 
 {- Generates a parser that parses whether the current character satisfies the 
 given condition. Returns the previous position of the input stream and the 
