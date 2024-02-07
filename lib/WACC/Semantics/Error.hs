@@ -52,8 +52,7 @@ instance Show WaccSemanticsErrorType where
         "Inconsistent types: type before is " ++ show typeBefore 
         ++ ", type after is " ++ show typeAfter ++ "."
     show (IncompatibleAssignment expectType actualType) = 
-        "IncompatibleAssignment: expected type " ++ show expectType
-        ++ " unexpected " ++ show actualType ++ "."
+        "Cannot assign " ++ show actualType ++ " to " ++ show expectType ++ "."
     show (IncompatibleArgument expectType actualType) = 
         "IncompatibleArgument: expected type " ++ show expectType
         ++ " unexpected " ++ show actualType ++ "."

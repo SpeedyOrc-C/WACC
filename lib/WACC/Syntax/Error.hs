@@ -23,6 +23,7 @@ data WaccSyntaxErrorType
     | ExpectConditionWhile
     | ExpectDo
     | ExpectWhileBody
+    | ExpectDone
     | ExpectStatementAfterSemicolon
     | ExpectScopeBody
     | PairTypeErased
@@ -55,30 +56,30 @@ instance Show WaccSyntaxErrorType where
     show ExpectIndexInBracket =
         "Expect an index in bracket"
     show UnmatchedSquareBracket =
-        "Unmatched square bracket in index"
+        "Unmatched square bracket in index."
     show MissingEscapedChar =
         "Missing escaped character."
     show (NonGraphicChar c) =
         "Non graphic character " ++ show c ++ " is not allowed"
     show (NonAsciiChar c)
-        | isCJK = "除了 ASCII 字符以外的都不可以，所以汉字“" ++ [c] ++ "”也不行"
-        | isKana = "ASCII 文字以外はダメだから、仮名「" ++ [c] ++ "」もダメだよ"
-        | otherwise = "Non ASCII character “" ++ [c] ++ "” is not allowed"
+        | isCJK = "除了 ASCII 字符以外的都不可以，所以汉字“" ++ [c] ++ "”也不行。"
+        | isKana = "ASCII 文字以外はダメだから、仮名「" ++ [c] ++ "」もダメだよ。"
+        | otherwise = "Non ASCII character “" ++ [c] ++ "” is not allowed."
         where
             isCJK = c >= '\x4E00' && c <= '\x9FFF'
             isKana = c >= '\x3040' && c <= '\x30FF'
     show UnmatchedSingleQuote =
-        "Unmatched single quote in literal character"
+        "Unmatched single quote in literal character."
     show UnmatchedDoubleQuote =
-        "Unmatched double quote in literal string"
+        "Unmatched double quote in literal string."
     show ExpectOneCharacter =
-        "Expect one character in literal character"
+        "Expect one character in literal character."
     show ExpectConditionIf =
-        "Expect condition after “if” keyword"
+        "Expect condition after \"if\" keyword."
     show ExpectThen =
         "Expect \"then\" keyword (or extend the condition with more operators)."
     show ExpectThenClause =
-        "Expect \"then\" clause after condition"
+        "Expect \"then\" clause after condition."
     show ExpectElse =
         "Expect \"else\" keyword after \"then\" clause."
     show ExpectElseClause =
@@ -86,47 +87,49 @@ instance Show WaccSyntaxErrorType where
     show ExpectFi =
         "Expect \"fi\" keyword after \"then\" clause."
     show ExpectConditionWhile =
-        "Expect condition after \"while\" keyword"
+        "Expect condition after \"while\" keyword."
     show ExpectDo =
         "Expect \"do\" keyword (or extend the condition with more operators)."
     show ExpectWhileBody =
-        "Expect body after \"while\" condition"
+        "Expect while's body."
+    show ExpectDone =
+        "Expect \"done\" keyword after while's body."
     show ExpectStatementAfterSemicolon =
-        "Expect a statement after semicolon"
+        "Expect a statement after semicolon."
     show ExpectScopeBody =
-        "Expect body after \"begin\" keyword"
+        "Expect scope's body."
     show PairTypeErased =
-        "Pair type here should have inner types"
+        "Pair type here should have inner types."
     show PairTypeInPairTypeNotErased =
-        "Pair type in pair type should be type-erased"
+        "Pair type in pair type should be type-erased."
     show UnknownType =
-        "Unknown type"
+        "Unknown type."
     show ExpectIdentifierInDeclaration =
-        "Expect an identifier in declaration"
+        "Expect an identifier in declaration."
     show InvalidLeftValue =
-        "Invalid left value"
+        "Invalid left value."
     show InvalidRightValue =
-        "Invalid right value"
+        "Invalid right value."
     show ExpectOneStatement =
-        "Expect one statement"
+        "Expect one statement."
     show ExpectAssignEqualSign =
         "Expect \"=\" sign for assignment (or extend it with array indices)."
     show ExpectDeclareEqualSign =
         "Expect \"=\" sign for declaration."
     show ExpectOneExpression =
-        "Expect one expression for assignment"
+        "Expect one expression for assignment."
     show (IntegerOverflow i) =
-        "Integer literal “" ++ show i ++ "” is too " ++
-        (if i < intLowerBound then "small" else "big") ++ ", " ++
-        "and should be in range -2^31 and 2^31-1"
+        "Integer literal \"" ++ show i ++ "\" is too " ++
+        (if i < intLowerBound then "small" else "big") ++ ". " ++
+        "It should be between -2^31 and 2^31-1"
     show ExpectProgramBegin =
-        "Expect \"begin\" keyword at the beginning of program"
+        "Expect \"begin\" keyword at the beginning of program."
     show ExpectProgramEnd =
-        "Expect \"end\" keyword at the end of program"
+        "Expect \"end\" keyword at the end of program."
     show (FunctionDoesNotReturn (Name name _)) =
-        "There is a path in function “" ++ name ++ "” that does not return"
+        "There is a path in function \"" ++ name ++ "\" that does not return"
     show UnexpectedCodeAfterProgramEnd =
-        "There is unexpected code after \"end\" keyword"
+        "There is unexpected code after \"end\" keyword."
 
 {- The smallest allowed integer literal. -}
 intLowerBound :: Int

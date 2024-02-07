@@ -397,11 +397,11 @@ statementWhile = While ~ do
     _         <- some white
     condition <- expression `syntaxError` ExpectConditionWhile
     _         <- some white
-    _         <- str "do"
+    _         <- str "do" `syntaxError` ExpectDo
     _         <- some white
     body      <- statements `syntaxError` ExpectWhileBody
     _         <- some white
-    _         <- str "done"
+    _         <- str "done" `syntaxError` ExpectDone
     return (condition, body)
 
 statementScope :: WaccParser Statement
