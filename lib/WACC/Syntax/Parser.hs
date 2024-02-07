@@ -387,7 +387,7 @@ statementIf :: WaccParser Statement
 statementIf = If ~ do
     _ <- str "if" `labelError` "if"
     condition <- surroundManyWhites expression `syntaxError` ExpectConditionIf
-    _ <- str "then" `syntaxError` ExpectThen
+    _ <- str "then" `labelError` "then" `syntaxError` ExpectThen
     thenClause <- surroundManyWhites statements `syntaxError` ExpectThenClause
     _ <- str "else" `labelError` "else keyword" `syntaxError` ExpectElse 
     elseClause <- surroundManyWhites statements `syntaxError` ExpectElseClause
@@ -507,10 +507,10 @@ statement = asum [
     ] `syntaxError` ExpectOneStatement
 
 statementSep :: Parser error ()
-statementSep = void $ surroundManyWhites (char ';') `labelError` ";"
+statementSep = void $ surroundManyWhites (char ';')
 
 statements :: WaccParser [Statement]
-statements = statement `separatedBy` statementSep
+statements = statement `separatedBy` (statementSep `labelError` ";")  
 
 name :: WaccParser Name
 name = Name ~ identifierString

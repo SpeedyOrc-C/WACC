@@ -177,8 +177,13 @@ instance Alternative (Parser error) where
     (<|>) :: Parser error a -> Parser error a -> Parser error a
     parser1 <|> parser2 = Parser $ \input ->
         case parse parser1 input of
-            (list, Right result) -> (list, Right result)
-            (list, _) -> addHintParser (parse parser2 input) list
+            (list, Right result) -> (combineHints list list', Right result)
+                where
+                    (list', _) = parse parser2 input
+            (list, Left Nothing) -> addHintParser (parse parser2 input) list
+            (list, Left x) -> (combineHints list list', Left x)
+                where
+                    (list', _) = parse parser2 input
 
 {- Makes Parser an instance of the Monad type class. -}
 instance Monad (Parser error) where
