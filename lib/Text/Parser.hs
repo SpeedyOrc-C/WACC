@@ -3,6 +3,7 @@ module Text.Parser where
 import Prelude hiding (error)
 
 import Control.Applicative ( Alternative((<|>), empty, many) )
+import Data.List (intersperse)
 
 {- (fromIndex, toIndex) -}
 type Range = (Int, Int)
@@ -10,13 +11,15 @@ type Range = (Int, Int)
 {- (length, [(index, character)]) -}
 type InputStream = (Int, [(Int, Char)])
 
+type HintList = Maybe([String], Int)
+
 {- Represents the result of parsing. The result can be a `Left` value, 
 indicating failure, or a `Right` value, indicating success. If parsing fails, 
 `Left Nothing` indicates a mismatch of the pattern but not necessarily an 
 error, while `Left Just SyntaxError` indicates that a syntax error has 
 occurred. If successfully parsed, the matched result is included. -}
 type ParserResult error object
-  = Either (Maybe (SyntaxError error)) (Parsed object)
+  = (Either (Maybe (SyntaxError error), HintList) (Parsed object))
 
 {- A syntax error has a location and an error type. -}
 data SyntaxError error = SyntaxError Int error
@@ -46,7 +49,7 @@ parseString parser string = parse parser (length string, zip [0..] string)
 make it return the given syntax error instead. -}
 syntaxError :: Parser error object -> error -> Parser error object
 syntaxError parser error = Parser $ \input -> case parse parser input of
-    Left Nothing -> Left $ Just $ SyntaxError (inputPosition input) error
+    Left (Nothing, list) -> Left (Just $ SyntaxError (inputPosition input) error, list)
     x -> x
 
 {- Makes the parser return a syntax error generated from the parsed range and 
@@ -60,7 +63,7 @@ syntaxErrorWhen parser (condition, error) = Parser $ \input
   -> case parse parser input of
     Right (Parsed range result rest) ->
         if condition result
-            then Left $ Just $ error (range, result)
+            then Left (Just $ error (range, result), Nothing)
             else Right $ Parsed range result rest
     x -> x
 
@@ -110,12 +113,49 @@ instance Applicative (Parser error) where
             Right (Parsed _ _ rest') -> Right $ Parsed range result rest'
             Left x -> Left x
 
+combineHints :: HintList -> HintList -> HintList
+combineHints x Nothing = x
+combineHints Nothing y = y
+combineHints x@(Just (list, n)) y@(Just (list', n'))
+    | n < n'    = y
+    | n > n'    = x
+    | otherwise = Just (list ++ list', n)
+
+addHintParser :: ParserResult error a -> HintList -> ParserResult error a
+addHintParser x Nothing = x
+addHintParser x@(Right _) _ = x
+addHintParser (Left (error, hints)) hints' = Left (error, combineHints hints hints')
+
+putHintsSub :: String -> Int -> HintList -> HintList
+putHintsSub label n Nothing = Just ([label], n)
+putHintsSub label n x@(Just (_, n'))
+    | n < n'    = x
+    | otherwise = Just ([label], n)  
+
+printHints :: HintList -> Int -> IO()
+printHints Nothing _ = do
+    putStr ""
+
+printHints (Just (list, n)) errPos
+    | errPos == n = do 
+        putStrLn ( concat ("expected: ":intersperse ", " list))
+    | errPos > n  = do putStr ""
+    | otherwise   = do putStrLn "parsed error"
+
+labelError :: Parser error object -> String -> Parser error object
+labelError parser label = Parser $ \input@(len, stream) -> case stream of
+    [] -> Left (Nothing, Just ([label], len))
+    (n, _):_ ->
+        case parse parser input of
+            Left (x, hints) -> Left (x, putHintsSub label n hints)
+            x -> x
+
 {- Makes Parser an instance of the Alternative type class. -}
 instance Alternative (Parser error) where
 
     {- Generates a parser that always fails with `Left Nothing`. -}
     empty :: Parser error a
-    empty = Parser $ const $ Left Nothing
+    empty = Parser $ const $ Left (Nothing, Nothing)
 
     {- Parse using the two parsers alternatively. If the first parser succeeds, 
     return the successful result. If the first parser returns `Left Nothing`, 
@@ -125,8 +165,9 @@ instance Alternative (Parser error) where
     parser1 <|> parser2 = Parser $ \input ->
         case parse parser1 input of
             Right result -> Right result
-            Left Nothing -> parse parser2 input
+            Left (Nothing, hints) -> addHintParser (parse parser2 input) hints
             x -> x
+
 
 {- Makes Parser an instance of the Monad type class. -}
 instance Monad (Parser error) where
@@ -158,19 +199,19 @@ character. Returns the current position of the input stream and the character
 if succeeds. Otherwise, return `Left Nothing`. -}
 char :: Char -> Parser error Char
 char character = Parser $ \(len, stream) -> case stream of
-    [] -> Left Nothing
+    [] -> Left (Nothing, Nothing)
     (position, inputCharacter) : inputRest ->
         if character == inputCharacter then
             Right $ Parsed (position, position + 1) character (len, inputRest)
         else
-            Left Nothing
+            Left (Nothing, Nothing)
 
 {- Generates a parser that parses whether the current character satisfies the 
 given condition. Returns the current position of the input stream and the 
 character if succeeds. Otherwise, return `Left Nothing`. -}
 charThat :: (Char -> Bool) -> Parser error Char
 charThat condition = Parser $ \(len, stream) -> case stream of
-    [] -> Left Nothing
+    [] -> Left (Nothing, Nothing)
     (position, inputCharacter) : inputRest ->
         if condition inputCharacter then
             Right $ Parsed
@@ -178,7 +219,7 @@ charThat condition = Parser $ \(len, stream) -> case stream of
                 inputCharacter
                 (len, inputRest)
         else
-            Left Nothing
+            Left (Nothing, Nothing)
 
 {- Modifies the behaviour of the given parser to return a new parser that 
 checks whether the parsed result of the given parser satisfies the given 
@@ -188,14 +229,14 @@ that parser condition = Parser $ \input -> do
     Parsed range result rest <- parse parser input
     if condition result
         then Right $ Parsed range result rest
-        else Left Nothing
+        else Left (Nothing, Nothing)
 
 {- Generates a parser that parses whether the current character satisfies the 
 given condition. Returns the previous position of the input stream and the 
 character if succeeds. Otherwise, return `Left Nothing`. -}
 follows :: (Char -> Bool) -> Parser error Char
 follows condition = Parser $ \(len, stream) -> case stream of
-    [] -> Left Nothing
+    [] -> Left (Nothing, Nothing)
     (position, inputCharacter) : inputRest ->
         if condition inputCharacter then
             Right $ Parsed
@@ -203,7 +244,7 @@ follows condition = Parser $ \(len, stream) -> case stream of
                 inputCharacter
                 (len, (position, inputCharacter) : inputRest)
         else
-            Left Nothing
+            Left (Nothing, Nothing)
 
 {- Generates a new parser using the given two parsers that parses the input 
 stream using both. If both succeeds, return the parsed range and result of the 
@@ -223,7 +264,7 @@ notFollowedBy :: Parser error a -> Parser error' b -> Parser error a
 notFollowedBy parser1 parser2 = Parser $ \input -> do
     Parsed range result rest <- parse parser1 input
     case parse parser2 rest of
-        Right {} -> Left Nothing
+        Right {} -> Left (Nothing, Nothing)
         _ -> Right $ Parsed range result rest
 
 {- Given a string, generates a parser that parses whether the input stream 
@@ -258,7 +299,7 @@ strict :: Parser error object -> Parser error object
 strict parser = Parser $ \input -> case parse parser input of
     Right (Parsed range result (len, []))
       -> Right $ Parsed range result (len, [])
-    Right {} -> Left Nothing
+    Right {} -> Left (Nothing, Nothing)
     x -> x
 
 {- Modifies the given parser so that when it succeeds, the parsed result will 

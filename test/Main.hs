@@ -53,12 +53,12 @@ testSyntaxError = do
                 putStrLn $        "        " ++ red "Parser didn’t fail"
                 return False
 
-            Left Nothing -> do
+            Left (Nothing, _) -> do
                 putStrLn $ orange "    ? " ++ test
                 putStrLn $        "        " ++ orange "No error message"
                 return False
 
-            Left (Just (SyntaxError pos msg)) -> do
+            Left (Just (SyntaxError pos msg), _) -> do
                 putStrLn $ green  "    * " ++ test
                 putStrLn $ "        " ++ gray (
                     show (humanTextPosition $ textPosition raw pos) ++

@@ -57,11 +57,11 @@ processSourceCode :: Flags -> String -> IO ()
 processSourceCode flags (removeTabs -> sourceCode) =
     case Parser.parseString Syntax.Parser.program sourceCode of
 
-    Left Nothing -> do
+    Left (Nothing, _) -> do
         putStrLn "Unknown syntax error."
         syntaxErrorExit
 
-    Left (Just (Parser.SyntaxError pos error')) -> do
+    Left (Just (Parser.SyntaxError pos error'), expectedHints) -> do
 
         putStrLn ""
 
@@ -70,8 +70,8 @@ processSourceCode flags (removeTabs -> sourceCode) =
                 (2, '^', preventTextDecoration (noTextDecoration flags) red)
                 sourceCode
 
+        putStrLn (show pos)
         putStrLn ""
-
         let (row, col) = textPosition sourceCode pos
         putStrLn $
             preventTextDecoration (noTextDecoration flags) red
@@ -79,6 +79,7 @@ processSourceCode flags (removeTabs -> sourceCode) =
             preventTextDecoration (noTextDecoration flags) bold
                 (show (row + 1) ++ ":" ++ show (col + 1)) ++ " " ++
             show error'
+        Parser.printHints expectedHints pos
 
         putStrLn ""
 

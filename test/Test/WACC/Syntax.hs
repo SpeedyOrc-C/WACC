@@ -22,7 +22,7 @@ shouldSucceed testName input parser f
 shouldFailNothing :: String -> String -> Parser error t -> IO Bool
 shouldFailNothing testName input parser
   = case parseString (strict parser) input of
-    Left Nothing -> do
+    Left (Nothing, _) -> do
         putStrLn $ "[PASS] " ++ testName
         return True
     _ -> do
@@ -33,7 +33,7 @@ shouldFailSyntaxError :: Eq error =>
   String -> String -> Parser error t -> error -> IO Bool
 shouldFailSyntaxError testName input parser expectedError
   = case parseString (strict parser) input of
-    Left (Just (SyntaxError _ actualError)) ->
+    Left (Just (SyntaxError _ actualError), _) ->
       if actualError == expectedError then do
         putStrLn $ "[PASS] " ++ testName
         return True

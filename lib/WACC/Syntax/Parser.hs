@@ -153,7 +153,7 @@ expressionLiteralChar = LiteralChar ~ do
 {- This parser parses a string literal according to its range. -}
 expressionLiteralString :: WaccParser Expression
 expressionLiteralString = LiteralString ~ do
-    _ <- char '"'
+    _ <- char '"' `labelError` "start of a string"
     s <- many charInner
     _ <- char '"' `syntaxError` UnmatchedDoubleQuote
     return s
@@ -161,7 +161,7 @@ expressionLiteralString = LiteralString ~ do
 {- This parser parses an array literal according to its range. -}
 expressionLiteralArray :: WaccParser Expression
 expressionLiteralArray = LiteralArray ~ do
-    _  <- char '['
+    _  <- char '[' `labelError` "start of a array"
     _  <- many white
     es <- optional $ expression `separatedBy` surroundManyWhites (char ',')
     _  <- many white
@@ -210,14 +210,14 @@ expressionBase = asum [
     expressionLiteralPair,
     expressionLiteralArray,
     expressionFunctionCall
-    ]
+    ] 
 
 indexOperator :: WaccParser Expression -> WaccParser Expression
 indexOperator higherParser = do
     ((from, _), array) <- getRangeA higherParser
     indices <- many $ do
         _     <- many white
-        _     <- char '['
+        _     <- char '[' `labelError` "start of the index" 
         index <- getRangeA $ surroundManyWhites expression `syntaxError`
                     ExpectIndexInBracket
         _     <- char ']' `syntaxError` UnmatchedSquareBracket
@@ -262,7 +262,7 @@ unaryOperator higherParser (wordOperators, symbolOperators) = do
     let mergeUnaryExpression x ((from, _), (_, constructor)) =
             constructor x (from, to)
 
-    return $ foldl mergeUnaryExpression e (reverse constructors)
+    return $ foldl mergeUnaryExpression e (reverse constructors) 
 
 expressionUnaryOperation :: WaccParser Expression
 expressionUnaryOperation =
@@ -382,18 +382,18 @@ statementReturn = Return ~ command "return" strictExpression
 
 statementIf :: WaccParser Statement
 statementIf = If ~ do
-    _ <- str "if"
+    _ <- str "if" `labelError` "if"
     condition <- surroundManyWhites expression `syntaxError` ExpectConditionIf
     _ <- str "then" `syntaxError` ExpectThen
     thenClause <- surroundManyWhites statements `syntaxError` ExpectThenClause
-    _ <- str "else" `syntaxError` ExpectElse
+    _ <- str "else" `labelError` "else keyword" `syntaxError` ExpectElse 
     elseClause <- surroundManyWhites statements `syntaxError` ExpectElseClause
     _ <- str "fi" `syntaxError` ExpectFi
     return (condition, thenClause, elseClause)
 
 statementWhile :: WaccParser Statement
 statementWhile = While ~ do
-    _         <- str "while"
+    _         <- str "while" `labelError` "while"
     _         <- some white
     condition <- expression `syntaxError` ExpectConditionWhile
     _         <- some white
@@ -476,14 +476,14 @@ statementDeclare = Declare ~ do
     t     <- type'
     _     <- some white
     n     <- identifierString `syntaxError` ExpectIdentifierInDeclaration
-    _     <- surroundManyWhites $ char '=' `syntaxError` ExpectDeclareEqualSign
+    _     <- surroundManyWhites $ char '=' `labelError` "equality" `syntaxError` ExpectDeclareEqualSign
     value <- rightValue `syntaxError` ExpectOneExpression
     return (t, n, value)
 
 statementAssign :: WaccParser Statement
 statementAssign = Assign ~ do
     left  <- leftValue
-    _     <- surroundManyWhites $ char '=' `syntaxError` ExpectAssignEqualSign
+    _     <- surroundManyWhites $ char '=' `labelError` "equality" `syntaxError` ExpectAssignEqualSign
     right <- rightValue `syntaxError` ExpectOneExpression
     return (left, right)
 
@@ -501,10 +501,10 @@ statement = asum [
     statementScope,
     statementDeclare,
     statementAssign
-    ] `syntaxError` ExpectOneStatement
+    ] `labelError` "statement" `syntaxError` ExpectOneStatement
 
 statementSep :: Parser error ()
-statementSep = void $ surroundManyWhites (char ';')
+statementSep = void $ surroundManyWhites (char ';' `labelError` ";")
 
 statements :: WaccParser [Statement]
 statements = statement `separatedBy` statementSep
@@ -560,6 +560,6 @@ program :: WaccParser Program
 program = Program ~ Parser (\input -> do
     case parse program' input of
         (Right (Parsed (_, to) _ (_, _:_))) ->
-            Left $ Just (SyntaxError to UnexpectedCodeAfterProgramEnd)
+            Left (Just (SyntaxError to UnexpectedCodeAfterProgramEnd), Nothing)
         x -> x
     )
