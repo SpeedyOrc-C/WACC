@@ -44,6 +44,28 @@ shouldFailSyntaxError testName input parser expectedError
         putStrLn $ "[FAIL] " ++ testName
         return False
 
+testIdentifier1 :: IO Bool
+testIdentifier1
+  = shouldSucceed "normal identifier"
+    "aBW_311"
+    expressionIdentifier
+    (\case (identifier s _) -> s == "aBW_311" ; _ -> False)
+
+testBoolLiteral1 :: IO Bool
+testBoolLiteral1
+  = shouldSucceed "normal bool literal"
+    "True"
+    expressionLiteralBool
+    (\case (identifier b _) -> b == true ; _ -> False)
+
+testBoolLiteral2 :: IO Bool
+testBoolLiteral2
+  = shouldSucceed "normal bool literal (String form)"
+    "\"false\""
+    expressionLiteralBool
+    (\case (identifier b _) -> b == false ; _ -> False)
+
+
 testStringLiteral1 :: IO Bool
 testStringLiteral1
   = shouldSucceed "normal string literal"
