@@ -63,7 +63,6 @@ testIdentifier3
     "a#@BW_311$$"
     expressionIdentifier
 
-
 testBoolLiteral1 :: IO Bool
 testBoolLiteral1
   = shouldSucceed "normal bool literal"
@@ -214,6 +213,159 @@ testArrayElement2
     expressionArrayElement
     UnmatchedSquareBracket
 
+testSkip :: IO Bool
+testSkip
+  = shouldSucceed "normal skip statement"
+    "skip"
+    statementSkip
+    (\case (Skip () _) -> True ; _ -> False)
+
+testRead1 :: IO Bool
+testRead1
+  = shouldSucceed "normal read statement"
+    "read num"
+    statementRead
+    (\case (Read (Identifier "num" _) _) -> True ; _ -> False)
+
+testRead2 :: IO Bool
+testRead2
+  = shouldFailSyntaxError "error read statement for reading a non-lvalue"
+    "read (1 + 2)"
+    statementRead
+    InvalidLeftValue
+
+testFree1 :: IO Bool
+testFree1
+  = shouldSucceed "normal free statement"
+    "free array"
+    statementFree
+    (\case (Free (Identifier "array" _) _) -> True ; _ -> False)
+
+testFree2 :: IO Bool
+testFree2
+  = shouldFailNothing "error free statement for freeing invalid expression"
+    "free newpair(1, 2)"
+    statementFree
+
+testExit :: IO Bool
+testExit
+  = shouldSucceed "normal exit statement"
+    "exit 1"
+    statementExit
+    (\case (Exit (LiteralInt 1 _) _) -> True ; _ -> False)
+
+testPrint :: IO Bool
+testPrint
+  = shouldSucceed "normal print statement"
+    "print 3"
+    statementPrint
+    (\case (Print (LiteralInt 3 _) _) -> True ; _ -> False)
+
+testPrintLine :: IO Bool
+testPrintLine
+  = shouldSucceed "normal println statement"
+    "println 3"
+    statementPrintLine
+    (\case (PrintLine (LiteralInt 3 _) _) -> True ; _ -> False)
+
+testReturn :: IO Bool
+testReturn
+  = shouldSucceed "normal return statement"
+    "return 0"
+    statementReturn
+    (\case (Return (LiteralInt 0 _) _) -> True ; _ -> False)
+
+testIf1 :: IO Bool
+testIf1
+  = shouldSucceed "normal if statement"
+    "if 1 < 2 then int a = 0; return a else return 1 fi"
+    statementIf
+    (\case (If (Less (LiteralInt 1 _, LiteralInt 2 _) _,
+            [Declare (Int () _, "a", LiteralInt 0 _) _,
+            Return (Identifier "a" _) _],
+            [Return (LiteralInt 1 _) _]) _) -> True ; _ -> False)
+
+testIf2 :: IO Bool
+testIf2
+  = shouldFailSyntaxError "error if statement without else"
+    "if 1 < 2 then int a = 0; return a fi"
+    statementIf
+    ExpectElse
+
+testIf3 :: IO Bool
+testIf3
+  = shouldFailSyntaxError "error if statement without else clause"
+    "if 1 < 2 then int a = 0; return a else fi"
+    statementIf
+    ExpectOneStatement
+
+testWhile1 :: IO Bool
+testWhile1
+  = shouldSucceed "normal while statement"
+    "while a < 10 do a = a + 1 done"
+    statementWhile
+    (\case (While (Less (Identifier "a" _, LiteralInt 10 _) _,
+            [Assign (Identifier "a" _, Add (Identifier "a" _, LiteralInt 1 _)
+            _) _]) _) -> True ; _ -> False)
+
+testWhile2 :: IO Bool
+testWhile2
+  = shouldFailSyntaxError "error while statement without do clause"
+    "while a < 10 do done"
+    statementWhile
+    ExpectOneStatement
+
+testScope1 :: IO Bool
+testScope1
+  = shouldSucceed "normal scope"
+    "begin int a = 0; return a end"
+    statementScope
+    (\case (Scope [Declare (Int () _, "a", LiteralInt 0 _) _,
+            Return (Identifier "a" _) _] _) -> True ; _ -> False)
+
+testScope2 :: IO Bool
+testScope2
+  = shouldFailSyntaxError "error scope without a scope body"
+    "begin end"
+    statementScope
+    ExpectOneStatement
+
+testType1 :: IO Bool
+testType1
+  = shouldSucceed "normal pair array type"
+    "pair(int, char)[]"
+    type'
+    (\case (Array (Pair (Just (Int () _, Char () _)) _) _) -> True ; _ -> False)
+
+testType2 :: IO Bool
+testType2
+  = shouldSucceed "normal pair of array type"
+    "pair(int[], char[])"
+    type'
+    (\case (Pair (Just (Array (Int () _) _, Array (Char () _) _)) _) -> True ;
+            _ -> False)
+
+testType3 :: IO Bool
+testType3
+  = shouldSucceed "normal pair of pair type"
+    "pair(pair, pair)"
+    type'
+    (\case (Pair (Just (Pair Nothing _, Pair Nothing _)) _) -> True ;
+            _ -> False)
+
+testType4 :: IO Bool
+testType4
+  = shouldFailSyntaxError "error erased pair array type"
+    "pair[]"
+    type'
+    PairTypeErased
+
+testType5 :: IO Bool
+testType5
+  = shouldFailSyntaxError "error non-erased pair type in pair type"
+    "pair(pair(int, char), pair(int[], char[]))"
+    type'
+    PairTypeInPairTypeNotErased
 
 syntaxUnitTests :: IO [Bool]
 syntaxUnitTests = sequence [
@@ -241,5 +393,26 @@ syntaxUnitTests = sequence [
     testFunctionCall1,
     testFunctionCall2,
     testArrayElement1,
-    testArrayElement2
+    testArrayElement2,
+    testSkip,
+    testRead1,
+    testRead2,
+    testFree1,
+    testFree2,
+    testExit,
+    testPrint,
+    testPrintLine,
+    testReturn,
+    testIf1,
+    testIf2,
+    testIf3,
+    testWhile1,
+    testWhile2,
+    testScope1,
+    testScope2,
+    testType1,
+    testType2,
+    testType3,
+    testType4,
+    testType5
   ]
