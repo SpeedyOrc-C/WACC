@@ -3,6 +3,7 @@ module Text.Parser where
 import Prelude hiding (error)
 
 import Control.Applicative ( Alternative((<|>), empty, many) )
+import Control.Monad.State.Lazy ( gets, MonadState(get, put) )
 
 {- (fromIndex, toIndex) -}
 type Range = (Int, Int)
@@ -132,6 +133,15 @@ instance Monad (Parser error) where
     (>>) :: Parser error a -> Parser error b -> Parser error b
     (>>) = (*>)
 
+instance MonadState InputStream (Parser error) where
+    get :: Parser error InputStream
+    get = Parser $ \input -> Right $
+        Parsed (inputPosition input, inputPosition input) input input
+
+    put :: InputStream -> Parser error ()
+    put input = Parser $ const $ Right $
+        Parsed (inputPosition input, inputPosition input) () input
+
 {- Generates a parser that parses whether the current character is the given 
 character. Returns the current position of the input stream and the character 
 if succeeds. Otherwise, return `Left Nothing`. -}
@@ -243,8 +253,8 @@ strict parser = Parser $ \input -> case parse parser input of
 {- Modifies the given parser so that when it succeeds, the parsed result will 
 be the tuple containing the parsed range and the parsed result. -}
 getRangeA :: Parser error object -> Parser error (Range, object)
-getRangeA parser = Parser $ \input -> do
-    case parse parser input of
-        Right (Parsed range result rest)
-          -> Right $ Parsed range (range, result) rest
-        Left x -> Left x
+getRangeA parser = do
+    from <- gets inputPosition
+    result <- parser
+    to <- gets inputPosition
+    return ((from, to), result)

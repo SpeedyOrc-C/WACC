@@ -20,9 +20,9 @@ type WaccParser a = Parser WaccSyntaxErrorType a
    This parser modifies the result of parsing by applying the constructor
    to include a range information. -}
 addRange :: (info -> Range -> node) -> Parser error info -> Parser error node
-addRange constructor parser = Parser $ \input -> do
-    Parsed range result rest <- parse parser input
-    Right (Parsed range (constructor result range) rest)
+addRange constructor parser = do
+    (range, result) <- getRangeA parser
+    return $ constructor result range
 
 {- An abbreviated symbol for addRange. -}
 (~) :: (info -> Range -> node) -> WaccParser info -> WaccParser node
