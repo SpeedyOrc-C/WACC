@@ -342,10 +342,10 @@ expression :: WaccParser Expression
 expression = expressionBinaryOperation
 
 leftValue :: WaccParser Expression
-leftValue = (expression `that` isLeftValue) `syntaxError` InvalidLeftValue
+leftValue = (expression `that` isLeftValue) `labelError` "left value" `syntaxError` InvalidLeftValue
 
 rightValue :: WaccParser Expression
-rightValue = (expression `that` isRightValue) `syntaxError` InvalidRightValue
+rightValue = (expression `that` isRightValue) `labelError` "right value" `syntaxError` InvalidRightValue
 
 strictExpression :: WaccParser Expression
 strictExpression = expression `that` isExpression
@@ -501,10 +501,10 @@ statement = asum [
     statementScope,
     statementDeclare,
     statementAssign
-    ] `labelError` "statement" `syntaxError` ExpectOneStatement
+    ] `syntaxError` ExpectOneStatement
 
 statementSep :: Parser error ()
-statementSep = void $ surroundManyWhites (char ';' `labelError` ";")
+statementSep = void $ surroundManyWhites (char ';') `labelError` ";"
 
 statements :: WaccParser [Statement]
 statements = statement `separatedBy` statementSep

@@ -19,7 +19,7 @@ indicating failure, or a `Right` value, indicating success. If parsing fails,
 error, while `Left Just SyntaxError` indicates that a syntax error has 
 occurred. If successfully parsed, the matched result is included. -}
 type ParserResult error object
-  = (Either (Maybe (SyntaxError error), HintList) (Parsed object))
+  = (HintList, Either (Maybe (SyntaxError error)) (Parsed object))
 
 {- A syntax error has a location and an error type. -}
 data SyntaxError error = SyntaxError Int error
@@ -49,7 +49,7 @@ parseString parser string = parse parser (length string, zip [0..] string)
 make it return the given syntax error instead. -}
 syntaxError :: Parser error object -> error -> Parser error object
 syntaxError parser error = Parser $ \input -> case parse parser input of
-    Left (Nothing, list) -> Left (Just $ SyntaxError (inputPosition input) error, list)
+    (list, Left Nothing) -> (list, Left (Just $ SyntaxError (inputPosition input) error))
     x -> x
 
 {- Makes the parser return a syntax error generated from the parsed range and 
@@ -61,10 +61,10 @@ syntaxErrorWhen
     -> Parser error object
 syntaxErrorWhen parser (condition, error) = Parser $ \input
   -> case parse parser input of
-    Right (Parsed range result rest) ->
+    (list, Right (Parsed range result rest)) ->
         if condition result
-            then Left (Just $ error (range, result), Nothing)
-            else Right $ Parsed range result rest
+            then (list, Left (Just $ error (range, result)))
+            else (list, Right $ Parsed range result rest)
     x -> x
 
 {- Makes Parser an instance of the Functor type class. -}
@@ -73,9 +73,12 @@ instance Functor (Parser error) where
     {- If the parser succeeds, make it return another result generated using 
     the given function and the original result. -}
     fmap :: (a -> b) -> Parser error a -> Parser error b
-    mapper `fmap` parser = Parser $ \input -> do
-        Parsed range result rest <- parse parser input
-        Right $ Parsed range (mapper result) rest
+    mapper `fmap` parser = Parser $ \input -> 
+        case parse parser input of
+            (list, Right(Parsed range result rest)) ->
+                (list, Right(Parsed range (mapper result) rest))
+            (list, Left x) ->
+                (list, Left x)
 
 {- Makes Parser an instance of the Applicative type class. -}
 instance Applicative (Parser error) where
@@ -83,19 +86,22 @@ instance Applicative (Parser error) where
     {- Returns a parser that always succeeds with the result being the given 
     value and does not consume any input stream. -}
     pure :: a -> Parser error a
-    pure constant = Parser $ \input -> return $
-        Parsed (inputPosition input, inputPosition input) constant input
+    pure constant = Parser $ \input ->
+        (Nothing, Right (Parsed (inputPosition input, inputPosition input) constant input))
 
     {- Sequence the two parsers. If both parsers succeed, return the combined 
     range of two parsings and the second result mapped by the function from the 
     first result. -}
     (<*>) :: Parser error (a -> b) -> Parser error a -> Parser error b
-    parser1 <*> parser2 = Parser $ \input -> do
-        Parsed (from, _) mapper rest <- parse parser1 input
-        case parse parser2 rest of
-            Right (Parsed (_, to) item rest') ->
-                Right $ Parsed (from, to) (mapper item) rest'
-            Left x -> Left x
+    parser1 <*> parser2 = Parser $ \input -> 
+        case parse parser1 input of
+            (list, Right (Parsed (from, _) mapper rest)) ->
+                case parse parser2 rest of
+                    (list', Right (Parsed (_, to) item rest')) ->
+                        (combineHints list list', Right $ Parsed (from, to) (mapper item) rest')
+                    (list', Left x) -> (combineHints list list', Left x)
+            (list, Left x) ->
+                (list, Left x)
 
     {- Sequence the two parsers. If both parsers succeed, return the range and 
     result of the second parser. -}
@@ -182,12 +188,15 @@ instance Monad (Parser error) where
     remaining input stream using this generated parser. Return the combined 
     range and the second parsed result if succeeds. -}
     (>>=) :: Parser error a -> (a -> Parser error b) -> Parser error b
-    parser >>= newParserGenerator = Parser $ \input -> do
-        Parsed (from, _) item rest <- parse parser input
-        case parse (newParserGenerator item) rest of
-            Right (Parsed (_, to) item' rest') ->
-                Right $ Parsed (from, to) item' rest'
-            x -> x
+    parser >>= newParserGenerator = Parser $ \input -> 
+        case parse parser input of
+            (list, Right (Parsed (from, _) item rest)) ->
+                case parse (newParserGenerator item) rest of
+                    (list', Right (Parsed (_, to) item' rest')) ->
+                        (combineHints list list', Right $ Parsed (from, to) item' rest')
+                    x -> x
+            (list, Left x) ->
+                (list, Left x)
 
     {- Sequence the two parsers. If both parsers succeed, return the range and 
     result of the second parser. -}
