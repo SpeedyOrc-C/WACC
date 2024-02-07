@@ -70,7 +70,7 @@ identifierString = do
     s <- (:)
         <$> charThat (`elem` headChars)
         <*> many (charThat (`elem` identifierTailChars))
-    
+
     if s `elem` keywords then empty else return s
 
     where
@@ -342,7 +342,7 @@ expression :: WaccParser Expression
 expression = expressionBinaryOperation
 
 leftValue :: WaccParser Expression
-leftValue = (expression `that` isLeftValue) `syntaxError` InvalidLeftValue
+leftValue = expression `that` isLeftValue
 
 rightValue :: WaccParser Expression
 rightValue = (expression `that` isRightValue) `syntaxError` InvalidRightValue
@@ -363,7 +363,7 @@ command keyword value = do
     value
 
 statementRead :: WaccParser Statement
-statementRead = Read ~ command "read" leftValue
+statementRead = Read ~ command "read" (leftValue `syntaxError` InvalidLeftValue)
 
 statementFree :: WaccParser Statement
 statementFree = Free ~ command "free" strictExpression
@@ -408,7 +408,7 @@ statementScope :: WaccParser Statement
 statementScope = Scope ~ do
     _    <- str "begin"
     body <- surroundManyWhites statements `syntaxError` ExpectScopeBody
-    _    <- str "end"
+    _    <- str "end" `syntaxError` ExpectScopeEnd
     return body
 
 typeInt :: WaccParser Type
@@ -543,7 +543,7 @@ function = Function ~ do
                         (FunctionDoesNotReturn n)
                     )
     _          <- many white
-    _          <- str "end"
+    _          <- str "end" `syntaxError` ExpectFunctionEnd
     return (t, n, if null parameters then [] else fromJust parameters, body)
 
 program' :: WaccParser ([Function], [Statement])

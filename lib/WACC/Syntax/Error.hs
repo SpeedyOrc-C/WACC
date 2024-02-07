@@ -2,7 +2,13 @@ module WACC.Syntax.Error where
 
 import WACC.Syntax.Structure (Name (..))
 
-{- Defines all types of syntax error in WACC -}
+
+extendStatements :: String
+extendStatements = "Or add a \";\" and extend the existing statements."
+
+extendCondition :: String
+extendCondition = "Or add other operators and extend the existing condition."
+
 data WaccSyntaxErrorType
     = ExpectOperand
     | ExpectExpressionInBracket
@@ -27,6 +33,7 @@ data WaccSyntaxErrorType
     | ExpectDone
     | ExpectStatementAfterSemicolon
     | ExpectScopeBody
+    | ExpectScopeEnd
     | PairTypeErased
     | PairTypeInPairTypeNotErased
     | UnknownType
@@ -38,6 +45,7 @@ data WaccSyntaxErrorType
     | ExpectDeclareEqualSign
     | ExpectOneExpression
     | IntegerOverflow Int
+    | ExpectFunctionEnd
     | ExpectProgramBegin
     | ExpectProgramEnd
     | FunctionDoesNotReturn Name
@@ -78,27 +86,29 @@ instance Show WaccSyntaxErrorType where
     show ExpectConditionIf =
         "Expect condition after \"if\" keyword."
     show ExpectThen =
-        "Expect \"then\" keyword (or extend the condition with more operators)."
+        "Expect \"then\" keyword. " ++ extendCondition
     show ExpectThenClause =
         "Expect \"then\" clause after condition."
     show ExpectElse =
-        "Expect \"else\" keyword after \"then\" clause."
+        "Expect \"else\" keyword after \"then\" clause. " ++ extendStatements
     show ExpectElseClause =
         "Expect \"else\" clause after \"then\" clause."
     show ExpectFi =
-        "Expect \"fi\" keyword after \"then\" clause."
+        "Expect \"fi\" keyword after \"then\" clause. " ++ extendStatements
     show ExpectConditionWhile =
         "Expect condition after \"while\" keyword."
     show ExpectDo =
-        "Expect \"do\" keyword (or extend the condition with more operators)."
+        "Expect \"do\" keyword. " ++ extendCondition
     show ExpectWhileBody =
         "Expect while's body."
     show ExpectDone =
-        "Expect \"done\" keyword after while's body."
+        "Expect \"done\" keyword after while's body. " ++ extendStatements
     show ExpectStatementAfterSemicolon =
         "Expect a statement after semicolon."
     show ExpectScopeBody =
         "Expect scope's body."
+    show ExpectScopeEnd =
+        "Expect \"end\" keyword after scope's body. " ++ extendStatements
     show PairTypeErased =
         "Pair type here should have inner types."
     show PairTypeInPairTypeNotErased =
@@ -112,7 +122,7 @@ instance Show WaccSyntaxErrorType where
     show InvalidRightValue =
         "Invalid right value."
     show ExpectOneStatement =
-        "Expect one statement."
+        "Expect a statement, declaration, assignment, \"if\", \"while\", or scope."
     show ExpectAssignEqualSign =
         "Expect \"=\" sign for assignment (or extend it with array indices)."
     show ExpectDeclareEqualSign =
@@ -123,10 +133,12 @@ instance Show WaccSyntaxErrorType where
         "Integer literal \"" ++ show i ++ "\" is too " ++
         (if i < intLowerBound then "small" else "big") ++ ". " ++
         "It should be between -2^31 and 2^31-1"
+    show ExpectFunctionEnd =
+        "Expect \"end\" keyword at the end of program. " ++ extendStatements
     show ExpectProgramBegin =
         "Expect \"begin\" keyword at the beginning of program."
     show ExpectProgramEnd =
-        "Expect \"end\" keyword at the end of program."
+        "Expect \"end\" keyword at the end of program. " ++ extendStatements
     show (FunctionDoesNotReturn (Name name _)) =
         "There is a path in function \"" ++ name ++ "\" that does not return"
     show UnexpectedCodeAfterProgramEnd =
