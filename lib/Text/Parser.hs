@@ -16,7 +16,7 @@ indicating failure, or a `Right` value, indicating success. If parsing fails,
 error, while `Left Just SyntaxError` indicates that a syntax error has 
 occurred. If successfully parsed, the matched result is included. -}
 type ParserResult error object
-  = Either (Maybe (SyntaxError error)) (Parsed object)
+    = Either (Maybe (SyntaxError error)) (Parsed object)
 
 {- A syntax error has a location and an error type. -}
 data SyntaxError error = SyntaxError Int error
@@ -27,7 +27,8 @@ consumed, the parsed object, and the remaining input stream after parsing. -}
 data Parsed object = Parsed Range object InputStream
     deriving Show
 
-{- A parser that takes an input stream and returns the result of parsing. -}
+-- | The parser that gives something in "object" type when it succeeds,
+--   or an error in "error" type when it fails.
 newtype Parser error object = Parser {
     parse :: InputStream -> ParserResult error object
 }
@@ -64,45 +65,35 @@ syntaxErrorWhen parser (condition, error) = Parser $ \input
             else Right $ Parsed range result rest
     x -> x
 
-{- Makes Parser an instance of the Functor type class. -}
 instance Functor (Parser error) where
-
-    {- If the parser succeeds, make it return another result generated using 
-    the given function and the original result. -}
+    -- Map a parser's result to another one.
     fmap :: (a -> b) -> Parser error a -> Parser error b
     mapper `fmap` parser = Parser $ \input -> do
         Parsed range result rest <- parse parser input
         Right $ Parsed range (mapper result) rest
 
-{- Makes Parser an instance of the Applicative type class. -}
 instance Applicative (Parser error) where
-
-    {- Returns a parser that always succeeds with the result being the given 
-    value and does not consume any input stream. -}
+    -- A parser that never fails and always gives "constant".
     pure :: a -> Parser error a
     pure constant = Parser $ \input -> return $
         Parsed (inputPosition input, inputPosition input) constant input
 
-    {- Sequence the two parsers. If both parsers succeed, return the combined 
-    range of two parsings and the second result mapped by the function from the 
-    first result. -}
+    -- Combine two parsers into one. Their results and ranges are combined too.
     (<*>) :: Parser error (a -> b) -> Parser error a -> Parser error b
     parser1 <*> parser2 = Parser $ \input -> do
-        Parsed (from, _) mapper rest <- parse parser1 input
+        Parsed (from, _) first rest <- parse parser1 input
         case parse parser2 rest of
-            Right (Parsed (_, to) item rest') ->
-                Right $ Parsed (from, to) (mapper item) rest'
+            Right (Parsed (_, to) second rest') ->
+                Right $ Parsed (from, to) (first second) rest'
             Left x -> Left x
 
-    {- Sequence the two parsers. If both parsers succeed, return the range and 
-    result of the second parser. -}
+    -- Combine two parsers into one. But only take the second one's result.
     (*>) :: Parser error a -> Parser error b -> Parser error b
     parser1 *> parser2 = Parser $ \input -> do
         Parsed _ _ rest <- parse parser1 input
         parse parser2 rest
 
-    {- Sequence the two parsers. If both parsers succeed, return the range and 
-    result of the first parser. -}
+    -- Combine two parsers into one. But only take the first one's result.
     (<*) :: Parser error a -> Parser error b -> Parser error a
     parser1 <* parser2 = Parser $ \input -> do
         Parsed range result rest <- parse parser1 input
@@ -110,17 +101,14 @@ instance Applicative (Parser error) where
             Right (Parsed _ _ rest') -> Right $ Parsed range result rest'
             Left x -> Left x
 
-{- Makes Parser an instance of the Alternative type class. -}
 instance Alternative (Parser error) where
-
-    {- Generates a parser that always fails with `Left Nothing`. -}
+    -- A parser that always fails.
     empty :: Parser error a
     empty = Parser $ const $ Left Nothing
 
-    {- Parse using the two parsers alternatively. If the first parser succeeds, 
-    return the successful result. If the first parser returns `Left Nothing`, 
-    parse the same input stream using the second parser. If the first parser 
-    returns a syntax error, return this error. -}
+    -- Combine two alternative parsers.
+    -- If the first one succeeds, take it.
+    -- If the first one fails, try the second one.
     (<|>) :: Parser error a -> Parser error a -> Parser error a
     parser1 <|> parser2 = Parser $ \input ->
         case parse parser1 input of
@@ -128,18 +116,11 @@ instance Alternative (Parser error) where
             Left Nothing -> parse parser2 input
             x -> x
 
-{- Makes Parser an instance of the Monad type class. -}
 instance Monad (Parser error) where
-
-    {- Returns a parser that always succeeds with the result being the given 
-    value and does not consume any input stream. -}
     return :: a -> Parser error a
     return = pure
 
-    {- First parse using the given parser. If it succeeds, generate another 
-    parser using the parsed result and the generator function, and parse the 
-    remaining input stream using this generated parser. Return the combined 
-    range and the second parsed result if succeeds. -}
+    -- Pass the parser's result to the generator function to get a new parser.
     (>>=) :: Parser error a -> (a -> Parser error b) -> Parser error b
     parser >>= newParserGenerator = Parser $ \input -> do
         Parsed (from, _) item rest <- parse parser input
@@ -148,8 +129,6 @@ instance Monad (Parser error) where
                 Right $ Parsed (from, to) item' rest'
             x -> x
 
-    {- Sequence the two parsers. If both parsers succeed, return the range and 
-    result of the second parser. -}
     (>>) :: Parser error a -> Parser error b -> Parser error b
     (>>) = (*>)
 
