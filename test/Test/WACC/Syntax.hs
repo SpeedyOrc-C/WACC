@@ -446,6 +446,100 @@ testType5
     type'
     PairTypeInPairTypeNotErased
 
+testDeclare1 :: IO Bool
+testDeclare1
+  = shouldSucceed "normal declare statement"
+    "int x = 1"
+    statementDeclare
+    (\case (Declare (Int () _, "x", LiteralInt 1 _) _) -> True ; _ -> False)
+
+testDeclare2 :: IO Bool
+testDeclare2
+  = shouldFailSyntaxError "error declare without an identifier"
+    "int = 1"
+    statementDeclare
+    ExpectIdentifierInDeclaration
+
+testAssign1 :: IO Bool
+testAssign1
+  = shouldSucceed "normal assign statement"
+    "x = 1"
+    statementAssign
+    (\case (Assign (Identifier "x" _, LiteralInt 1 _) _) -> True ; _ -> False)
+
+testAssign2 :: IO Bool
+testAssign2
+  = shouldFailSyntaxError "error assign statement with no equal sign"
+    "x  1"
+    statementAssign
+    ExpectAssignEqualSign
+
+testStatements1 :: IO Bool
+testStatements1
+  = shouldSucceed "normal statements"
+    "int a = 0; return a"
+    statements
+    (\case [Declare (Int () _, "a", LiteralInt 0 _) _,
+            Return (Identifier "a" _) _] -> True ; _ -> False)
+
+testStatements2 :: IO Bool
+testStatements2
+  = shouldFailNothing "error statements without semicolon"
+    "int a = 0  \n  return a"
+    statements
+
+testFunction1 :: IO Bool
+testFunction1
+  = shouldSucceed "normal function"
+    "int foo(int a) is a = 0; return a end"
+    function
+    (\case (Function (Int () (0, 3), Name "foo" (4, 7),
+            [(Name "a" (12, 13), Int () (8, 11))],
+            [Assign (Identifier "a" (18, 19), LiteralInt 0 (22, 23)) (18, 23),
+            Return (Identifier "a" (32, 33)) (25, 33)]) (0, 37))
+            -> True; _ -> False)
+
+testFunction2 :: IO Bool
+testFunction2
+  = shouldFailSyntaxError "error function with the last statement not returning"
+    "int foo(int a) is a = 0 end"
+    function
+    (FunctionDoesNotReturn (Name "foo" (4, 7)))
+
+testFunction3 :: IO Bool
+testFunction3
+  = shouldFailSyntaxError "error function that does not return for some paths"
+    "int foo(int a) is if a == 0 then return a else a = 1 fi end"
+    function
+    (FunctionDoesNotReturn (Name "foo" (4, 7)))
+
+testProgram1 :: IO Bool
+testProgram1
+  = shouldSucceed "normal program"
+    "begin int foo(int a) is a = 0; return a end \n\n int x = call foo(10)  end"
+    program
+    (\case (Program ([Function (Int () (6, 9), Name "foo" (10, 13),
+            [(Name "a" (18, 19), Int () (14, 17))],
+            [Assign (Identifier "a" (24, 25), LiteralInt 0 (28, 29)) (24, 29),
+            Return (Identifier "a" (38, 39)) (31, 39)]) (6, 43)],
+            [Declare (Int () (47, 50), "x", FunctionCall ("foo",
+            [LiteralInt 10 (64, 66)]) (55, 67)) (47, 67)]) (0, 72))
+            -> True ; _ -> False)
+
+testProgram2 :: IO Bool
+testProgram2
+  = shouldFailSyntaxError "error program with no statements after function defs"
+    "begin int foo(int a) is a = 0; return a end end"
+    program
+    ExpectOneStatement
+
+testProgram3 :: IO Bool
+testProgram3
+  = shouldFailSyntaxError "error program with codes after program end"
+    "begin int foo(int a) is a = 0; return a end \n\n int x = 0 end x = 1"
+    program
+    UnexpectedCodeAfterProgramEnd
+
 syntaxUnitTests :: IO [Bool]
 syntaxUnitTests = sequence [
     testIdentifier1,
@@ -504,5 +598,17 @@ syntaxUnitTests = sequence [
     testType2,
     testType3,
     testType4,
-    testType5
+    testType5,
+    testDeclare1,
+    testDeclare2,
+    testAssign1,
+    testAssign2,
+    testStatements1,
+    testStatements2,
+    testFunction1,
+    testFunction2,
+    testFunction3,
+    testProgram1,
+    testProgram2,
+    testProgram3
   ]
