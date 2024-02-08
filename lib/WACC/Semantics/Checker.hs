@@ -369,7 +369,7 @@ instance CheckSemantics [Syntax.Statement] [Statement] where
 --   Otherwise returns the repeated entries.
 findRepetition :: (Ord k, Eq a) => [(k, a)] -> ([(k, a)], [(k, a)])
 findRepetition entries =
-    ((concatMap tail groups), map last groups)
+    (concatMap tail groups, map last groups)
     where
         groups = groupBy (\x y -> fst x == fst y) entries
 
