@@ -34,7 +34,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
         -- if left handside is a indentifer which must be in the state
         Syntax.Identifier name range ->
             case lookUp state name of
-                Just t  -> Ok (t, Identifier name)
+                Just (_, t)  -> Ok (t, Identifier name)
                 Nothing -> Log [SemanticError range (UndefinedIdentifier name)]
 
         Syntax.LiteralArray array _ -> do
@@ -247,7 +247,8 @@ instance CheckSemantics Syntax.Statement Statement where
                     -- of the stack of variable tables
                     then case lookUpInnermost state name of
                         Nothing -> Ok (Declare declaredType name newValue)
-                        Just {} -> Log [SemanticError range $ RedefinedIdentifier name]
+                        Just ((previousPos, _), _) -> Log [SemanticError range $
+                            RedefinedIdentifier name previousPos]
                 
                     else Log [SemanticError range $
                             IncompatibleAssignment declaredType computedType]
@@ -351,10 +352,10 @@ instance CheckSemantics [Syntax.Statement] [Statement] where
 
         -- if it is a declare, then add the indentifer with the type which get from
         -- using the check function to the current scope
-        (s@(Syntax.Declare (fromSyntaxType -> declaredType, name, _) _) : ss) ->
+        (s@(Syntax.Declare (fromSyntaxType -> declaredType, name, _) range) : ss) ->
             let state' = state {
                 mappingStack = case mappingStack state of
-                    m : ms -> M.insert name declaredType m : ms
+                    m : ms -> M.insert name (range, declaredType) m : ms
                     _ -> P.error "Mapping stack is empty."
                 }
             in (:) <$> check state s <*> check state' ss
@@ -394,7 +395,7 @@ instance CheckSemantics Syntax.Function Function where
                 [SemanticError range $ RedefinedParameter name
                     | (name, (range, _)) <- paramsRepeated]
         
-        let paramsMapping = (snd <$>) <$> paramsNoRepeat
+        let paramsMapping = paramsNoRepeat
         
         let state' = state {
                 mappingStack =
@@ -411,8 +412,9 @@ instance CheckSemantics Syntax.Function Function where
             }
         
         let body' = check state' body
+        let paramsMappingWithoutRange = (snd <$>) <$> paramsMapping
         
-        Function returnType functionName paramsMapping <$> body'
+        Function returnType functionName paramsMappingWithoutRange <$> body'
 
 instance CheckSemantics Syntax.Program Program where
     check state (Syntax.Program (functions, body) _) = do

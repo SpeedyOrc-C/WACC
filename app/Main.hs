@@ -6,6 +6,7 @@ import System.Environment ( getArgs )
 import System.Exit ( ExitCode(ExitFailure), exitSuccess, exitWith )
 
 import Data.Foldable ( for_, traverse_ )
+import Data.Function ((&))
 
 import Text.SourceCode ( textPosition, underlineTextSection, removeTabs )
 import Text.AnsiEscape ( bold, red )
@@ -14,6 +15,7 @@ import qualified WACC.Syntax.Parser     as Syntax.Parser
 import qualified WACC.Syntax.Structure  as Syntax.Structure
 import qualified WACC.Semantics.Checker as Semantics.Checker
 import qualified WACC.Semantics.Utils   as Semantics.Utils
+import qualified WACC.Semantics.Error   as Semantics.Error
 
 syntaxErrorExit :: IO ()
 syntaxErrorExit = exitWith $ ExitFailure 100
@@ -108,7 +110,13 @@ semanticCheck flags program sourceCode =
                 preventTextDecoration (noTextDecoration flags) bold
                     (show (fromRow + 1) ++ ":" ++ show (fromCol + 1)) ++ " "
             
-            print error
+            error & \case
+                Semantics.Error.RedefinedIdentifier
+                    name (textPosition sourceCode -> (pos, _))
+                    -> putStrLn $
+                        "Variable \"" ++ name ++ "\" is declared again.\n" ++
+                        "Previously defined at line " ++ show (pos + 1) ++ "."
+                it -> print it
 
             putStrLn ""
 

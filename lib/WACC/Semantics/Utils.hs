@@ -50,28 +50,28 @@ data CheckerState = CheckerState {
     functionContext :: Maybe Type,
     -- All functions' types of parameters and return value
     functionMapping :: String `M.Map` ([Type], Type),
-    -- All variables' types
-    mappingStack :: [String `M.Map` Type]
+    -- All variables' types and where they are declared
+    mappingStack :: [String `M.Map` (Range, Type)]
 }
 
 addScope :: CheckerState -> CheckerState
 addScope state = state { mappingStack = M.empty : mappingStack state }
 
-addIdentifier :: String -> Type -> CheckerState -> CheckerState
+addIdentifier :: String -> (Range, Type) -> CheckerState -> CheckerState
 addIdentifier name t state = state {
     mappingStack =
         M.insert name t (head (mappingStack state)) :
         tail (mappingStack state)
 }
 
-lookUp :: CheckerState -> String -> Maybe Type
+lookUp :: CheckerState -> String -> Maybe (Range, Type)
 lookUp state name = case mappingStack state of
     [] -> Nothing
     mapping : rest -> case M.lookup name mapping of
         Just t -> Just t
         Nothing -> lookUp (state {mappingStack = rest}) name
 
-lookUpInnermost :: CheckerState -> String -> Maybe Type
+lookUpInnermost :: CheckerState -> String -> Maybe (Range, Type)
 lookUpInnermost state =
     lookUp $ state { mappingStack = [head (mappingStack state)] }
 

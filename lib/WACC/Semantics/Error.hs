@@ -7,7 +7,7 @@ data OperandDirection = OperandLeft | OperandRight deriving Show
 data WaccSemanticsErrorType
     = UndefinedIdentifier String
     | UndefinedFunction String
-    | RedefinedIdentifier String
+    | RedefinedIdentifier String Int
     | RedefinedFunction String
     | ArgumentNumberMismatch String Int Int
     | InconsistentTypesInArray Type Type
@@ -41,7 +41,7 @@ instance Show WaccSemanticsErrorType where
         "Variable \"" ++ identifier ++ "\" is not declared."
     show (UndefinedFunction function) = 
         "Function \"" ++ function ++ "\" is not declared."
-    show (RedefinedIdentifier identifier) = 
+    show (RedefinedIdentifier identifier _) = 
         "Variable \"" ++ identifier ++ "\" is declared again."
     show (RedefinedFunction function) = 
         "Function \"" ++ function ++ "\" is declared again."
