@@ -213,7 +213,7 @@ expressionBase = asum [
     expressionLiteralPair,
     expressionLiteralArray,
     expressionFunctionCall
-    ] 
+    ] `labelError` "base expression"
 
 indexOperator :: WaccParser Expression -> WaccParser Expression
 indexOperator higherParser = do
