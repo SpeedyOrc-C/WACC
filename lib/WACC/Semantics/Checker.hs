@@ -5,7 +5,8 @@ import Prelude hiding (error)
 import qualified Prelude  as P
 import qualified Data.Map as M
 import qualified Data.Set as S
-import           Data.List
+import qualified Data.List.NonEmpty as NE
+import           Control.Arrow ((&&&))
 
 import qualified WACC.Syntax.Structure as Syntax
 import           WACC.Semantics.Error
@@ -368,15 +369,9 @@ instance CheckSemantics [Syntax.Statement] [Statement] where
 --   If no repetition found, which is good, nothing happens.
 --   Otherwise returns the repeated entries.
 findRepetition :: (Ord k, Eq a) => [(k, a)] -> ([(k, a)], [(k, a)])
-findRepetition entries =
-    ((concatMap tail groups), map last groups)
+findRepetition entries = (concatMap NE.tail &&& map NE.last) groups
     where
-        groups = groupBy (\x y -> fst x == fst y) entries
-
-instance CheckSemantics [Syntax.Function] [Function] where
-    check _ = \case
-        [] -> Ok []
-        _ -> undefined
+    groups = NE.groupBy (\x y -> fst x == fst y) entries
 
 instance CheckSemantics Syntax.Function Function where
     check state (Syntax.Function
