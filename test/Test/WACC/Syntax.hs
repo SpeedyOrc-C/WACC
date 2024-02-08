@@ -213,6 +213,85 @@ testArrayElement2
     expressionArrayElement
     UnmatchedSquareBracket
 
+testUnaryOperation1 :: IO Bool
+testUnaryOperation1
+  = shouldSucceed "normal unary operation"
+    "! true"
+    expressionUnaryOperation
+    (\case (Not (LiteralBool True _) _)-> True ;
+             _ -> False)
+
+testUnaryOperation2 :: IO Bool
+testUnaryOperation2
+  = shouldFailSyntaxError "abnormal unary operation"
+    "len "
+    expressionUnaryOperation
+    ExpectOperand
+
+testBinaryOperation1 :: IO Bool
+testBinaryOperation1
+  = shouldSucceed "normal binary operation"
+    "5 * 3"
+    expressionBinaryOperation
+    (\case (Multiply (LiteralInt 5 _, LiteralInt 3 _) _)-> True ;
+             _ -> False)
+
+testBinaryOperation2 :: IO Bool
+testBinaryOperation2
+  = shouldFailSyntaxError "abnormal binary operation"
+    "true || "
+    expressionBinaryOperation
+    ExpectOperand
+
+testexpressionWithBrackets1 :: IO Bool
+testexpressionWithBrackets1
+  = shouldSucceed "normal expression with brackets"
+    "((5 + 3) / 4)"
+    expressionWithBrackets
+    (\case (Divide (Add (LiteralInt 5 _,LiteralInt 3 _) _,LiteralInt 4 _) _)
+            -> True ; _ -> False)
+
+testexpressionWithBrackets2 :: IO Bool
+testexpressionWithBrackets2
+  = shouldFailSyntaxError "abnormal expression with brackets"
+    "(8 + 9"
+    expressionWithBrackets
+    UnmatchedBracket
+
+testLeftValue1 :: IO Bool
+testLeftValue1
+  = shouldSucceed "normal left value"
+    "Sora"
+    leftValue
+    (\case (Identifier "Sora" _) -> True ; _ -> False)
+
+testLeftValue2 :: IO Bool
+testLeftValue2
+  = shouldFailNothing "error left value which is actually a right value"
+    "(2003 + 11 + 20)"
+    leftValue
+
+testRightValue1 :: IO Bool
+testRightValue1
+  = shouldSucceed "normal right value"
+    "1 + 2"
+    rightValue
+    (\case (Add (LiteralInt 1 _,LiteralInt 2 _) _) -> True ; _ -> False)
+
+testStrictExpression1 :: IO Bool
+testStrictExpression1
+  = shouldSucceed "valid strict expression"
+    "Sora"
+    strictExpression
+    (\case (Identifier "Sora" _) -> True ; _ -> False)
+
+testStrictExpression2 :: IO Bool
+testStrictExpression2
+  = shouldFailSyntaxError "error strict value with something followed"
+    "-2003**"
+    strictExpression
+    ExpectOperand
+
 testSkip :: IO Bool
 testSkip
   = shouldSucceed "normal skip statement"
@@ -394,6 +473,17 @@ syntaxUnitTests = sequence [
     testFunctionCall2,
     testArrayElement1,
     testArrayElement2,
+    testUnaryOperation1,
+    testUnaryOperation2,
+    testBinaryOperation1,
+    testBinaryOperation2,
+    testexpressionWithBrackets1,
+    testexpressionWithBrackets2,
+    testLeftValue1,
+    testLeftValue2,
+    testRightValue1,
+    testStrictExpression1,
+    testStrictExpression2,
     testSkip,
     testRead1,
     testRead2,
