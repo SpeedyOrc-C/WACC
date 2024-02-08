@@ -62,23 +62,24 @@ processSourceCode flags (removeTabs -> sourceCode) =
         syntaxErrorExit
 
     Left (Just (Parser.SyntaxError pos error')) -> do
+        let (row, col) = textPosition sourceCode pos
 
         putStrLn ""
 
-        putStrLn `traverse_`
+        putStrLn $
+            preventTextDecoration (noTextDecoration flags) red
+                "[Syntax Error] " ++
+            preventTextDecoration (noTextDecoration flags) bold
+                (show (row + 1) ++ ":" ++ show (col + 1))
+
+        print error'
+
+        putStrLn ""
+
+        (putStrLn . ("|   " ++ )) `traverse_`
             underlineTextSection pos (pos+1)
                 (2, '^', preventTextDecoration (noTextDecoration flags) red)
                 sourceCode
-
-        putStrLn ""
-
-        let (row, col) = textPosition sourceCode pos
-        putStrLn $
-            preventTextDecoration (noTextDecoration flags) red
-                "[Syntax] " ++
-            preventTextDecoration (noTextDecoration flags) bold
-                (show (row + 1) ++ ":" ++ show (col + 1)) ++ " " ++
-            show error'
 
         putStrLn ""
 
@@ -101,19 +102,20 @@ semanticCheck flags program sourceCode =
             let (from, to) = range
             let (fromRow, fromCol) = textPosition sourceCode from
 
-            putStrLn `traverse_`
-                underlineTextSection from to
-                    (2, '^', preventTextDecoration (noTextDecoration flags) red)
-                    sourceCode
+            putStrLn $
+                preventTextDecoration (noTextDecoration flags)
+                    red "[Semantic Error] " ++
+                preventTextDecoration (noTextDecoration flags) bold
+                    (show (fromRow + 1) ++ ":" ++ show (fromCol + 1)) ++ " "
+            
+            print error
 
             putStrLn ""
 
-            putStrLn $
-                preventTextDecoration (noTextDecoration flags)
-                    red "[Semantics] " ++
-                preventTextDecoration (noTextDecoration flags) bold
-                    (show (fromRow + 1) ++ ":" ++ show (fromCol + 1)) ++ " " ++
-                show error
+            (putStrLn . ("|   " ++)) `traverse_`
+                underlineTextSection from to
+                    (2, '^', preventTextDecoration (noTextDecoration flags) red)
+                    sourceCode
 
             putStrLn ""
 

@@ -46,8 +46,9 @@ instance Show WaccSemanticsErrorType where
     show (RedefinedFunction function) = 
         "Function \"" ++ function ++ "\" is declared again."
     show (ArgumentNumberMismatch name expect actual) = 
-        "Function \"" ++ name ++ "\" takes " ++ show actual ++ " arguments. " ++
-        "Actual: " ++ show expect
+        "Function \"" ++ name ++ "\" takes " ++ show expect ++
+        " argument" ++ (if expect > 1 then "s" else "") ++ ". " ++
+        "Actual: " ++ show actual
     show (InconsistentTypesInArray typeBefore typeAfter) = 
         "Inconsistent types: type before is " ++ show typeBefore 
         ++ ", type after is " ++ show typeAfter ++ "."

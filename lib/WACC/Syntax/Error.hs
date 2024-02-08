@@ -86,29 +86,29 @@ instance Show WaccSyntaxErrorType where
     show ExpectConditionIf =
         "Expect condition after \"if\" keyword."
     show ExpectThen =
-        "Expect \"then\" keyword. " ++ extendCondition
+        "Expect \"then\" keyword.\n" ++ extendCondition
     show ExpectThenClause =
         "Expect \"then\" clause after condition."
     show ExpectElse =
-        "Expect \"else\" keyword after \"then\" clause. " ++ extendStatements
+        "Expect \"else\" keyword after \"then\" clause.\n" ++ extendStatements
     show ExpectElseClause =
         "Expect \"else\" clause after \"then\" clause."
     show ExpectFi =
-        "Expect \"fi\" keyword after \"then\" clause. " ++ extendStatements
+        "Expect \"fi\" keyword after \"then\" clause.\n" ++ extendStatements
     show ExpectConditionWhile =
         "Expect condition after \"while\" keyword."
     show ExpectDo =
-        "Expect \"do\" keyword. " ++ extendCondition
+        "Expect \"do\" keyword.\n" ++ extendCondition
     show ExpectWhileBody =
         "Expect while's body."
     show ExpectDone =
-        "Expect \"done\" keyword after while's body. " ++ extendStatements
+        "Expect \"done\" keyword after while's body.\n" ++ extendStatements
     show ExpectStatementAfterSemicolon =
         "Expect a statement after semicolon."
     show ExpectScopeBody =
         "Expect scope's body."
     show ExpectScopeEnd =
-        "Expect \"end\" keyword after scope's body. " ++ extendStatements
+        "Expect \"end\" keyword after scope's body.\n" ++ extendStatements
     show PairTypeErased =
         "Pair type here should have inner types."
     show PairTypeInPairTypeNotErased =
@@ -134,11 +134,11 @@ instance Show WaccSyntaxErrorType where
         (if i < intLowerBound then "small" else "big") ++ ". " ++
         "It should be between -2^31 and 2^31-1"
     show ExpectFunctionEnd =
-        "Expect \"end\" keyword at the end of program. " ++ extendStatements
+        "Expect \"end\" keyword at the end of function.\n" ++ extendStatements
     show ExpectProgramBegin =
         "Expect \"begin\" keyword at the beginning of program."
     show ExpectProgramEnd =
-        "Expect \"end\" keyword at the end of program. " ++ extendStatements
+        "Expect \"end\" keyword at the end of program.\n" ++ extendStatements
     show (FunctionDoesNotReturn (Name name _)) =
         "There is a path in function \"" ++ name ++ "\" that does not return"
     show UnexpectedCodeAfterProgramEnd =

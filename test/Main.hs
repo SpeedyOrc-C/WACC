@@ -1,5 +1,7 @@
 import Data.Traversable
 
+import Prelude hiding (error)
+
 import System.Exit ( exitFailure, exitSuccess )
 import System.Directory
     ( doesDirectoryExist,
@@ -14,9 +16,8 @@ import Text.AnsiEscape ( red, orange, green, gray )
 import Text.SourceCode (textPosition)
 import Test.WACC.Syntax (syntaxUnitTests)
 import WACC.Semantics.Checker (checkProgram)
-import WACC.Semantics.Utils (LogEither(..))
+import WACC.Semantics.Utils ( LogEither(..), SemanticError(..) )
 import Data.Foldable (for_)
-import WACC.Semantics.Utils (SemanticError(..))
 import Data.List (sort)
 
 getDirectoryContents' :: FilePath -> IO [FilePath]
@@ -85,7 +86,7 @@ testSemanticError = do
             Left {} -> do
                 putStrLn $ red $ "    ! " ++ test
                 putStrLn $ red   "        Syntax error found"
-                
+
                 return False
 
             Right (Parsed _ ast _) -> do
@@ -130,9 +131,9 @@ testValid = do
             Left {} -> do
                 putStrLn $ red "    ! " ++ test
                 putStrLn $ red "        Syntax error found"
-                
+
                 return False
-            
+
             Right (Parsed _ ast _) -> do
                 case checkProgram ast of
 
@@ -146,13 +147,13 @@ testValid = do
 
                             putStrLn . gray $ "        " ++
                                 show from ++ "-" ++ show to ++ " : " ++ show error
-                        
+
                         return False
-                    
+
                     Ok {} -> do
                         putStrLn $ green "    * " ++ test
                         return True
-    
+
     setCurrentDirectory oldPwd
 
     return $ and result
