@@ -373,7 +373,7 @@ findRepetition entries =
         else (Just (entries \\ entriesNoRepeat), entriesNoRepeat)
     where
     entriesNoRepeat = M.toList (M.fromList entries)
-,
+
 instance CheckSemantics [Syntax.Function] [Function] where
     check _ = \case
         [] -> Ok []
