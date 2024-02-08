@@ -219,7 +219,7 @@ indexOperator :: WaccParser Expression -> WaccParser Expression
 indexOperator higherParser = do
     ((from, _), array) <- getRangeA higherParser
     indices <- many $ do
-        _     <- many white
+        _     <- many white 
         _     <- char '[' `labelError` "start of the index" 
         index <- getRangeA $ surroundManyWhites expression `syntaxError`
                     ExpectIndexInBracket

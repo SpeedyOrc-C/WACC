@@ -4,6 +4,7 @@ import Prelude hiding (error)
 
 import Control.Applicative ( Alternative((<|>), empty, many) )
 import Data.List (intersperse)
+import GHC.Base (Applicative(liftA2))
 
 {- (fromIndex, toIndex) -}
 type Range = (Int, Int)
@@ -89,6 +90,8 @@ instance Applicative (Parser error) where
     pure constant = Parser $ \input ->
         (Nothing, Right (Parsed (inputPosition input, inputPosition input) constant input))
 
+    liftA2 :: (a -> b -> c) -> Parser error a -> Parser error b -> Parser error c
+    liftA2 f x y = f <$> x <*> y
     {- Sequence the two parsers. If both parsers succeed, return the combined 
     range of two parsings and the second result mapped by the function from the 
     first result. -}
@@ -99,7 +102,8 @@ instance Applicative (Parser error) where
                 case parse parser2 rest of
                     (list', Right (Parsed (_, to) item rest')) ->
                         (combineHints list list', Right $ Parsed (from, to) (mapper item) rest')
-                    (list', Left x) -> (combineHints list list', Left x)
+                    (list', Left x) ->
+                        (combineHints list list', Left x)
             (list, Left x) ->
                 (list, Left x)
 
@@ -161,7 +165,8 @@ labelError parser label = Parser $ \input@(len, stream) -> case stream of
     [] -> (Just ([label], len), Left Nothing)
     (n, _):_ ->
         case parse parser input of
-            (list, x) -> (putHintsSub label n list, x)
+            (list, Left x) -> (putHintsSub label n list, Left x)
+            (list, Right x) -> (list, Right x)
 
 {- Makes Parser an instance of the Alternative type class. -}
 instance Alternative (Parser error) where
@@ -180,7 +185,9 @@ instance Alternative (Parser error) where
             (list, Right result) -> (combineHints list list', Right result)
                 where
                     (list', _) = parse parser2 input
-            (list, Left Nothing) -> addHintParser (parse parser2 input) list
+            (list, Left Nothing) -> (combineHints list list', result)
+                where
+                    (list', result) = parse parser2 input
             (list, Left x) -> (combineHints list list', Left x)
                 where
                     (list', _) = parse parser2 input
@@ -223,7 +230,7 @@ char character = Parser $ \(len, stream) -> case stream of
         if character == inputCharacter then
             (Nothing, Right $ Parsed (position, position + 1) character (len, inputRest))
         else
-            (Nothing, Left Nothing)
+            (Nothing, Left Nothing) 
 
 {- Generates a parser that parses whether the current character satisfies the 
 given condition. Returns the current position of the input stream and the 
