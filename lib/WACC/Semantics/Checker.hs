@@ -67,7 +67,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
             ((arrayType, array'), (indexType, index')) <-
                 (,) <$> check state array <*> check state index
 
-            -- if the index type is compatible of Int type (which is the only 
+            -- if the index type is compatible of Int type (which is the only
             -- type in the wacc that can be index type then check if the array type
             -- is a type of Array)
             if Int <| indexType then case arrayType of
@@ -133,7 +133,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
         Syntax.Or xy _ -> checkLogical xy Or
 
         Syntax.FunctionCall (name, args) range -> do
-            -- firstly check if the function appears in the function mapping, 
+            -- firstly check if the function appears in the function mapping,
             -- which contains all functions name in the current program
             case M.lookup name (functionMapping state) of
                 Nothing -> Log [SemanticError range $ UndefinedFunction name]
@@ -228,7 +228,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 (,) <$> check state left <*> check state right
 
             -- left type must be compatible with right type or another way around
-            if leftType <| rightType || rightType <| leftType 
+            if leftType <| rightType || rightType <| leftType
                 then Ok (Bool, constructor leftType left' right')
                 else
                     Log [SemanticError range $ InvalidEquality leftType rightType]
@@ -241,15 +241,15 @@ instance CheckSemantics Syntax.Statement Statement where
             Ok (computedType, newValue) ->
                 -- if the type at the right hand side can be compatible to the left
                 -- hand side, then it is fine else return error
-                if (isLiter value && (declaredType <? computedType)) 
-                      || (declaredType <| computedType) 
+                if (isLiter value && (declaredType <? computedType))
+                      || (declaredType <| computedType)
                     -- the name of the identifier must not appear in the inner most layer
                     -- of the stack of variable tables
                     then case lookUpInnermost state name of
                         Nothing -> Ok (Declare declaredType name newValue)
                         Just ((previousPos, _), _) -> Log [SemanticError range $
                             RedefinedIdentifier name previousPos]
-                
+
                     else Log [SemanticError range $
                             IncompatibleAssignment declaredType computedType]
 
@@ -258,12 +258,12 @@ instance CheckSemantics Syntax.Statement Statement where
         Syntax.Assign (left, right) _ -> do
             ((leftType, left'), (rightType, right')) <-
                 (,) <$> check state left <*> check state right
-            
+
             if leftType == Any && rightType == Any
                 then Log [SemanticError (expressionRange right) $
                                 BothSideAnyAssignment]
-                else 
-                    if (isLiter right && (leftType <? rightType)) 
+                else
+                    if (isLiter right && (leftType <? rightType))
                             || (leftType <| rightType)
                         then Ok (Assign left' right')
                         else Log [SemanticError (expressionRange right) $
@@ -322,7 +322,7 @@ instance CheckSemantics Syntax.Statement Statement where
                 <$> check           state  condition
                 <*> check (addScope state) thenBranch
                 <*> check (addScope state) elseBranch
-            
+
             if Bool <| conditionType
                 then Ok (If condition' thenBranch' elseBranch')
                 else Log [SemanticError (expressionRange condition) $
@@ -332,14 +332,14 @@ instance CheckSemantics Syntax.Statement Statement where
             ((conditionType, condition'), body') <- (,)
                 <$> check           state  condition
                 <*> check (addScope state) body
-            
+
             if Bool <| conditionType
                 then Ok (While condition' body')
                 else Log [SemanticError (expressionRange condition) $
                             InvalidCondition conditionType]
-        
+
         Syntax.Scope statements _ -> Scope <$> check (addScope state) statements
-        
+
         Syntax.Skip {} -> P.error "`skip` statement is not eradicated."
 
 instance CheckSemantics [Syntax.Statement] [Statement] where
@@ -373,6 +373,11 @@ findRepetition entries =
         else (Just (entries \\ entriesNoRepeat), entriesNoRepeat)
     where
     entriesNoRepeat = M.toList (M.fromList entries)
+,
+instance CheckSemantics [Syntax.Function] [Function] where
+    check _ = \case
+        [] -> Ok []
+        _ -> undefined
 
 instance CheckSemantics Syntax.Function Function where
     check state (Syntax.Function
@@ -394,9 +399,9 @@ instance CheckSemantics Syntax.Function Function where
             Just paramsRepeated -> Log
                 [SemanticError range $ RedefinedParameter name
                     | (name, (range, _)) <- paramsRepeated]
-        
+
         let paramsMapping = paramsNoRepeat
-        
+
         let state' = state {
                 mappingStack =
                     -- Variables in the body can shadow parameters.
@@ -404,16 +409,16 @@ instance CheckSemantics Syntax.Function Function where
 
                     -- Function's body can access parameters.
                     M.fromList paramsMapping :
-                    
+
                     mappingStack state,
-                
+
                 -- Function's body allows `return` statement.
                 functionContext = Just returnType
             }
-        
+
         let body' = check state' body
         let paramsMappingWithoutRange = (snd <$>) <$> paramsMapping
-        
+
         Function returnType functionName paramsMappingWithoutRange <$> body'
 
 instance CheckSemantics Syntax.Program Program where
@@ -434,7 +439,7 @@ instance CheckSemantics Syntax.Program Program where
             Nothing -> Ok ()
             -- Any of two functions cannot have identical names.
             Just functionsRepeated -> Log
-                [SemanticError range (RedefinedFunction name)
+                [SemanticError range $ RedefinedFunction name
                     | (name, range) <- (fst <$>) <$> functionsRepeated]
 
         let state' = state {
