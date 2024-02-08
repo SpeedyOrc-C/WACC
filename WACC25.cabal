@@ -89,7 +89,7 @@ executable wacc25
         LambdaCase,
         ViewPatterns,
         FunctionalDependencies
-    
+
     build-depends:
         wacc25-lib,
         directory,
@@ -107,12 +107,17 @@ test-suite wacc25-test
         ViewPatterns,
         FunctionalDependencies
 
+    other-modules:
+        Test.WACC.Syntax,
+        Test.WACC.Semantics
+
     build-depends:
         wacc25-lib,
         directory,
+        containers,
         base ^>=4.17.1.0
-    
+
     type: exitcode-stdio-1.0
-    
+
     default-language: GHC2021
     ghc-options: -Wall

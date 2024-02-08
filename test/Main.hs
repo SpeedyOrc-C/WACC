@@ -15,6 +15,7 @@ import Control.Monad ( filterM )
 import Text.AnsiEscape ( red, orange, green, gray )
 import Text.SourceCode (textPosition)
 import Test.WACC.Syntax (syntaxUnitTests)
+import Test.WACC.Semantics (semanticsUnitTests)
 import WACC.Semantics.Checker (checkProgram)
 import WACC.Semantics.Utils ( LogEither(..), SemanticError(..) )
 import Data.Foldable (for_)
@@ -164,7 +165,8 @@ main = do
     resultSemanticError <- testSemanticError
     resultValid <- testValid
     resultSyntaxUnitTests <- syntaxUnitTests
+    resultSemanticsUnitTests <- semanticsUnitTests
 
     let succeed = and [resultSyntaxError, resultSemanticError, resultValid,
-          and resultSyntaxUnitTests]
+          and resultSyntaxUnitTests, and resultSemanticsUnitTests]
     if succeed then exitSuccess else exitFailure
