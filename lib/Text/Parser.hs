@@ -91,21 +91,21 @@ instance Applicative (Parser error) where
         (Nothing, Right (Parsed (inputPosition input, inputPosition input) constant input))
 
     liftA2 :: (a -> b -> c) -> Parser error a -> Parser error b -> Parser error c
-    liftA2 f x y = f <$> x <*> y
-    {- Sequence the two parsers. If both parsers succeed, return the combined 
-    range of two parsings and the second result mapped by the function from the 
-    first result. -}
-    (<*>) :: Parser error (a -> b) -> Parser error a -> Parser error b
-    parser1 <*> parser2 = Parser $ \input -> 
+    liftA2 f parser1 parser2 = Parser $ \input ->
         case parse parser1 input of
-            (list, Right (Parsed (from, _) mapper rest)) ->
+            (list, Right (Parsed (from, _) item rest)) ->
                 case parse parser2 rest of
-                    (list', Right (Parsed (_, to) item rest')) ->
-                        (combineHints list list', Right $ Parsed (from, to) (mapper item) rest')
+                    (list', Right (Parsed (_, to) item' rest')) ->
+                        (combineHints list list', Right $ Parsed (from, to) (f item item') rest')
                     (list', Left x) ->
                         (combineHints list list', Left x)
             (list, Left x) ->
                 (list, Left x)
+    {- Sequence the two parsers. If both parsers succeed, return the combined 
+    range of two parsings and the second result mapped by the function from the 
+    first result. -}
+    (<*>) :: Parser error (a -> b) -> Parser error a -> Parser error b
+    (<*>) = liftA2 id
 
     {- Sequence the two parsers. If both parsers succeed, return the range and 
     result of the second parser. -}
