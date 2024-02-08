@@ -367,11 +367,9 @@ instance CheckSemantics [Syntax.Statement] [Statement] where
 -- | Try to find repetition in a list of entries.
 --   If no repetition found, which is good, nothing happens.
 --   Otherwise returns the repeated entries.
-findRepetition :: (Ord k, Eq a) => [(k, a)] -> (Maybe [(k, a)], [(k, a)])
+findRepetition :: (Ord k, Eq a) => [(k, a)] -> ([(k, a)], [(k, a)])
 findRepetition entries =
-    if length entries == length groups
-        then (Nothing, entries)
-        else (Just (concatMap tail groups), map last groups)
+    ((concatMap tail groups), map last groups)
     where
         groups = groupBy (\x y -> fst x == fst y) entries
 
@@ -395,9 +393,9 @@ instance CheckSemantics Syntax.Function Function where
                 findRepetition paramsWithRange
 
         case maybeParamsRepeated of
-            Nothing -> Ok ()
+            [] -> Ok ()
             -- Any of two parameters cannot have identical names.
-            Just paramsRepeated -> Log
+            paramsRepeated -> Log
                 [SemanticError range $ RedefinedParameter name
                     | (name, (range, _)) <- paramsRepeated]
 
@@ -437,9 +435,9 @@ instance CheckSemantics Syntax.Program Program where
                 findRepetition functionsWithRange
 
         case maybeFunctionsRepeated of
-            Nothing -> Ok ()
+            [] -> Ok ()
             -- Any of two functions cannot have identical names.
-            Just functionsRepeated -> Log
+            functionsRepeated -> Log
                 [SemanticError range $ RedefinedFunction name
                     | (name, range) <- (fst <$>) <$> functionsRepeated]
 
