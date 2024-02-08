@@ -363,16 +363,17 @@ instance CheckSemantics [Syntax.Statement] [Statement] where
         -- Other statements do not affect the state.
         (s : ss) -> (:) <$> check state s <*> check state ss
 
+
 -- | Try to find repetition in a list of entries.
 --   If no repetition found, which is good, nothing happens.
 --   Otherwise returns the repeated entries.
 findRepetition :: (Ord k, Eq a) => [(k, a)] -> (Maybe [(k, a)], [(k, a)])
 findRepetition entries =
-    if length entries == length entriesNoRepeat
-        then (Nothing, entriesNoRepeat)
-        else (Just (entries \\ entriesNoRepeat), entriesNoRepeat)
+    if length entries == length groups
+        then (Nothing, entries)
+        else (Just (concatMap tail groups), map last groups)
     where
-    entriesNoRepeat = M.toList (M.fromList entries)
+        groups = groupBy (\x y -> fst x == fst y) entries
 
 instance CheckSemantics [Syntax.Function] [Function] where
     check _ = \case
