@@ -49,7 +49,7 @@ testIdentifier1
   = shouldSucceed "normal identifier"
     "aBW_311"
     expressionIdentifier
-    (\case (Identifier s _) -> s == "aBW_311" ; _ -> False)
+    (\case (Identifier "aBW_311" _) -> True ; _ -> False)
 
 testIdentifier2 :: IO Bool
 testIdentifier2
@@ -69,7 +69,7 @@ testBoolLiteral1
   = shouldSucceed "normal bool literal"
     "true"
     expressionLiteralBool
-    (\case (LiteralBool b _) -> b ; _ -> False)
+    (\case (LiteralBool True _) -> True ; _ -> False)
 
 testBoolLiteral2 :: IO Bool
 testBoolLiteral2
@@ -82,7 +82,7 @@ testNoSignIntLiteral1
   = shouldSucceed "normal int literal without sign"
     "53"
     expressionNoSignLiteralInt
-    (\case (LiteralInt i _) -> i == 53 ; _ -> False)
+    (\case (LiteralInt 53 _) -> True ; _ -> False)
 
 testNoSignIntLiteral2 :: IO Bool
 testNoSignIntLiteral2
@@ -95,7 +95,7 @@ testIntLiteral1
   = shouldSucceed "normal int literal with sign"
     "-2003"
     expressionLiteralInt
-    (\case (LiteralInt i _) -> i == -2003 ; _ -> False)
+    (\case (LiteralInt (-2003) _) -> True ; _ -> False)
 
 testIntLiteral2 :: IO Bool
 testIntLiteral2
@@ -108,7 +108,7 @@ testCharLiteral1
   = shouldSucceed "normal char literal"
     "\'x\'"
     expressionLiteralChar
-    (\case (LiteralChar c _) -> c == 'x' ; _ -> False)
+    (\case (LiteralChar 'x' _) -> True ; _ -> False)
 
 testCharLiteral2 :: IO Bool
 testCharLiteral2
@@ -129,7 +129,7 @@ testStringLiteral1
   = shouldSucceed "normal string literal"
     "\"Hello\""
     expressionLiteralString
-    (\case (LiteralString s _) -> s == "Hello" ; _ -> False)
+    (\case (LiteralString "Hello" _) -> True ; _ -> False)
 
 testStringLiteral2 :: IO Bool
 testStringLiteral2
@@ -149,8 +149,8 @@ testArrayLiteral1
   = shouldSucceed "normal array literal"
     "[1, 2]"
     expressionLiteralArray
-    (\case (LiteralArray [LiteralInt n1 _, LiteralInt n2 _] _) -> 
-            n1 == 1 && n2 == 2 ; _ -> False)
+    (\case (LiteralArray [LiteralInt 1 _, LiteralInt 2 _] _) ->
+            True; _ -> False)
 
 testArrayLiteral2 :: IO Bool
 testArrayLiteral2
@@ -163,8 +163,8 @@ testPairLiteral1
   = shouldSucceed "normal pair literal"
     "newpair (5, 3)"
     expressionLiteralPair
-    (\case (LiteralPair (LiteralInt n1 _, LiteralInt n2 _) _) -> 
-            n1 == 5 && n2 == 3 ; _ -> False)
+    (\case (LiteralPair (LiteralInt 5 _, LiteralInt 3 _) _) ->
+            True; _ -> False)
 
 testPairLiteral2 :: IO Bool
 testPairLiteral2
@@ -190,14 +190,30 @@ testFunctionCall1
   = shouldSucceed "normal function call"
     "call increment(5)"
     expressionFunctionCall
-    (\case (FunctionCall (fname, [LiteralInt n1 _]) _) -> 
-            fname == "increment" && n1 == 5 ; _ -> False)
+    (\case (FunctionCall ("increment", [LiteralInt 5 _]) _) ->
+            True ; _ -> False)
 
 testFunctionCall2 :: IO Bool
 testFunctionCall2
   = shouldFailNothing "error function call with something after parenthesis"
     "call increment(5);8965%$"
     expressionFunctionCall
+
+testArrayElement1 :: IO Bool
+testArrayElement1
+  = shouldSucceed "normal array element"
+    "A [1]"
+    expressionArrayElement
+    (\case (ArrayElement (Identifier "A" _,LiteralInt 1 _) _)-> True ;
+             _ -> False)
+
+testArrayElement2 :: IO Bool
+testArrayElement2
+  = shouldFailSyntaxError "error array element without right bracket"
+    "A [99"
+    expressionArrayElement
+    UnmatchedSquareBracket
+
 
 syntaxUnitTests :: IO [Bool]
 syntaxUnitTests = sequence [
@@ -223,5 +239,7 @@ syntaxUnitTests = sequence [
     testNullPairLiteral1,
     testNullPairLiteral2,
     testFunctionCall1,
-    testFunctionCall2
+    testFunctionCall2,
+    testArrayElement1,
+    testArrayElement2
   ]
