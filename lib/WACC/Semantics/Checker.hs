@@ -6,7 +6,6 @@ import qualified Prelude  as P
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.List.NonEmpty as NE
-import           Control.Arrow ((&&&))
 
 import qualified WACC.Syntax.Structure as Syntax
 import           WACC.Semantics.Error
@@ -260,8 +259,8 @@ instance CheckSemantics Syntax.Statement Statement where
                 (,) <$> check state left <*> check state right
 
             if leftType == Any && rightType == Any
-                then Log [SemanticError (expressionRange right) $
-                                BothSideAnyAssignment]
+                then Log [SemanticError (expressionRange right)
+                            BothSideAnyAssignment]
                 else
                     if (isLiter right && (leftType <? rightType))
                             || (leftType <| rightType)

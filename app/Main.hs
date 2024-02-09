@@ -76,8 +76,6 @@ processSourceCode flags (removeTabs -> sourceCode) =
 
         print error'
 
-        putStrLn ""
-
         (putStrLn . ("|   " ++ )) `traverse_`
             underlineTextSection pos (pos+1)
                 (2, '^', preventTextDecoration (noTextDecoration flags) red)
@@ -109,7 +107,7 @@ semanticCheck flags program sourceCode =
                     red "[Semantic Error] " ++
                 preventTextDecoration (noTextDecoration flags) bold
                     (show (fromRow + 1) ++ ":" ++ show (fromCol + 1)) ++ " "
-            
+
             error & \case
                 Semantics.Error.RedefinedIdentifier
                     name (textPosition sourceCode -> (pos, _))
@@ -117,8 +115,6 @@ semanticCheck flags program sourceCode =
                         "Variable \"" ++ name ++ "\" is declared again.\n" ++
                         "Previously defined at line " ++ show (pos + 1) ++ "."
                 it -> print it
-
-            putStrLn ""
 
             (putStrLn . ("|   " ++)) `traverse_`
                 underlineTextSection from to
