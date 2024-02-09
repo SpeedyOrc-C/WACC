@@ -385,15 +385,15 @@ statementIf = If ~ do
     _ <- str "if"
     _ <- some white
     condition <- expression `syntaxError` ExpectConditionIf
-    _ <- some white
+    _ <- many white
     _ <- str "then" `syntaxError` ExpectThen
     _ <- some white
     thenClause <- statements `syntaxError` ExpectThenClause
-    _ <- some white
+    _ <- many white
     _ <- str "else" `syntaxError` ExpectElse
     _ <- some white
     elseClause <- statements `syntaxError` ExpectElseClause
-    _ <- some white
+    _ <- many white
     _ <- str "fi" `syntaxError` ExpectFi
     return (condition, thenClause, elseClause)
 
@@ -402,11 +402,11 @@ statementWhile = While ~ do
     _         <- str "while"
     _         <- some white
     condition <- expression `syntaxError` ExpectConditionWhile
-    _         <- some white
+    _         <- many white
     _         <- str "do" `syntaxError` ExpectDo
     _         <- some white
     body      <- statements `syntaxError` ExpectWhileBody
-    _         <- some white
+    _         <- many white
     _         <- str "done" `syntaxError` ExpectDone
     return (condition, body)
 
@@ -415,7 +415,7 @@ statementScope = Scope ~ do
     _    <- str "begin"
     _    <- some white
     body <- statements `syntaxError` ExpectScopeBody
-    _    <- some white
+    _    <- many white
     _    <- str "end" `syntaxError` ExpectScopeEnd
     return body
 
@@ -543,7 +543,9 @@ function = Function ~ do
     parameters <- optional $ surroundManyWhites $
                     parameter `separatedBy` surroundManyWhites (char ',')
     _          <- char ')'
-    _          <- surroundManyWhites $ str "is"
+    _          <- many white
+    _          <- str "is"
+    _          <- some white
     body       <- statements `syntaxErrorWhen` (
                     not . willReturn . last,
                     \(_, body) ->
