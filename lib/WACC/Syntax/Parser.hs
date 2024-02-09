@@ -11,6 +11,8 @@ import Text.Parser
 import WACC.Syntax.Structure
 import WACC.Syntax.Error
 import WACC.Syntax.Validation
+import Control.Monad.State.Lazy (MonadState(get, put))
+import Debug.Trace (traceShowId)
 
 {- Define a SyntaxParser which can identify a SyntaxError 
    within the range of our `WaccSyntaxErrorType`. -}
@@ -282,7 +284,7 @@ expressionUnaryOperation =
     ],[
         ("!", Not),
         ("-", Negate)
-    ])
+    ]) `indentifierWithBracket` FunctionCallNoCall
 
 {- It is a function which takes a parser and two lists of operators.
    The operators must be binary operator. It then form a new parser
@@ -355,6 +357,20 @@ expressionWithBrackets = do
 expression :: WaccParser Expression
 expression = expressionBinaryOperation
 
+{- It is a function which can detect if an identifier is a function call
+   or not. -}
+identifierWithBracket :: WaccParser Expression 
+    -> WaccSyntaxErrorType 
+    -> WaccParser Expression
+identifierWithBracket parser error = Parser $ \input -> 
+    case parse parser input of
+        result@(Right (Parsed (_, to) (Identifier _ _) rest)) ->
+            case parse (many white *> char '(') rest of
+                (Right _) -> Left $ Just $
+                    SyntaxError (inputPosition input) error
+                _ -> result
+        x -> x
+
 {- It is a parser which parses a left value. -}
 leftValue :: WaccParser Expression
 leftValue = expression `that` isLeftValue
@@ -363,6 +379,8 @@ leftValue = expression `that` isLeftValue
    raises a "ExpectOneExpression" if there is no expression. -}
 rightValue :: WaccParser Expression
 rightValue = expression `that` isRightValue `syntaxError` ExpectOneExpression
+            `indentifierWithBracket` FunctionCallNoCall
+                
 
 {- It is a parser which strictly parses the expression, which means the
    expression must be parsed completely. -}
@@ -476,10 +494,6 @@ typeChar = Char ~ void (str "char")
 typeString :: WaccParser Type
 typeString = String ~ void (str "string")
 
--- `syntaxError` UnexpectTypesInInnerPairType
--- `syntaxError` UnknownType
--- `syntaxError` ExpectTypesInOutermostPairType
-
 {- It is a parser which parses a pair type. -}
 typePair :: WaccParser Type
 typePair = Pair ~ do
@@ -542,7 +556,7 @@ statementDeclare = Declare ~ do
 {- It is a parser which parses different kinds of assignment statements. -}
 statementAssign :: WaccParser Statement
 statementAssign = Assign ~ do
-    left  <- leftValue `notFollowedBy` (many white *> char '(')
+    left  <- leftValue
     _     <- surroundManyWhites $ char '=' `syntaxError` ExpectAssignEqualSign
     right <- rightValue
     return (left, right)
@@ -597,17 +611,17 @@ statementMustReturn = statement `that` willReturn
 {- It is a parser which parses a funcion. -}
 function :: WaccParser Function
 function = Function ~ do
-    t          <- type'
-    _          <- some white
+    typePosition <- get
+    maybeType  <- optional (type' <* some white)
     n          <- name
     _          <- many white
     _          <- char '('
     parameters <- optional $ surroundManyWhites $
                     parameter `separatedBy` surroundManyWhites (char ',')
-    _          <- char ')'
+    _          <- char ')' `syntaxError` UnmatchedBracket
     _          <- many white
-    _          <- str "is"
-    _          <- some white
+    isPosition <- get
+    maybeIs    <- optional (str "is" <* some white)
     body       <- statements `syntaxErrorWhen` (
                     not . willReturn . last,
                     \(_, body) ->
@@ -616,7 +630,19 @@ function = Function ~ do
                     )
     _          <- many white
     _          <- str "end" `syntaxError` ExpectFunctionEnd
-    return (t, n, if null parameters then [] else fromJust parameters, body)
+    case maybeType of
+        Nothing -> do
+            put typePosition
+            failWith $ const $ SyntaxError (inputPosition typePosition)
+                FunctionMissingType
+        Just t -> do
+            case maybeIs of
+                Nothing -> do
+                    put isPosition
+                    failWith $ const $ SyntaxError (inputPosition isPosition)
+                        FunctionMissingIs
+                Just {} ->
+                    return (t, n, if null parameters then [] else fromJust parameters, body)
 
 {- It is a parser which parses a program with a 'begin' statement 
    at the beginning and an 'end' statement at the end. -}
