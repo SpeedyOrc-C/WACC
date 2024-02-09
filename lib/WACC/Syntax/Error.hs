@@ -39,7 +39,6 @@ data WaccSyntaxErrorType
     | UnknownType
     | ExpectIdentifierInDeclaration
     | InvalidLeftValue
-    | InvalidRightValue
     | ExpectOneStatement
     | ExpectAssignEqualSign
     | ExpectDeclareEqualSign
@@ -50,6 +49,7 @@ data WaccSyntaxErrorType
     | ExpectProgramEnd
     | FunctionDoesNotReturn Name
     | UnexpectedCodeAfterProgramEnd
+    | ExpectAWhite
     deriving Eq
 
 {- Makes WaccSyntaxErrorType an instance of type class Show to display helpful 
@@ -67,7 +67,8 @@ instance Show WaccSyntaxErrorType where
     show UnmatchedSquareBracket =
         "Unmatched square bracket in index."
     show MissingEscapedChar =
-        "Missing escaped character."
+        "expected end of escape sequence \nvalid escape sequences are \
+        \\\0, \\n, \\t, \\b, \\f, \\r, \\\", \\' or \\\\"
     show (NonGraphicChar c) =
         "Non graphic character " ++ show c ++ " is not allowed."
     show (NonAsciiChar c)
@@ -78,11 +79,11 @@ instance Show WaccSyntaxErrorType where
             isCJK = c >= '\x4E00' && c <= '\x9FFF'
             isKana = c >= '\x3040' && c <= '\x30FF'
     show UnmatchedSingleQuote =
-        "Unmatched single quote in literal character."
+        "expected end of character literal"
     show UnmatchedDoubleQuote =
         "Unmatched double quote in literal string."
     show ExpectOneCharacter =
-        "Expect one character in literal character."
+        "Expect escape character or graphic character in literal character."
     show ExpectConditionIf =
         "Expect condition after \"if\" keyword."
     show ExpectThen =
@@ -119,8 +120,6 @@ instance Show WaccSyntaxErrorType where
         "Expect an identifier in declaration."
     show InvalidLeftValue =
         "Invalid left value."
-    show InvalidRightValue =
-        "Invalid right value."
     show ExpectOneStatement =
         "Expect a statement, declaration, assignment, \"if\", \"while\", or scope."
     show ExpectAssignEqualSign =
@@ -128,7 +127,11 @@ instance Show WaccSyntaxErrorType where
     show ExpectDeclareEqualSign =
         "Expect \"=\" sign for declaration."
     show ExpectOneExpression =
-        "Expect one expression for assignment."
+        "Expect one expression for assignment.\n\
+        \Expressions may start with integer, string, character or \
+        \boolean literals; identifiers; unary operators; null; or parentheses.\n\
+        \In addition, expressions may contain array indexing operations; \
+        \and comparison, logical, and arithmetic operators."
     show (IntegerOverflow i) =
         "Integer literal \"" ++ show i ++ "\" is too " ++
         (if i < intLowerBound then "small" else "big") ++ ". " ++
@@ -142,7 +145,11 @@ instance Show WaccSyntaxErrorType where
     show (FunctionDoesNotReturn (Name name _)) =
         "There is a path in function \"" ++ name ++ "\" that does not return"
     show UnexpectedCodeAfterProgramEnd =
-        "There is unexpected code after \"end\" keyword."
+        "There is unexpected code after \"end\" keyword.\n\
+        \All program body and \
+        \function declarations must be within `begin` and `end`."
+    show ExpectAWhite =
+        "Expected a white character"
 
 {- The smallest allowed integer literal. -}
 intLowerBound :: Int

@@ -345,7 +345,7 @@ leftValue :: WaccParser Expression
 leftValue = expression `that` isLeftValue
 
 rightValue :: WaccParser Expression
-rightValue = (expression `that` isRightValue) `syntaxError` InvalidRightValue
+rightValue = expression `that` isRightValue `syntaxError` ExpectOneExpression
 
 strictExpression :: WaccParser Expression
 strictExpression = expression `that` isExpression
@@ -383,11 +383,17 @@ statementReturn = Return ~ command "return" strictExpression
 statementIf :: WaccParser Statement
 statementIf = If ~ do
     _ <- str "if"
-    condition <- surroundManyWhites expression `syntaxError` ExpectConditionIf
+    _ <- some white
+    condition <- expression `syntaxError` ExpectConditionIf
+    _ <- some white
     _ <- str "then" `syntaxError` ExpectThen
-    thenClause <- surroundManyWhites statements `syntaxError` ExpectThenClause
+    _ <- some white
+    thenClause <- statements `syntaxError` ExpectThenClause
+    _ <- some white
     _ <- str "else" `syntaxError` ExpectElse
-    elseClause <- surroundManyWhites statements `syntaxError` ExpectElseClause
+    _ <- some white
+    elseClause <- statements `syntaxError` ExpectElseClause
+    _ <- some white
     _ <- str "fi" `syntaxError` ExpectFi
     return (condition, thenClause, elseClause)
 
@@ -407,7 +413,9 @@ statementWhile = While ~ do
 statementScope :: WaccParser Statement
 statementScope = Scope ~ do
     _    <- str "begin"
-    body <- surroundManyWhites statements `syntaxError` ExpectScopeBody
+    _    <- some white
+    body <- statements `syntaxError` ExpectScopeBody
+    _    <- some white
     _    <- str "end" `syntaxError` ExpectScopeEnd
     return body
 
@@ -477,14 +485,14 @@ statementDeclare = Declare ~ do
     _     <- some white
     n     <- identifierString `syntaxError` ExpectIdentifierInDeclaration
     _     <- surroundManyWhites $ char '=' `syntaxError` ExpectDeclareEqualSign
-    value <- rightValue `syntaxError` ExpectOneExpression
+    value <- rightValue
     return (t, n, value)
 
 statementAssign :: WaccParser Statement
 statementAssign = Assign ~ do
-    left  <- leftValue
+    left  <- leftValue `notFollowedBy` (many white *> char '(')
     _     <- surroundManyWhites $ char '=' `syntaxError` ExpectAssignEqualSign
-    right <- rightValue `syntaxError` ExpectOneExpression
+    right <- rightValue
     return (left, right)
 
 statement :: WaccParser Statement
