@@ -322,9 +322,10 @@ testFree1
 
 testFree2 :: IO Bool
 testFree2
-  = shouldFailNothing "error free statement for freeing invalid expression"
+  = shouldFailSyntaxError "error free statement for freeing invalid expression"
     "free newpair(1, 2)"
     statementFree
+    ExpectOneExpression
 
 testExit :: IO Bool
 testExit

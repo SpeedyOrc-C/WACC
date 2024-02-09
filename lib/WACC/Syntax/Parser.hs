@@ -365,7 +365,7 @@ rightValue = expression `that` isRightValue `syntaxError` ExpectOneExpression
                 
 
 strictExpression :: WaccParser Expression
-strictExpression = expression `that` isExpression
+strictExpression = expression `that` isExpression `syntaxError` ExpectOneExpression
 
 -- Statement
 
