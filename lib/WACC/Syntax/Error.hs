@@ -49,6 +49,7 @@ data WaccSyntaxErrorType
     | FunctionDoesNotReturn Name
     | UnexpectedCodeAfterProgramEnd
     | ExpectAWhite
+    | ConditionHasSideEffect
     deriving Eq
 
 {- Makes WaccSyntaxErrorType an instance of type class Show to display helpful
@@ -149,6 +150,8 @@ instance Show WaccSyntaxErrorType where
         \function declarations must be within `begin` and `end`."
     show ExpectAWhite =
         "Expected a white character"
+    show ConditionHasSideEffect =
+        "Cannot call functions or create arrays in the condition."
 
 {- The smallest allowed integer literal. -}
 intLowerBound :: Int

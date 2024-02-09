@@ -380,11 +380,16 @@ statementPrintLine = PrintLine ~ command "println" strictExpression
 statementReturn :: WaccParser Statement
 statementReturn = Return ~ command "return" strictExpression
 
+expressionCondition :: WaccParser Expression
+expressionCondition = expression `syntaxErrorWhen` (not . isExpression,
+    \((from, _), _) -> SyntaxError from ConditionHasSideEffect
+    )
+
 statementIf :: WaccParser Statement
 statementIf = If ~ do
     _ <- str "if"
     _ <- some white
-    condition <- expression `syntaxError` ExpectConditionIf
+    condition <- expressionCondition `syntaxError` ExpectConditionIf
     _ <- many white
     _ <- str "then" `syntaxError` ExpectThen
     _ <- some white
@@ -401,7 +406,7 @@ statementWhile :: WaccParser Statement
 statementWhile = While ~ do
     _         <- str "while"
     _         <- some white
-    condition <- expression `syntaxError` ExpectConditionWhile
+    condition <- expressionCondition `syntaxError` ExpectConditionWhile
     _         <- many white
     _         <- str "do" `syntaxError` ExpectDo
     _         <- some white
