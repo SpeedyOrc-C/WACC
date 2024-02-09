@@ -212,6 +212,8 @@ expressionBase = asum [
     expressionFunctionCall
     ]
 
+{- It takes a parser as parameter to parse the array expression. 
+   Then, it iteratively parses indices inside square brackets. -}
 indexOperator :: WaccParser Expression -> WaccParser Expression
 indexOperator higherParser = do
     ((from, _), array) <- getRangeA higherParser
@@ -227,9 +229,13 @@ indexOperator higherParser = do
 
     return $ foldl mergeArrayElement array indices
 
+{- It is a parser which parse an array element. -}
 expressionArrayElement :: WaccParser Expression
 expressionArrayElement = indexOperator expressionBase
 
+{- It is a function which takes a parser and two lists of operators.
+   The operators must be unary operator. It then form a new parser
+   which can parse expressions with unary operators. -}
 unaryOperator
     :: WaccParser Expression
     -> ([(String, Expression -> Range -> Expression)],
@@ -264,6 +270,7 @@ unaryOperator higherParser (wordOperators, symbolOperators) = do
 
     return $ foldl mergeUnaryExpression e (reverse constructors)
 
+{- It is a parser which parses expressions with unary operators. -}
 expressionUnaryOperation :: WaccParser Expression
 expressionUnaryOperation =
     unaryOperator expressionArrayElement ([
@@ -277,9 +284,13 @@ expressionUnaryOperation =
         ("-", Negate)
     ])
 
+{- It is a function which takes a parser and two lists of operators.
+   The operators must be binary operator. It then form a new parser
+   which can parse expressions with binary operators. -}
 binaryOperator ::
     WaccParser Expression
-    -> (Associativity, [(String, (Expression, Expression) -> Range -> Expression)])
+    -> (Associativity, [(String, (Expression, Expression) 
+    -> Range -> Expression)])
     -> WaccParser Expression
 binaryOperator higherParser (associativity, operators) = do
     firstExpression <- getRangeA higherParser
@@ -313,6 +324,7 @@ binaryOperator higherParser (associativity, operators) = do
 
         NotAssociative -> error "WACC does not have this kind of operator!"
 
+{- It is a parser which parses expressions with binary operators. -}
 expressionBinaryOperation :: WaccParser Expression
 expressionBinaryOperation = foldl binaryOperator expressionUnaryOperation [
     (LeftAssociative,
@@ -320,7 +332,8 @@ expressionBinaryOperation = foldl binaryOperator expressionUnaryOperation [
     (LeftAssociative,
         [("+", Add), ("-", Subtract)]),
     (LeftAssociative,
-        [("<=", LessEqual), ("<", Less), (">=", GreaterEqual), (">", Greater)]),
+        [("<=", LessEqual), ("<", Less), (">=", GreaterEqual),
+         (">", Greater)]),
     (LeftAssociative,
         [("==", Equal), ("!=", NotEqual)]),
     (RightAssociative,
@@ -329,6 +342,7 @@ expressionBinaryOperation = foldl binaryOperator expressionUnaryOperation [
         [("||", Or)])
     ]
 
+{- It is a parser which parses expressions with brackets. -}
 expressionWithBrackets :: WaccParser Expression
 expressionWithBrackets = do
     _ <- char '('
@@ -337,24 +351,32 @@ expressionWithBrackets = do
     _ <- char ')' `syntaxError` UnmatchedBracket
 
     return e
-
+ {- It is a parser which parses expressions with binary operations. -}
 expression :: WaccParser Expression
 expression = expressionBinaryOperation
 
+{- It is a parser which parses a left value. -}
 leftValue :: WaccParser Expression
 leftValue = expression `that` isLeftValue
 
+{- It is a parser which parses a right value and 
+   raises a "ExpectOneExpression" if there is no expression. -}
 rightValue :: WaccParser Expression
 rightValue = expression `that` isRightValue `syntaxError` ExpectOneExpression
 
+{- It is a parser which strictly parses the expression, which means the
+   expression must be parsed completely. -}
 strictExpression :: WaccParser Expression
 strictExpression = expression `that` isExpression
 
 -- Statement
 
+{- It is a parser which parses skip statements. -}
 statementSkip :: WaccParser Statement
 statementSkip = Skip ~ void (str "skip")
 
+{- It is a parser which parses a keyword and parses remaining content
+   by the parser passed as an argument. -}
 command :: String -> WaccParser node -> WaccParser node
 command keyword value = do
     _ <- str keyword
@@ -362,29 +384,39 @@ command keyword value = do
     _ <- many white
     value
 
+{- It is a parser which parses read statements. -}
 statementRead :: WaccParser Statement
-statementRead = Read ~ command "read" (leftValue `syntaxError` InvalidLeftValue)
+statementRead = Read ~ command "read" 
+                (leftValue `syntaxError` InvalidLeftValue)
 
+{- It is a parser which parses free statements. -}
 statementFree :: WaccParser Statement
 statementFree = Free ~ command "free" strictExpression
 
+{- It is a parser which parses exit statements. -}
 statementExit :: WaccParser Statement
 statementExit = Exit ~ command "exit" strictExpression
 
+{- It is a parser which parses print statements. -}
 statementPrint :: WaccParser Statement
 statementPrint = Print ~ command "print" strictExpression
 
+{- It is a parser which parses println statements. -}
 statementPrintLine :: WaccParser Statement
 statementPrintLine = PrintLine ~ command "println" strictExpression
 
+{- It is a parser which parses return statements. -}
 statementReturn :: WaccParser Statement
 statementReturn = Return ~ command "return" strictExpression
 
+{- It is a parser which parses conditional statements. -}
 expressionCondition :: WaccParser Expression
 expressionCondition = expression `syntaxErrorWhen` (not . isExpression,
     \((from, _), _) -> SyntaxError from ConditionHasSideEffect
     )
 
+{- It is a parser which parses a if statement and return the condition,
+   contents in 'then' clause and contents in 'else' clause. -}
 statementIf :: WaccParser Statement
 statementIf = If ~ do
     _ <- str "if"
@@ -402,6 +434,8 @@ statementIf = If ~ do
     _ <- str "fi" `syntaxError` ExpectFi
     return (condition, thenClause, elseClause)
 
+{- It is a parser which parses a while statement and return the condition
+   and the body of the while loop. -}
 statementWhile :: WaccParser Statement
 statementWhile = While ~ do
     _         <- str "while"
@@ -415,6 +449,8 @@ statementWhile = While ~ do
     _         <- str "done" `syntaxError` ExpectDone
     return (condition, body)
 
+{- It is a parser which parses statements started by 'begin' and
+   return the content between the 'begin' statement and the 'end' statement. -}
 statementScope :: WaccParser Statement
 statementScope = Scope ~ do
     _    <- str "begin"
@@ -424,15 +460,19 @@ statementScope = Scope ~ do
     _    <- str "end" `syntaxError` ExpectScopeEnd
     return body
 
+{- This is a parser which parses an int type. -}
 typeInt :: WaccParser Type
 typeInt = Int ~ void (str "int")
 
+{- This is a parser which parses a bool type. -}
 typeBool :: WaccParser Type
 typeBool = Bool ~ void (str "bool")
 
+{- This is a parser which parses a char type. -}
 typeChar :: WaccParser Type
 typeChar = Char ~ void (str "char")
 
+{- This is a parser which parses a string type. -}
 typeString :: WaccParser Type
 typeString = String ~ void (str "string")
 
@@ -440,6 +480,7 @@ typeString = String ~ void (str "string")
 -- `syntaxError` UnknownType
 -- `syntaxError` ExpectTypesInOutermostPairType
 
+{- It is a parser which parses a pair type. -}
 typePair :: WaccParser Type
 typePair = Pair ~ do
     _ <- str "pair"
@@ -453,6 +494,7 @@ typePair = Pair ~ do
         _ <- char ')'
         return (a, b)
 
+{- It is a parser which parses type. It will try each type in the list. -}
 baseType :: WaccParser Type
 baseType = asum [
     typeInt,
@@ -462,6 +504,7 @@ baseType = asum [
     typePair
     ]
 
+{- It is a parser which parses an array type. -}
 typeArray :: WaccParser Type
 typeArray = do
     ((from, _), t) <- getRangeA baseType
@@ -472,6 +515,8 @@ typeArray = do
 
     return $ foldl mergeArray t brackets
 
+{- It is a parser which parses an array type or a pair type and 
+   reports a syntax error if needed. -}
 type' :: WaccParser Type
 type' = typeArray `syntaxErrorWhen` (not . isType, \(_, t) -> findError t)
     where
@@ -484,6 +529,7 @@ type' = typeArray `syntaxErrorWhen` (not . isType, \(_, t) -> findError t)
             SyntaxError from PairTypeInPairTypeNotErased
         _ -> error "unreachable"
 
+{- It is a parser which parses different kinds of declaration statements. -}
 statementDeclare :: WaccParser Statement
 statementDeclare = Declare ~ do
     t     <- type'
@@ -493,6 +539,7 @@ statementDeclare = Declare ~ do
     value <- rightValue
     return (t, n, value)
 
+{- It is a parser which parses different kinds of assignment statements. -}
 statementAssign :: WaccParser Statement
 statementAssign = Assign ~ do
     left  <- leftValue `notFollowedBy` (many white *> char '(')
@@ -500,6 +547,8 @@ statementAssign = Assign ~ do
     right <- rightValue
     return (left, right)
 
+{- It is a parser which parses different kinds of statements, 
+   it will try each statement parser in the list. -}
 statement :: WaccParser Statement
 statement = asum [
     statementSkip,
@@ -516,15 +565,20 @@ statement = asum [
     statementAssign
     ] `syntaxError` ExpectOneStatement
 
+{- It is a parser which parses whitespaces and colons. -}
 statementSep :: Parser error ()
 statementSep = void $ surroundManyWhites (char ';')
 
+{- It is a parser which parses statements separated by whitespaces
+   and colons. -}
 statements :: WaccParser [Statement]
 statements = statement `separatedBy` statementSep
 
+{- It is a parser which parses a 'name', that is an identifier. -}
 name :: WaccParser Name
 name = Name ~ identifierString
 
+{- It is a parser which parses parameters in function headers. -}
 parameter :: WaccParser (Name, Type)
 parameter = do
     t <- type'
@@ -532,12 +586,15 @@ parameter = do
     p <- name
     return (p, t)
 
+{- It is a parser which parses a statement which must not return anything. -}
 statementMustNotReturn :: WaccParser Statement
 statementMustNotReturn = statement `that` (not . willReturn)
 
+{- It is a parser which parses a statement which must return something. -}
 statementMustReturn :: WaccParser Statement
 statementMustReturn = statement `that` willReturn
 
+{- It is a parser which parses a funcion. -}
 function :: WaccParser Function
 function = Function ~ do
     t          <- type'
@@ -561,9 +618,12 @@ function = Function ~ do
     _          <- str "end" `syntaxError` ExpectFunctionEnd
     return (t, n, if null parameters then [] else fromJust parameters, body)
 
+{- It is a parser which parses a program with a 'begin' statement 
+   at the beginning and an 'end' statement at the end. -}
 program' :: WaccParser ([Function], [Statement])
 program' = do
-    _         <- surroundManyWhites (str "begin" `syntaxError` ExpectProgramBegin)
+    _         <- surroundManyWhites (str "begin" `syntaxError` 
+                                     ExpectProgramBegin)
     functions <- optional $ function `separatedBy` many white
     _         <- many white
     body      <- statements
@@ -571,6 +631,8 @@ program' = do
 
     return (if null functions then [] else fromJust functions, body)
 
+{- It is a parser which parses a program and 
+   detects any code after the 'end' statement. -}
 program :: WaccParser Program
 program = Program ~ Parser (\input -> do
     case parse program' input of
