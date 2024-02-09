@@ -180,6 +180,6 @@ willReturn :: Statement -> Bool
 willReturn = \case
     Return {} -> True
     Exit {} -> True
-    If (_, t, e) _ -> any willReturn t && any willReturn e
-    Scope s _ -> any willReturn s
+    If (_, t, e) _ -> willReturn (last t) && willReturn (last e)
+    Scope s _ -> willReturn (last s)
     _ -> False
