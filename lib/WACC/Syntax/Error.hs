@@ -162,7 +162,8 @@ instance Show WaccSyntaxErrorType where
     show FunctionMissingIs =
         "Function needs \"is\" keyword before the body."
     show FunctionCallNoCall =
-        "Expect `call` before using function"
+        "Expect `call` before using function.\n" ++
+        "Function call may not appear in expressions."
     show MainTrailingFunctions =
         "Functions definitions should not be after the main program."
 
