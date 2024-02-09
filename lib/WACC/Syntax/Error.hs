@@ -53,6 +53,7 @@ data WaccSyntaxErrorType
     | ConditionHasSideEffect
     | FunctionMissingType
     | FunctionMissingIs
+    | MainTrailingFunctions
     deriving Eq
 
 {- Makes WaccSyntaxErrorType an instance of type class Show to display helpful
@@ -162,6 +163,8 @@ instance Show WaccSyntaxErrorType where
         "Function needs \"is\" keyword before the body."
     show FunctionCallNoCall =
         "Expect `call` before using function"
+    show MainTrailingFunctions =
+        "Functions definitions should not be after the main program."
 
 {- The smallest allowed integer literal. -}
 intLowerBound :: Int
