@@ -284,7 +284,7 @@ expressionUnaryOperation =
     ],[
         ("!", Not),
         ("-", Negate)
-    ]) `indentifierWithBracket` FunctionCallNoCall
+    ]) `identifierWithBracket` FunctionCallNoCall
 
 {- It is a function which takes a parser and two lists of operators.
    The operators must be binary operator. It then form a new parser
@@ -379,7 +379,7 @@ leftValue = expression `that` isLeftValue
    raises a "ExpectOneExpression" if there is no expression. -}
 rightValue :: WaccParser Expression
 rightValue = expression `that` isRightValue `syntaxError` ExpectOneExpression
-            `indentifierWithBracket` FunctionCallNoCall
+            `identifierWithBracket` FunctionCallNoCall
                 
 
 {- It is a parser which strictly parses the expression, which means the
