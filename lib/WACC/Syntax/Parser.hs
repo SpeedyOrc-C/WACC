@@ -11,6 +11,8 @@ import Text.Parser
 import WACC.Syntax.Structure
 import WACC.Syntax.Error
 import WACC.Syntax.Validation
+import Control.Monad.RWS (MonadState(get, put))
+import Control.Monad.State.Lazy (gets)
 
 {- Define a SyntaxParser which can identify a SyntaxError 
    within the range of our `WaccSyntaxErrorType`. -}
@@ -228,7 +230,7 @@ indexOperator higherParser = do
     return $ foldl mergeArrayElement array indices
 
 expressionArrayElement :: WaccParser Expression
-expressionArrayElement = indexOperator expressionBase
+expressionArrayElement = indexOperator expressionBase ``
 
 unaryOperator
     :: WaccParser Expression
@@ -275,7 +277,7 @@ expressionUnaryOperation =
     ],[
         ("!", Not),
         ("-", Negate)
-    ])
+    ]) `indentifierWithBracket` FunctionCallNoCall
 
 binaryOperator ::
     WaccParser Expression
@@ -341,11 +343,26 @@ expressionWithBrackets = do
 expression :: WaccParser Expression
 expression = expressionBinaryOperation
 
+indentifierWithBracket :: WaccParser Expression 
+    -> WaccSyntaxErrorType 
+    -> WaccParser Expression
+indentifierWithBracket parser error = Parser $ \input -> 
+    case parse parser input of
+        result@(Right (Parsed (_, to) (Identifier _ _) rest)) ->
+            case parse (many white *> char '(') rest of
+                (Right _) -> Left $ Just $
+                    SyntaxError (inputPosition input) error
+                _ -> result
+        x -> x
+
+
 leftValue :: WaccParser Expression
 leftValue = expression `that` isLeftValue
 
 rightValue :: WaccParser Expression
 rightValue = expression `that` isRightValue `syntaxError` ExpectOneExpression
+            `indentifierWithBracket` FunctionCallNoCall
+                
 
 strictExpression :: WaccParser Expression
 strictExpression = expression `that` isExpression
@@ -431,10 +448,6 @@ typeChar = Char ~ void (str "char")
 typeString :: WaccParser Type
 typeString = String ~ void (str "string")
 
--- `syntaxError` UnexpectTypesInInnerPairType
--- `syntaxError` UnknownType
--- `syntaxError` ExpectTypesInOutermostPairType
-
 typePair :: WaccParser Type
 typePair = Pair ~ do
     _ <- str "pair"
@@ -490,7 +503,7 @@ statementDeclare = Declare ~ do
 
 statementAssign :: WaccParser Statement
 statementAssign = Assign ~ do
-    left  <- leftValue `notFollowedBy` (many white *> char '(')
+    left  <- leftValue
     _     <- surroundManyWhites $ char '=' `syntaxError` ExpectAssignEqualSign
     right <- rightValue
     return (left, right)
@@ -535,8 +548,10 @@ statementMustReturn = statement `that` willReturn
 
 function :: WaccParser Function
 function = Function ~ do
-    t          <- type'
+    t          <- optional type'
     _          <- some white
+    oldState <- get
+    let i = inputPosition oldState
     n          <- name
     _          <- many white
     _          <- char '('
@@ -544,7 +559,7 @@ function = Function ~ do
                     parameter `separatedBy` surroundManyWhites (char ',')
     _          <- char ')'
     _          <- many white
-    _          <- str "is"
+    _          <- str "is" `syntaxError` FunctionNoIs
     _          <- some white
     body       <- statements `syntaxErrorWhen` (
                     not . willReturn . last,
@@ -554,7 +569,14 @@ function = Function ~ do
                     )
     _          <- many white
     _          <- str "end" `syntaxError` ExpectFunctionEnd
-    return (t, n, if null parameters then [] else fromJust parameters, body)
+    case t of
+        Just t' -> 
+            return (t', n, if null parameters then [] else fromJust parameters, body)
+        _ -> do
+            put oldState
+            empty `syntaxErrorWhen` (const True, const $
+                SyntaxError i FunctionNoType)
+
 
 program' :: WaccParser ([Function], [Statement])
 program' = do

@@ -49,6 +49,9 @@ data WaccSyntaxErrorType
     | FunctionDoesNotReturn Name
     | UnexpectedCodeAfterProgramEnd
     | ExpectAWhite
+    | FunctionCallNoCall
+    | FunctionNoIs
+    | FunctionNoType
     deriving Eq
 
 {- Makes WaccSyntaxErrorType an instance of type class Show to display helpful
@@ -82,7 +85,8 @@ instance Show WaccSyntaxErrorType where
     show UnmatchedDoubleQuote =
         "Unmatched double quote in literal string."
     show ExpectOneCharacter =
-        "Expect escape character or graphic character in literal character."
+        "Expect escape character or graphic character in literal character.\n\
+        \\" and \' must be escaped in the string literal i.e. \\\" and \\\'"
     show ExpectConditionIf =
         "Expect condition after \"if\" keyword."
     show ExpectThen =
@@ -149,6 +153,12 @@ instance Show WaccSyntaxErrorType where
         \function declarations must be within `begin` and `end`."
     show ExpectAWhite =
         "Expected a white character"
+    show FunctionCallNoCall =
+        "Function call with no call"
+    show FunctionNoIs =
+        "Function declaration no is"
+    show FunctionNoType =
+        "Function declaration no return type"
 
 {- The smallest allowed integer literal. -}
 intLowerBound :: Int
