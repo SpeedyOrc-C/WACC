@@ -1,5 +1,7 @@
 module WACC.Syntax.Parser where
 
+import Prelude hiding (error)
+import qualified Prelude as P
 import GHC.Generics (Associativity(..))
 
 import Control.Monad
@@ -255,7 +257,7 @@ unaryOperator higherParser (wordOperators, symbolOperators) = do
                         "!" -> str operator <* many white
                         "-" -> (str operator <* many white)
                                 `notFollowedBy` expressionNoSignLiteralInt
-                        _ -> error "unreachable"
+                        _ -> P.error "unreachable"
 
         constructorParsers = wordOperatorsParsers ++ symbolOperatorParsers
 
@@ -323,7 +325,7 @@ binaryOperator higherParser (associativity, operators) = do
             return $ snd $
                 foldr merge lastExpression leftExpressionsAndConstructors
 
-        NotAssociative -> error "WACC does not have this kind of operator!"
+        NotAssociative -> P.error "WACC does not have this kind of operator!"
 
 {- It is a parser which parses expressions with binary operators. -}
 expressionBinaryOperation :: WaccParser Expression
@@ -540,7 +542,7 @@ type' = typeArray `syntaxErrorWhen` (not . isType, \(_, t) -> findError t)
             SyntaxError from PairTypeInPairTypeNotErased
         Pair (Just (_, Pair (Just {}) (from, _))) _ ->
             SyntaxError from PairTypeInPairTypeNotErased
-        _ -> error "unreachable"
+        _ -> P.error "unreachable"
 
 {- It is a parser which parses different kinds of declaration statements. -}
 statementDeclare :: WaccParser Statement
