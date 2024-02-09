@@ -43,7 +43,7 @@ data Type
 
 instance Show Type where
     show = \case
-        Any -> "any"
+        Any -> "unknown"
         Int -> "int"
         Bool -> "bool"
         Char -> "char"
