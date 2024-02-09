@@ -50,6 +50,8 @@ data WaccSyntaxErrorType
     | UnexpectedCodeAfterProgramEnd
     | ExpectAWhite
     | ConditionHasSideEffect
+    | FunctionMissingType
+    | FunctionMissingIs
     deriving Eq
 
 {- Makes WaccSyntaxErrorType an instance of type class Show to display helpful
@@ -152,6 +154,10 @@ instance Show WaccSyntaxErrorType where
         "Expected a white character"
     show ConditionHasSideEffect =
         "Cannot call functions or create arrays in the condition."
+    show FunctionMissingType =
+        "Function does not specify its return type."
+    show FunctionMissingIs =
+        "Function needs \"is\" keyword before the body."
 
 {- The smallest allowed integer literal. -}
 intLowerBound :: Int

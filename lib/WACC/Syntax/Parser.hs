@@ -11,6 +11,8 @@ import Text.Parser
 import WACC.Syntax.Structure
 import WACC.Syntax.Error
 import WACC.Syntax.Validation
+import Control.Monad.State.Lazy (MonadState(get, put))
+import Debug.Trace (traceShowId)
 
 {- Define a SyntaxParser which can identify a SyntaxError 
    within the range of our `WaccSyntaxErrorType`. -}
@@ -540,8 +542,8 @@ statementMustReturn = statement `that` willReturn
 
 function :: WaccParser Function
 function = Function ~ do
-    t          <- type'
-    _          <- some white
+    typePosition <- get
+    maybeType  <- optional (type' <* some white)
     n          <- name
     _          <- many white
     _          <- char '('
@@ -549,8 +551,8 @@ function = Function ~ do
                     parameter `separatedBy` surroundManyWhites (char ',')
     _          <- char ')'
     _          <- many white
-    _          <- str "is"
-    _          <- some white
+    isPosition <- get
+    maybeIs    <- optional (str "is" <* some white)
     body       <- statements `syntaxErrorWhen` (
                     not . willReturn . last,
                     \(_, body) ->
@@ -559,7 +561,19 @@ function = Function ~ do
                     )
     _          <- many white
     _          <- str "end" `syntaxError` ExpectFunctionEnd
-    return (t, n, if null parameters then [] else fromJust parameters, body)
+    case maybeType of
+        Nothing -> do
+            put typePosition
+            failWith $ const $
+                SyntaxError (inputPosition typePosition) FunctionMissingType
+        Just t -> do
+            case maybeIs of
+                Nothing -> do
+                    put isPosition
+                    failWith $ const $
+                        SyntaxError (inputPosition isPosition) FunctionMissingIs
+                Just {} ->
+                    return (t, n, if null parameters then [] else fromJust parameters, body)
 
 program' :: WaccParser ([Function], [Statement])
 program' = do
