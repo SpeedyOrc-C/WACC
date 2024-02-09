@@ -5,6 +5,7 @@ import Text.Parser (parseString, Parsed(Parsed), Parser)
 import WACC.Syntax.Parser (function, statements, program)
 import WACC.Semantics.Utils (CheckerState(CheckerState), LogEither(Log, Ok))
 import WACC.Semantics.Checker (CheckSemantics(..))
+import Text.AnsiEscape
 
 testValid :: CheckSemantics syntaxTree result =>
   [Char] -> String -> Parser error syntaxTree -> IO Bool
@@ -13,13 +14,13 @@ testValid testName input parser =
         Right (Parsed _ result (_, [])) ->
             case check (CheckerState Nothing M.empty [M.empty]) result of
                 Ok {} -> do
-                    putStrLn $ "[PASS] " ++ testName
+                    putStrLn $ green "    * " ++ testName
                     return True
                 _ -> do
-                    putStrLn $ "[FAIL] " ++ testName
+                    putStrLn $ red "    ! " ++ testName
                     return False
         _ -> do
-            putStrLn $ "[NO PARSE] " ++ testName
+            putStrLn $ red "    ? " ++ testName
             return False
 
 testInvalid :: CheckSemantics syntaxTree result =>
@@ -29,13 +30,13 @@ testInvalid testName input parser =
         Right (Parsed _ result (_, [])) ->
             case check (CheckerState Nothing M.empty [M.empty]) result of
                 Log {} -> do
-                    putStrLn $ "[PASS] " ++ testName
+                    putStrLn $ green "    * " ++ testName
                     return True
                 _ -> do
-                    putStrLn $ "[FAIL] " ++ testName
+                    putStrLn $ red "    ! " ++ testName
                     return False
         _ -> do
-            putStrLn $ "[NO PARSE] " ++ testName
+            putStrLn $ red "? " ++ testName
             return False
 
 testDeclare1 :: IO Bool

@@ -68,6 +68,9 @@ testSyntaxError = do
                 return True
 
     setCurrentDirectory oldPwd
+    let testNum = length tests
+        passedNum = length $ filter id result
+    putStrLn $ "Syntax Error Test Result: " ++ show passedNum ++ "/" ++ show testNum ++ " passed"
 
     return $ and result
 
@@ -113,6 +116,9 @@ testSemanticError = do
                         return False
 
     setCurrentDirectory oldPwd
+    let testNum = length tests
+        passedNum = length $ filter id result
+    putStrLn $ "Semantic Error Test Result: " ++ show passedNum ++ "/" ++ show testNum ++ " passed"
 
     return $ and result
 
@@ -156,17 +162,26 @@ testValid = do
                         return True
 
     setCurrentDirectory oldPwd
+    let testNum = length tests
+        passedNum = length $ filter id result
+    putStrLn $ "Valid Test Result: " ++ show passedNum ++ "/" ++ show testNum ++ " passed"
 
     return $ and result
 
+getTestResult :: String -> IO [Bool] -> IO Bool
+getTestResult testName tests = do
+    bools <- tests
+    putStrLn $ testName ++ " Result: " ++ show (length (filter id bools)) ++ "/" ++ show (length bools) ++ " passed"
+    return $ and bools
+
 main :: IO ()
 main = do
-    resultSyntaxError <- testSyntaxError
-    resultSemanticError <- testSemanticError
-    resultValid <- testValid
-    resultSyntaxUnitTests <- syntaxUnitTests
-    resultSemanticsUnitTests <- semanticsUnitTests
+    succeed <- and <$> mapM (<* putStrLn "") [
+            testSyntaxError,
+            testSemanticError,
+            testValid,
+            getTestResult "Syntax Unit Test" syntaxUnitTests,
+            getTestResult "Semantics Unit Test" semanticsUnitTests
+            ]
 
-    let succeed = and [resultSyntaxError, resultSemanticError, resultValid,
-          and resultSyntaxUnitTests, and resultSemanticsUnitTests]
     if succeed then exitSuccess else exitFailure
