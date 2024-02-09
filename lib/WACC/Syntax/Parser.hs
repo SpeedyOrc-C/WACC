@@ -12,7 +12,6 @@ import WACC.Syntax.Structure
 import WACC.Syntax.Error
 import WACC.Syntax.Validation
 import Control.Monad.State.Lazy (MonadState(get, put))
-import Debug.Trace (traceShowId)
 
 {- Define a SyntaxParser which can identify a SyntaxError 
    within the range of our `WaccSyntaxErrorType`. -}
@@ -653,9 +652,21 @@ program' = do
     functions <- optional $ function `separatedBy` many white
     _         <- many white
     body      <- statements
+    _         <- many white
+
+    trailingFunctionPosition <- get
+    maybeTrailingFunctions <-
+        optional $ void $ function `separatedBy` many white
+
     _         <- surroundManyWhites (str "end" `syntaxError` ExpectProgramEnd)
 
-    return (if null functions then [] else fromJust functions, body)
+    case maybeTrailingFunctions of
+        Just {} -> do
+            put trailingFunctionPosition
+            failWith (const $ SyntaxError
+                (inputPosition trailingFunctionPosition) MainTrailingFunctions)
+        Nothing ->
+            return (if null functions then [] else fromJust functions, body)
 
 {- It is a parser which parses a program and 
    detects any code after the 'end' statement. -}
