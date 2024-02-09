@@ -11,8 +11,8 @@ import Text.Parser
 import WACC.Syntax.Structure
 import WACC.Syntax.Error
 import WACC.Syntax.Validation
-import Control.Monad.RWS (MonadState(get, put))
-import Control.Monad.State.Lazy (gets)
+import Control.Monad.State.Lazy (MonadState(get, put))
+import Debug.Trace (traceShowId)
 
 {- Define a SyntaxParser which can identify a SyntaxError 
    within the range of our `WaccSyntaxErrorType`. -}
@@ -230,7 +230,7 @@ indexOperator higherParser = do
     return $ foldl mergeArrayElement array indices
 
 expressionArrayElement :: WaccParser Expression
-expressionArrayElement = indexOperator expressionBase ``
+expressionArrayElement = indexOperator expressionBase
 
 unaryOperator
     :: WaccParser Expression
@@ -397,11 +397,16 @@ statementPrintLine = PrintLine ~ command "println" strictExpression
 statementReturn :: WaccParser Statement
 statementReturn = Return ~ command "return" strictExpression
 
+expressionCondition :: WaccParser Expression
+expressionCondition = expression `syntaxErrorWhen` (not . isExpression,
+    \((from, _), _) -> SyntaxError from ConditionHasSideEffect
+    )
+
 statementIf :: WaccParser Statement
 statementIf = If ~ do
     _ <- str "if"
     _ <- some white
-    condition <- expression `syntaxError` ExpectConditionIf
+    condition <- expressionCondition `syntaxError` ExpectConditionIf
     _ <- many white
     _ <- str "then" `syntaxError` ExpectThen
     _ <- some white
@@ -418,7 +423,7 @@ statementWhile :: WaccParser Statement
 statementWhile = While ~ do
     _         <- str "while"
     _         <- some white
-    condition <- expression `syntaxError` ExpectConditionWhile
+    condition <- expressionCondition `syntaxError` ExpectConditionWhile
     _         <- many white
     _         <- str "do" `syntaxError` ExpectDo
     _         <- some white
@@ -548,10 +553,8 @@ statementMustReturn = statement `that` willReturn
 
 function :: WaccParser Function
 function = Function ~ do
-    t          <- optional type'
-    _          <- some white
-    oldState <- get
-    let i = inputPosition oldState
+    typePosition <- get
+    maybeType  <- optional (type' <* some white)
     n          <- name
     _          <- many white
     _          <- char '('
@@ -559,8 +562,8 @@ function = Function ~ do
                     parameter `separatedBy` surroundManyWhites (char ',')
     _          <- char ')'
     _          <- many white
-    _          <- str "is" `syntaxError` FunctionNoIs
-    _          <- some white
+    isPosition <- get
+    maybeIs    <- optional (str "is" <* some white)
     body       <- statements `syntaxErrorWhen` (
                     not . willReturn . last,
                     \(_, body) ->
@@ -569,14 +572,19 @@ function = Function ~ do
                     )
     _          <- many white
     _          <- str "end" `syntaxError` ExpectFunctionEnd
-    case t of
-        Just t' -> 
-            return (t', n, if null parameters then [] else fromJust parameters, body)
-        _ -> do
-            put oldState
-            empty `syntaxErrorWhen` (const True, const $
-                SyntaxError i FunctionNoType)
-
+    case maybeType of
+        Nothing -> do
+            put typePosition
+            failWith $ const $
+                SyntaxError (inputPosition typePosition) FunctionMissingType
+        Just t -> do
+            case maybeIs of
+                Nothing -> do
+                    put isPosition
+                    failWith $ const $
+                        SyntaxError (inputPosition isPosition) FunctionMissingIs
+                Just {} ->
+                    return (t, n, if null parameters then [] else fromJust parameters, body)
 
 program' :: WaccParser ([Function], [Statement])
 program' = do

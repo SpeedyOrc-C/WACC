@@ -66,6 +66,9 @@ syntaxErrorWhen parser (condition, error) = Parser $ \input
             else Right $ Parsed range result rest
     x -> x
 
+failWith :: (Int -> SyntaxError error) -> Parser error object
+failWith f = Parser $ \input -> Left $ Just $ f (inputPosition input)
+
 instance Functor (Parser error) where
     -- Map a parser's result to another one.
     fmap :: (a -> b) -> Parser error a -> Parser error b
