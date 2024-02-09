@@ -2,19 +2,16 @@ module WACC.Syntax.Structure where
 
 import Text.Parser ( Range )
 
-{- Defines Program to include a list of functions and a list of statements. -}
 data Program = Program ([Function], [Statement]) Range
     deriving Show
 
-{- Defines Function to include a return type, a function name, a list of 
+{- Defines Function to include a return type, a function name, a list of
   parameters, and a list of statements. -}
 data Function = Function (Type, Name, [(Name, Type)], [Statement]) Range
     deriving Show
 
-{- Defines Name to include a name and a range. -}
 data Name = Name String Range deriving (Show, Eq)
 
-{- Defines Statement to be one of the forms. -}
 data Statement
     = Skip () Range
     | Declare (Type, String, Expression) Range
@@ -30,7 +27,6 @@ data Statement
     | Scope [Statement] Range
     deriving Show
 
-{- Defines Type to be one of the forms. -}
 data Type
     = Int () Range
     | Bool () Range
@@ -40,13 +36,12 @@ data Type
     | Pair (Maybe (Type, Type)) Range
     deriving (Show, Eq)
 
-{- Defines Unary to be a single expression. -}
+-- Unary operators have one operand.
 type Unary = Expression
 
-{- Defines Binary to be a tuple of two expressions. -}
+-- Binary operators have two operands.
 type Binary = (Expression, Expression)
 
-{- Defines Expression to be one of the forms. -}
 data Expression
     = Identifier String Range
     | LiteralInt Int Range
@@ -54,7 +49,6 @@ data Expression
     | LiteralChar Char Range
     | LiteralString String Range
     | LiteralArray [Expression] Range
-    -- newpair(e1, e2)
     | LiteralPair (Expression, Expression) Range
     | LiteralPairNull () Range
     | ArrayElement (Expression, Expression) Range

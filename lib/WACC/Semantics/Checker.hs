@@ -23,7 +23,6 @@ class CheckSemantics syntaxTree result
     -}
     check :: CheckerState -> syntaxTree -> LogEither SemanticError result
 
--- function to check semantically of each sentances
 instance CheckSemantics Syntax.Expression (Type, Expression) where
     check state = \case
         Syntax.LiteralInt      x _ -> Ok (Int            , LiteralInt x)
