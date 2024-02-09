@@ -560,7 +560,7 @@ function = Function ~ do
     _          <- char '('
     parameters <- optional $ surroundManyWhites $
                     parameter `separatedBy` surroundManyWhites (char ',')
-    _          <- char ')'
+    _          <- char ')' `syntaxError` UnmatchedBracket
     _          <- many white
     isPosition <- get
     maybeIs    <- optional (str "is" <* some white)
@@ -575,14 +575,14 @@ function = Function ~ do
     case maybeType of
         Nothing -> do
             put typePosition
-            failWith $ const $
-                SyntaxError (inputPosition typePosition) FunctionMissingType
+            failWith $ const $ SyntaxError (inputPosition typePosition)
+                FunctionMissingType
         Just t -> do
             case maybeIs of
                 Nothing -> do
                     put isPosition
-                    failWith $ const $
-                        SyntaxError (inputPosition isPosition) FunctionMissingIs
+                    failWith $ const $ SyntaxError (inputPosition isPosition)
+                        FunctionMissingIs
                 Just {} ->
                     return (t, n, if null parameters then [] else fromJust parameters, body)
 
