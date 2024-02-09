@@ -5,6 +5,7 @@ import qualified Prelude as P
 import GHC.Generics (Associativity(..))
 
 import Control.Monad
+import Control.Monad.State.Lazy
 import Control.Applicative
 import Data.Functor
 import Data.Maybe
@@ -13,7 +14,6 @@ import Text.Parser
 import WACC.Syntax.Structure
 import WACC.Syntax.Error
 import WACC.Syntax.Validation
-import Control.Monad.State.Lazy (MonadState(get, put))
 
 {- Define a SyntaxParser which can identify a SyntaxError 
    within the range of our `WaccSyntaxErrorType`. -}
@@ -365,7 +365,7 @@ identifierWithBracket :: WaccParser Expression
     -> WaccParser Expression
 identifierWithBracket parser error = Parser $ \input -> 
     case parse parser input of
-        result@(Right (Parsed (_, to) (Identifier _ _) rest)) ->
+        result@(Right (Parsed _ (Identifier _ _) rest)) ->
             case parse (many white *> char '(') rest of
                 (Right _) -> Left $ Just $
                     SyntaxError (inputPosition input) error
