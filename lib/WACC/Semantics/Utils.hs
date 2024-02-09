@@ -1,10 +1,11 @@
 module WACC.Semantics.Utils where
 
+import qualified Data.Map as M
+
+import qualified WACC.Syntax.Structure as Syntax
 import Text.Parser (Range)
 import WACC.Semantics.Error (WaccSemanticsErrorType)
 import WACC.Semantics.Structure (Type (..))
-import qualified WACC.Syntax.Structure as Syntax
-import qualified Data.Map as M
 
 data SemanticError = SemanticError Range WaccSemanticsErrorType
 
@@ -96,7 +97,7 @@ a <| b                      = a == b
 (<?) :: Type -> Type -> Bool
 Array a <? Array b         = a <| b
 Pair(a, b) <? Pair(a', b') = a <| a' && b <| b'
-_ <? _                     = False 
+_ <? _                     = False
 
 isArray :: Type -> Bool
 isArray (Array _) = True

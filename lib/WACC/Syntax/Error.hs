@@ -2,7 +2,6 @@ module WACC.Syntax.Error where
 
 import WACC.Syntax.Structure (Name (..))
 
-
 extendStatements :: String
 extendStatements = "Or add a \";\" and extend the existing statements."
 
@@ -52,7 +51,7 @@ data WaccSyntaxErrorType
     | ExpectAWhite
     deriving Eq
 
-{- Makes WaccSyntaxErrorType an instance of type class Show to display helpful 
+{- Makes WaccSyntaxErrorType an instance of type class Show to display helpful
 error messages. -}
 instance Show WaccSyntaxErrorType where
     show :: WaccSyntaxErrorType -> String

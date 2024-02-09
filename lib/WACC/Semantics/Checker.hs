@@ -5,7 +5,8 @@ import Prelude hiding (error)
 import qualified Prelude  as P
 import qualified Data.Map as M
 import qualified Data.Set as S
-import           Data.List
+import qualified Data.List.NonEmpty as NE
+import           Control.Arrow ((&&&))
 
 import qualified WACC.Syntax.Structure as Syntax
 import           WACC.Semantics.Error
@@ -22,7 +23,6 @@ class CheckSemantics syntaxTree result
     -}
     check :: CheckerState -> syntaxTree -> LogEither SemanticError result
 
--- function to check semantically of each sentances
 instance CheckSemantics Syntax.Expression (Type, Expression) where
     check state = \case
         Syntax.LiteralInt      x _ -> Ok (Int            , LiteralInt x)
@@ -369,14 +369,9 @@ instance CheckSemantics [Syntax.Statement] [Statement] where
 --   Otherwise returns the repeated entries.
 findRepetition :: (Ord k, Eq a) => [(k, a)] -> ([(k, a)], [(k, a)])
 findRepetition entries =
-    (concatMap tail groups, map last groups)
+    (concatMap NE.tail groups, map NE.last groups)
     where
-        groups = groupBy (\x y -> fst x == fst y) entries
-
-instance CheckSemantics [Syntax.Function] [Function] where
-    check _ = \case
-        [] -> Ok []
-        _ -> undefined
+    groups = NE.groupBy (\x y -> fst x == fst y) entries
 
 instance CheckSemantics Syntax.Function Function where
     check state (Syntax.Function

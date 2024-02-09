@@ -2,12 +2,14 @@ stages:
   - build
   - test
 
-compile:
+build:
   stage: build
   script:
+    - cabal update
     - cabal build
 
 test:
   stage: test
   script:
+    - cabal update
     - cabal test
