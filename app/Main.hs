@@ -10,12 +10,14 @@ import Data.Function ((&))
 
 import Text.SourceCode ( textPosition, underlineTextSection, removeTabs )
 import Text.AnsiEscape ( bold, red )
-import qualified Text.Parser            as Parser
-import qualified WACC.Syntax.Parser     as Syntax.Parser
-import qualified WACC.Syntax.Structure  as Syntax.Structure
-import qualified WACC.Semantics.Checker as Semantics.Checker
-import qualified WACC.Semantics.Utils   as Semantics.Utils
-import qualified WACC.Semantics.Error   as Semantics.Error
+import qualified Text.Parser              as Parser
+import qualified WACC.Syntax.Parser       as Syntax.Parser
+import qualified WACC.Syntax.Structure    as Syntax.Structure
+import qualified WACC.Semantics.Checker   as Semantics.Checker
+import qualified WACC.Semantics.Structure as Semantics.Structure
+import qualified WACC.Semantics.Utils     as Semantics.Utils
+import qualified WACC.Semantics.Error     as Semantics.Error
+import qualified WACC.Backend.C.Generator as C.Generator
 
 syntaxErrorExit :: IO ()
 syntaxErrorExit = exitWith $ ExitFailure 100
@@ -27,12 +29,14 @@ splitFlags :: [String] -> ([String], [String])
 splitFlags args = (filter ((== "--") . take 2) args, filter ((/= "--") . take 2) args)
 
 data Flags = Flags {
-    noTextDecoration :: Bool
+    noTextDecoration :: Bool,
+    targetC :: Bool
 } deriving Show
 
 flagsFromArgs :: [String] -> Flags
 flagsFromArgs args = Flags {
-    noTextDecoration = "--no-text-deco" `elem` args
+    noTextDecoration = "--no-text-deco" `elem` args,
+    targetC = "--target-c" `elem` args
 }
 
 preventTextDecoration :: Bool -> (a -> a) -> a -> a
@@ -53,10 +57,10 @@ main = do
 
         path:_ -> do
             sourceCode <- readFile path
-            processSourceCode flags sourceCode
+            processSourceCode path flags sourceCode
 
-processSourceCode :: Flags -> String -> IO ()
-processSourceCode flags (removeTabs -> sourceCode) =
+processSourceCode :: FilePath -> Flags -> String -> IO ()
+processSourceCode path flags (removeTabs -> sourceCode) =
     case Parser.parseString Syntax.Parser.program sourceCode of
 
     Left Nothing -> do
@@ -85,14 +89,14 @@ processSourceCode flags (removeTabs -> sourceCode) =
 
         syntaxErrorExit
 
-    Right (Parser.Parsed _ ast _) -> semanticCheck flags ast sourceCode
+    Right (Parser.Parsed _ ast _) -> semanticCheck path flags ast sourceCode
 
-semanticCheck :: Flags -> Syntax.Structure.Program -> String -> IO ()
-semanticCheck flags program sourceCode =
+semanticCheck :: FilePath -> Flags -> Syntax.Structure.Program -> String -> IO ()
+semanticCheck path flags program sourceCode =
     case Semantics.Checker.checkProgram program of
 
-    Semantics.Utils.Ok {} -> do
-        exitSuccess
+    Semantics.Utils.Ok ast -> do
+        generateCode path flags ast
 
     Semantics.Utils.Log semanticErrors -> do
 
@@ -124,3 +128,11 @@ semanticCheck flags program sourceCode =
             putStrLn ""
 
         semanticErrorExit
+
+generateCode :: FilePath -> Flags -> Semantics.Structure.Program -> IO ()
+generateCode path flags ast = do
+    if targetC flags then do
+        let output = C.Generator.generateCode ast
+        writeFile (path ++ ".c") output
+    else
+        exitSuccess

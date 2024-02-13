@@ -2,10 +2,13 @@ module WACC.Backend.C.LiteralString where
 
 import qualified Data.Map as M
 
-dump :: (String, Int) -> String
-dump (string, number) =
-    "WACC_Array STRING_" ++ show number ++ "__" ++ " = { " ++
+constantNameFromStringNo :: Int -> [Char]
+constantNameFromStringNo n = "STR_" ++ show n ++ "__"
+
+dumpLiteralString :: (String, Int) -> String
+dumpLiteralString (string, number) =
+    "WACC_Array " ++ constantNameFromStringNo number ++ " = { " ++
     show (length string + 1) ++ ", 1, " ++ show string ++ " };"
 
 dumpDataSegments :: M.Map String Int -> [String]
-dumpDataSegments = map dump . M.toList
+dumpDataSegments = map dumpLiteralString . M.toList

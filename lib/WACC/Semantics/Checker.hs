@@ -71,7 +71,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
             -- is a type of Array)
             if Int <| indexType then case arrayType of
                 Array arrayElementType ->
-                    Ok (arrayElementType, ArrayElement array' index')
+                    Ok (arrayElementType, ArrayElement arrayElementType array' index')
                 -- if the array is not a type of array then report error
                 _ -> Log [SemanticError (expressionRange array) $
                             InvalidArray arrayType]
@@ -95,7 +95,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
 
             case pairType of
                 -- the indentifer must be of pair type to allow using fst
-                Pair (leftType, _) -> Ok (leftType, PairFirst pair')
+                Pair (leftType, _) -> Ok (leftType, PairFirst leftType pair')
                 _ -> Log [SemanticError (expressionRange pair) $
                             InvalidPair pairType]
         -- get the second element of a pair
@@ -104,7 +104,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
 
             case pairType of
                 -- the indentifer must be of pair type to allow using snd
-                Pair (_, rightType) -> Ok (rightType, PairSecond pair')
+                Pair (_, rightType) -> Ok (rightType, PairSecond rightType pair')
                 _ -> Log [SemanticError (expressionRange pair) $
                             InvalidPair pairType]
 
@@ -264,7 +264,7 @@ instance CheckSemantics Syntax.Statement Statement where
                 else
                     if (isLiter right && (leftType <? rightType))
                             || (leftType <| rightType)
-                        then Ok (Assign left' right')
+                        then Ok (Assign leftType left' right')
                         else Log [SemanticError (expressionRange right) $
                                 IncompatibleAssignment leftType rightType]
 

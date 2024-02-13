@@ -19,7 +19,7 @@ instance Ord Function where
 
 data Statement
     = Declare Type String Expression
-    | Assign Expression Expression
+    | Assign Type Expression Expression
     | Read Expression
     | Free Expression
     | Return Expression
@@ -63,15 +63,15 @@ data Expression
     | LiteralPair (Type, Type) (Expression, Expression)
     | LiteralPairNull
 
-    | ArrayElement Expression Expression
+    | ArrayElement Type Expression Expression
 
     | Not Expression
     | Negate Expression
     | Length Expression
     | Order Expression
     | Character Expression
-    | PairFirst Expression
-    | PairSecond Expression
+    | PairFirst Type Expression
+    | PairSecond Type Expression
     | Multiply Expression Expression
     | Divide Expression Expression
     | Remainder Expression Expression

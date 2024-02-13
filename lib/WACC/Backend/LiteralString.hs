@@ -5,20 +5,6 @@ import qualified Data.Map as M
 
 import WACC.Semantics.Structure
 
-import Text.Parser
-import WACC.Syntax.Parser
-import WACC.Semantics.Checker
-import WACC.Semantics.Utils
-
-p s =
-    let
-    Right (Parsed _ ast _) = parseString program s
-    Ok ast' = check (CheckerState Nothing M.empty [M.empty]) ast
-    in
-    ast'
-
-d = createDataSegments . getLiteralStrings . p <$> readFile "./example/valid/advanced/ticTacToe.wacc"
-
 class HasLiteralStrings a where
     getLiteralStrings :: a -> [String]
 
@@ -40,7 +26,7 @@ instance HasLiteralStrings Statement where
     getLiteralStrings :: Statement -> [String]
     getLiteralStrings = \case
         Declare String _ (LiteralString s) -> return s
-        Assign _ (LiteralString s) -> return s
+        Assign _ _ (LiteralString s) -> return s
         Return (LiteralString s) -> return s
         Print String (LiteralString s) -> return s
         PrintLine String (LiteralString s) -> return s

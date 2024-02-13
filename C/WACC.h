@@ -6,32 +6,25 @@ typedef int8_t WACC_Bool;
 typedef int8_t WACC_Char;
 
 typedef struct { int length; char element_size; void *elements; } WACC_Array;
-WACC_Array* new_WACC_Array(int length, char element_size);
+WACC_Array* new_WACC_Array(int length, char element_size, void *elements);
+void* WACC_Array_index_check(WACC_Array *array, WACC_Int index);
+#define WACC_Array_Index(array, index) (*(void **)(WACC_Array_index_check(array, index), ((char *)array->elements + array->element_size * index)))
 void del_WACC_Array(WACC_Array *array);
 
-typedef struct { int32_t a; int32_t b; } WACC_PairI32I32;
-WACC_PairI32I32* new_WACC_PairI32I32(int32_t a, int32_t b);
+typedef struct { void* fst; void* snd; } WACC_Pair;
+#define WACC_Pair_First(p) (*(void **)p)
+#define WACC_Pair_Second(p) (*(void **)((char *)p + sizeof(void *)))
+WACC_Pair* new_WACC_Pair(void* fst, void* snd);
+void del_WACC_Pair(void *p);
 
-typedef struct { int32_t a; int8_t b; } WACC_PairI32I8;
-WACC_PairI32I8* new_WACC_PairI32I8(int32_t a, int8_t b);
+void WACC_print_Int(WACC_Int i);
+void WACC_print_Bool(WACC_Bool b);
+void WACC_print_Char(WACC_Char c);
+void WACC_print_String(WACC_Array *s);
+void WACC_print_Address(void *p);
 
-typedef struct { int32_t a; void *b; } WACC_PairI32Ptr;
-WACC_PairI32Ptr* new_WACC_PairI32Ptr(int32_t a, void *b);
-
-typedef struct { int8_t a; int32_t b; } WACC_PairI8I32;
-WACC_PairI8I32* new_WACC_PairI8I32(int8_t a, int32_t b);
-
-typedef struct { int8_t a; int8_t b; } WACC_PairI8I8;
-WACC_PairI8I8* new_WACC_PairI8I8(int8_t a, int8_t b);
-
-typedef struct { int8_t a; void *b; } WACC_PairI8Ptr;
-WACC_PairI8Ptr* new_WACC_PairI8Ptr(int8_t a, void *b);
-
-typedef struct { void *a; int32_t b; } WACC_PairPtrI32;
-WACC_PairPtrI32* new_WACC_PairPtrI32(void *a, int32_t b);
-
-typedef struct { void *a; int8_t b; } WACC_PairPtrI8;
-WACC_PairPtrI8* new_WACC_PairPtrI8(void *a, int8_t b);
-
-typedef struct { void *a; void *b; } WACC_PairPtrPtr;
-WACC_PairPtrPtr* new_WACC_PairPtrPtr(void *a, void *b);
+void WACC_println_Int(WACC_Int i);
+void WACC_println_Bool(WACC_Bool b);
+void WACC_println_Char(WACC_Char c);
+void WACC_println_String(WACC_Array *s);
+void WACC_println_Address(void *p);
