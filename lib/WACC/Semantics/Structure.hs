@@ -1,21 +1,24 @@
 module WACC.Semantics.Structure where
 
 import Data.Set (Set)
+import Data.Map (Map)
 
 {-
 All constructors no longer have a range, as they're only needed in
 syntactic and semantic analysis.
 -}
 
-data Program = Program (Set Function) [Statement]
+data Program = Program (Set Function) Block
     deriving Show
 
-data Function = Function Type String [(String, Type)] [Statement]
+data Function = Function Type String [(String, Type)] Block
     deriving (Show, Eq)
 
 instance Ord Function where
     Function _ name1 _ _ `compare` Function _ name2 _ _ =
         name1 `compare` name2
+
+data Block = Block [Statement] (String `Map` Type) deriving (Show, Eq)
 
 data Statement
     = Declare Type String Expression
@@ -26,9 +29,9 @@ data Statement
     | Exit Expression
     | Print Type Expression
     | PrintLine Type Expression
-    | If Expression [Statement] [Statement]
-    | While Expression [Statement]
-    | Scope [Statement]
+    | If Expression Block Block
+    | While Expression Block
+    | Scope Block
     deriving (Show, Eq)
 
 data Type

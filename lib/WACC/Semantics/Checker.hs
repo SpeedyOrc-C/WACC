@@ -341,26 +341,28 @@ instance CheckSemantics Syntax.Statement Statement where
 
         Syntax.Skip {} -> P.error "`skip` statement is not eradicated."
 
-instance CheckSemantics [Syntax.Statement] [Statement] where
+instance CheckSemantics [Syntax.Statement] Block where
     -- check for statements
     check state = \case
-        [] -> Ok []
+        [] -> Ok $ Block [] (M.map snd $ head $ mappingStack state)
 
-        -- `skip` does nothing in WACC, ignore it.
-        (Syntax.Skip {} : ss) -> check state ss
-
-        -- if it is a declare, then add the indentifer with the type which get from
-        -- using the check function to the current scope
         (s@(Syntax.Declare (fromSyntaxType -> declaredType, name, _) range) : ss) ->
             let state' = state {
                 mappingStack = case mappingStack state of
                     m : ms -> M.insert name (range, declaredType) m : ms
                     _ -> P.error "Mapping stack is empty."
                 }
-            in (:) <$> check state s <*> check state' ss
+            in
+            (\s' (Block ss' mapping) -> Block (s' : ss') mapping)
+            <$> check state s
+            <*> check state' ss
 
-        -- Other statements do not affect the state.
-        (s : ss) -> (:) <$> check state s <*> check state ss
+        (Syntax.Skip {} : ss) -> check state ss
+
+        (s : ss) ->
+            (\s' (Block ss' mapping) -> Block (s' : ss') mapping)
+            <$> check state s
+            <*> check state ss
 
 
 -- | Try to find repetition in a list of entries.

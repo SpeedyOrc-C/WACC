@@ -64,8 +64,6 @@ library wacc25-lib
         WACC.Semantics.Structure,
         WACC.Semantics.Error,
         WACC.Backend.LiteralString,
-        WACC.Backend.C.LiteralString,
-        WACC.Backend.C.Generator,
         Text.AnsiEscape,
         Text.SourceCode,
         Text.Parser

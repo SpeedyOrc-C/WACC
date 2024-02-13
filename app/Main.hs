@@ -17,7 +17,6 @@ import qualified WACC.Semantics.Checker   as Semantics.Checker
 import qualified WACC.Semantics.Structure as Semantics.Structure
 import qualified WACC.Semantics.Utils     as Semantics.Utils
 import qualified WACC.Semantics.Error     as Semantics.Error
-import qualified WACC.Backend.C.Generator as C.Generator
 
 syntaxErrorExit :: IO ()
 syntaxErrorExit = exitWith $ ExitFailure 100
@@ -29,14 +28,12 @@ splitFlags :: [String] -> ([String], [String])
 splitFlags args = (filter ((== "--") . take 2) args, filter ((/= "--") . take 2) args)
 
 data Flags = Flags {
-    noTextDecoration :: Bool,
-    targetC :: Bool
+    noTextDecoration :: Bool
 } deriving Show
 
 flagsFromArgs :: [String] -> Flags
 flagsFromArgs args = Flags {
-    noTextDecoration = "--no-text-deco" `elem` args,
-    targetC = "--target-c" `elem` args
+    noTextDecoration = "--no-text-deco" `elem` args
 }
 
 preventTextDecoration :: Bool -> (a -> a) -> a -> a
@@ -131,8 +128,4 @@ semanticCheck path flags program sourceCode =
 
 generateCode :: FilePath -> Flags -> Semantics.Structure.Program -> IO ()
 generateCode path flags ast = do
-    if targetC flags then do
-        let output = C.Generator.generateCode ast
-        writeFile (path ++ ".c") output
-    else
-        exitSuccess
+    exitSuccess

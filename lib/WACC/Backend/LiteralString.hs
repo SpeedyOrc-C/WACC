@@ -14,12 +14,12 @@ instance HasLiteralStrings a => HasLiteralStrings [a] where
 
 instance HasLiteralStrings Program where
     getLiteralStrings :: Program -> [String]
-    getLiteralStrings (Program fs ss) =
+    getLiteralStrings (Program fs (Block ss _)) =
         getLiteralStrings (S.toList fs) ++ getLiteralStrings ss
 
 instance HasLiteralStrings Function where
     getLiteralStrings :: Function -> [String]
-    getLiteralStrings (Function _ _ _ ss) =
+    getLiteralStrings (Function _ _ _ (Block ss _)) =
         getLiteralStrings ss
 
 instance HasLiteralStrings Statement where
@@ -30,9 +30,9 @@ instance HasLiteralStrings Statement where
         Return (LiteralString s) -> return s
         Print String (LiteralString s) -> return s
         PrintLine String (LiteralString s) -> return s
-        Scope ss' -> getLiteralStrings ss'
-        If _ ss' ss'' -> getLiteralStrings ss' ++ getLiteralStrings ss''
-        While _ ss' -> getLiteralStrings ss'
+        Scope (Block ss' _) -> getLiteralStrings ss'
+        If _ (Block ss' _) (Block ss'' _) -> getLiteralStrings ss' ++ getLiteralStrings ss''
+        While _ (Block ss' _) -> getLiteralStrings ss'
         _ -> []
 
 newtype DataSegments = DataSegments (String `M.Map` Int)
