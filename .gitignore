@@ -1,3 +1,5 @@
 /*.wacc
+/*.s
+a.out
 .DS_Store
 dist-newstyle
