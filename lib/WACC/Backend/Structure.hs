@@ -1,3 +1,5 @@
+module WACC.Backend.Structure where
+
 import Data.Map (Map)
 data Length = EightBytes 
              | FourBytes 
@@ -57,6 +59,27 @@ data Commands =
     | JAE String
 
 data Status = Status{
-    unusedRegersters :: [HalfRegister],
+    unusedCallerSavedRegisters :: [HalfRegister],
+    unusedCalleeSavedRegisters :: [HalfRegister],
     simbolTables :: [String `Map` Operand]
 }
+
+
+data AppendList a = Aempty | Acons (AppendList a) a
+
+toList :: AppendList a -> [a]
+toList = flip toListHelper []
+    where 
+        toListHelper :: AppendList a -> [a] -> [a]
+        toListHelper Aempty xs = xs
+        toListHelper (Acons xs x) ys = toListHelper xs (x:ys)
+
+fromList :: [a] -> AppendList a
+fromList [] = Aempty
+fromList xs = Acons (fromList (init xs)) (last xs)
+
+empty :: AppendList a
+empty = Aempty
+
+append :: AppendList a -> a -> AppendList a
+append = Acons
