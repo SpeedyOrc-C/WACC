@@ -130,7 +130,7 @@ free allocatedVariables = \case
         s : free allocatedVariables' ss
 
 instance Flatten SM.Block [Statement] where
-    flatten state (SM.Block statements _) =
+    flatten state (SM.Block statements) =
         let
         (state', statements') = flatten
             state {

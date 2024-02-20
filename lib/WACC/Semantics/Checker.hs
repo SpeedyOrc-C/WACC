@@ -344,7 +344,7 @@ instance CheckSemantics Syntax.Statement Statement where
 instance CheckSemantics [Syntax.Statement] Block where
     -- check for statements
     check state = \case
-        [] -> Ok $ Block [] (M.map snd $ head $ mappingStack state)
+        [] -> Ok $ Block []
 
         (s@(Syntax.Declare (fromSyntaxType -> declaredType, name, _) range) : ss) ->
             let state' = state {
@@ -353,14 +353,14 @@ instance CheckSemantics [Syntax.Statement] Block where
                     _ -> P.error "Mapping stack is empty."
                 }
             in
-            (\s' (Block ss' mapping) -> Block (s' : ss') mapping)
+            (\s' (Block ss') -> Block (s' : ss'))
             <$> check state s
             <*> check state' ss
 
         (Syntax.Skip {} : ss) -> check state ss
 
         (s : ss) ->
-            (\s' (Block ss' mapping) -> Block (s' : ss') mapping)
+            (\s' (Block ss') -> Block (s' : ss'))
             <$> check state s
             <*> check state ss
 

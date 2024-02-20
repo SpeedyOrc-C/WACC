@@ -1,7 +1,6 @@
 module WACC.Semantics.Structure where
 
 import Data.Set (Set)
-import Data.Map (Map)
 
 {-
 All constructors no longer have a range, as they're only needed in
@@ -18,7 +17,7 @@ instance Ord Function where
     Function _ name1 _ _ `compare` Function _ name2 _ _ =
         name1 `compare` name2
 
-data Block = Block [Statement] (String `Map` Type) deriving (Show, Eq)
+newtype Block = Block [Statement] deriving (Show, Eq)
 
 data Statement
     = Declare Type String Expression
