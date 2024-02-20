@@ -49,4 +49,5 @@ data Scalar = Immediate Int | Variable Identifier deriving Show
 data Expression
     = Scalar Scalar
     | Add Scalar Scalar
+    | Call String [Scalar]
     deriving Show

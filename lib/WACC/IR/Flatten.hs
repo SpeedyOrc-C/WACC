@@ -62,7 +62,27 @@ instance Flatten SM.Expression (Scalar, [Statement]) where
               )
             )
 
+        SM.FunctionCall t f xs ->
+            let
+            (state', (scalars, evaluateArgs)) = flatten state xs
+            tmp = Temporary "var" (variableCounter state')
+            in
+            ( state'
+            , ( Variable tmp
+              , evaluateArgs ++
+                [Assign (getSize t) tmp (Call f scalars)]
+              )
+            )
+
         _ -> undefined
+
+instance Flatten [SM.Expression] ([Scalar], [Statement]) where
+    flatten state = foldr
+        (\expression (state, (allScalars, allStatements)) ->
+            let (state', (scalar, statements)) = flatten state expression
+            in  (state', (scalar:allScalars, statements++allStatements))
+        )
+        (state, ([], []))
 
 instance Flatten SM.Statement [Statement] where
     flatten state = \case
