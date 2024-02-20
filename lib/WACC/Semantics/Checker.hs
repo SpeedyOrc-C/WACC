@@ -33,7 +33,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
         -- if left handside is a indentifer which must be in the state
         Syntax.Identifier name range ->
             case lookUp state name of
-                Just (_, t)  -> Ok (t, Identifier name)
+                Just (_, t)  -> Ok (t, Identifier t name)
                 Nothing -> Log [SemanticError range (UndefinedIdentifier name)]
 
         Syntax.LiteralArray array _ -> do
@@ -157,7 +157,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
 
                     -- check if the number of parameters the same as the arguments number
                     case compare (length args) (length paramsTypes) of
-                        EQ -> Ok (returnType, FunctionCall name args')
+                        EQ -> Ok (returnType, FunctionCall returnType name args')
                         _ -> Log [SemanticError range $ ArgumentNumberMismatch
                                     name (length paramsTypes) (length args)]
 

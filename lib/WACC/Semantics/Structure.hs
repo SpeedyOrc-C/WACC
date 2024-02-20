@@ -57,7 +57,7 @@ instance Show Type where
 data ComparisonType = CompareChar | CompareInt deriving (Show, Eq)
 
 data Expression
-    = Identifier String
+    = Identifier Type String
     | LiteralInt Int
     | LiteralBool Bool
     | LiteralChar Char
@@ -91,6 +91,6 @@ data Expression
 
     | And Expression Expression
     | Or Expression Expression
-    
-    | FunctionCall String [Expression]
+
+    | FunctionCall Type String [Expression]
     deriving (Show, Eq)
