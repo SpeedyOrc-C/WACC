@@ -65,6 +65,8 @@ library wacc25-lib
         WACC.Semantics.Error,
         WACC.Backend.LiteralString,
         WACC.Backend.X64.Structure,
+        WACC.IR.Structure,
+        WACC.IR.Flatten,
         Text.AnsiEscape,
         Text.SourceCode,
         Text.Parser
@@ -72,7 +74,8 @@ library wacc25-lib
     default-extensions:
         LambdaCase,
         ViewPatterns,
-        FunctionalDependencies
+        FunctionalDependencies,
+        OverloadedStrings
 
     build-depends:
         mtl,
