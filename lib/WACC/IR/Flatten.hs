@@ -62,12 +62,24 @@ instance Flatten SM.Expression (Scalar, [Statement]) where
               )
             )
 
-        SM.FunctionCall t f xs ->
+        SM.LiteralArray t es ->
             let
-            (state', (scalars, evaluateArgs)) = flatten state xs
+            (state', (scalars, evaluateElements)) = flatten state es
             tmp = Temporary "var" (variableCounter state')
             in
-            ( state'
+            ( state' { variableCounter = variableCounter state' + 1 }
+            , ( Variable tmp
+              , evaluateElements ++
+                [Assign B8 tmp (NewArray (getSize t) scalars)]
+              )
+            )
+
+        SM.FunctionCall t f args ->
+            let
+            (state', (scalars, evaluateArgs)) = flatten state args
+            tmp = Temporary "var" (variableCounter state')
+            in
+            ( state' { variableCounter = variableCounter state' + 1 }
             , ( Variable tmp
               , evaluateArgs ++
                 [Assign (getSize t) tmp (Call f scalars)]
@@ -83,6 +95,26 @@ instance Flatten [SM.Expression] ([Scalar], [Statement]) where
             in  (state', (scalar:allScalars, statements++allStatements))
         )
         (state, ([], []))
+
+flattenIndirect ::
+    FlattenerState -> SM.Expression -> (FlattenerState, (Scalar, [Statement]))
+flattenIndirect state = \case
+    i@(SM.Identifier {}) -> flatten state i
+
+    SM.ArrayElement _ array index ->
+        let
+        (state', (index', evaluateIndex)) = flatten state index
+        (state'', (array', evaluateElementAddress)) = flattenIndirect state' array
+        variable = Temporary "var" (variableCounter state'')
+        in
+        ( state'' { variableCounter = variableCounter state'' + 1}
+        , ( Variable variable
+          , evaluateIndex ++ evaluateElementAddress ++
+            [Assign B8 variable (SeekArrayElement array' index')]
+          )
+        )
+
+    _ -> error "Semantic check has failed."
 
 instance Flatten SM.Statement [Statement] where
     flatten state = \case
@@ -111,6 +143,17 @@ instance Flatten SM.Statement [Statement] where
                 (Identifier name variableNumber) (Scalar result)]
             )
 
+        SM.Assign t left expression ->
+            let
+            (state', (result, evaluateExpression)) = flatten state expression
+            (state'', (Variable address, evaluateAddress)) =
+                flattenIndirect state' left
+            in
+            ( state''
+            , evaluateExpression ++ evaluateAddress ++
+              [AssignIndirect (getSize t) address (Scalar result)]
+            )
+
         SM.Scope block ->
             flatten state block &
                 first (\s -> s { mappingStack = tail $ mappingStack s })
@@ -135,10 +178,16 @@ instance HasReference Scalar where
         (Variable var) -> S.singleton var
         _ -> S.empty
 
+instance HasReference [Scalar] where
+    reference xs = foldl S.intersection S.empty (reference <$> xs)
+
 instance HasReference Expression where
     reference = \case
         Scalar s -> reference s
         Add a b -> reference a `S.union` reference b
+        NewArray _ xs -> reference xs
+        SeekArrayElement a i -> reference a `S.union` reference i
+        Call _ args -> reference args
 
 instance HasReference Statement where
     reference = \case
