@@ -41,7 +41,7 @@ data Statement
     | Assign Size Identifier Expression
     | AssignIndirect Size Identifier Expression
     | Print Expression
-    | Free Identifier
+    | DirectiveFree Identifier
     deriving Show
 
 data Scalar = Immediate Int | Variable Identifier deriving Show
@@ -49,5 +49,15 @@ data Scalar = Immediate Int | Variable Identifier deriving Show
 data Expression
     = Scalar Scalar
     | Add Scalar Scalar
+
+    | NewArray Size [Scalar]
+    | SeekArrayElement Scalar Scalar
+
+    | NewPair Scalar Scalar
+    | SeekPairFirst Scalar
+    | SeekPairSecond Scalar
+
+    | Dereference Scalar
+
     | Call String [Scalar]
     deriving Show

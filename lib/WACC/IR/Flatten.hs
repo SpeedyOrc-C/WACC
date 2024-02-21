@@ -93,11 +93,22 @@ instance Flatten SM.Statement [Statement] where
             in
             ( state' {
                 mappingStack =
-                    M.insert name (variableCounter state') (head (mappingStack state)) :
-                    tail (mappingStack state),
+                    M.insert name (variableCounter state')
+                    (head (mappingStack state)) : tail (mappingStack state),
                 variableCounter = variableCounter state' + 1
             }
             , evaluation ++ [Assign (getSize t) identifier (Scalar result)]
+            )
+
+        SM.Assign t (SM.Identifier _ name) expression ->
+            let
+            variableNumber = lookUp name (mappingStack state)
+            (state', (result, evaluation)) = flatten state expression
+            in
+            ( state'
+            , evaluation ++
+              [Assign (getSize t)
+                (Identifier name variableNumber) (Scalar result)]
             )
 
         SM.Scope block ->
@@ -117,11 +128,11 @@ instance Flatten [SM.Statement] [Statement] where
             (state'', s' ++ s'')
 
 class HasReference a where
-    reference :: a -> S.Set (String, Int)
+    reference :: a -> S.Set Identifier
 
 instance HasReference Scalar where
     reference = \case
-        (Variable (Identifier var i)) -> S.singleton (var, i)
+        (Variable var) -> S.singleton var
         _ -> S.empty
 
 instance HasReference Expression where
@@ -131,13 +142,13 @@ instance HasReference Expression where
 
 instance HasReference Statement where
     reference = \case
-        Assign _ (Identifier var i) e -> (var, i) `S.insert` reference e
+        Assign _ var@(Identifier {}) e -> var `S.insert` reference e
         Assign _ _ e -> reference e
         AssignIndirect _ _ e -> reference e
         Print e -> reference e
         _ -> S.empty
 
-free :: S.Set (String, Int) -> [Statement] -> [Statement]
+free :: S.Set Identifier -> [Statement] -> [Statement]
 free allocatedVariables = \case
     [] -> []
     s:ss ->
@@ -146,7 +157,7 @@ free allocatedVariables = \case
         freedVariables = allocatedVariables `S.intersection` referencedVariables
         allocatedVariables' = allocatedVariables S.\\ freedVariables
         in
-        [Free (Identifier var i) | (var, i) <- S.toList freedVariables] ++
+        [DirectiveFree var | var<- S.toList freedVariables] ++
         s : free allocatedVariables' ss
 
 instance Flatten SM.Block [Statement] where
@@ -158,9 +169,14 @@ instance Flatten SM.Block [Statement] where
             }
             statements
 
-        statementsWithFreeDirectives = statements'
+        statementsWithFreeDirectives =
+            statements'
             & reverse
-            & free (head (mappingStack state') & M.toList & S.fromList)
+            & free (
+                head (mappingStack state')
+                & M.toList
+                & map (uncurry Identifier)
+                & S.fromList)
             & reverse
         in
         (state', statementsWithFreeDirectives)
