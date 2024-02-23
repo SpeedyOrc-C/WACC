@@ -1,26 +1,6 @@
 module WACC.IR.FlattenControlFlow where
 
-import qualified Data.Set as S
-import           Data.Foldable
-import           Control.Arrow
-
-import qualified WACC.Syntax.Parser as Parser
-import           Text.Parser
-import           WACC.IR.Structure
-import           WACC.Semantics.Utils
-import           WACC.Semantics.Checker
-import           WACC.IR.FlattenExpression (flattenExpression, reference)
-
-db = do
-    raw <- readFile "draft.wacc"
-    let Right (Parsed _ ast _) = parseString Parser.program raw
-    let Ok ast' = checkProgram ast
-    let Program _ functions = flattenControlFlow $ flattenExpression ast'
-    for_ functions $ \(Function name params statements) -> do
-        putStrLn $ "<" ++ name ++ ">" ++ " " ++ show params
-        for_ statements $ \statement -> do
-            print statement
-        putStrLn ""
+import WACC.IR.Structure
 
 newtype FlattenerState = FlattenerState {
     labelCounter :: Int
@@ -100,67 +80,5 @@ instance FlattenControlFlow (Program NoExpressionStatement) (Program NoControlFl
         let (state', functions') = flatten state functions
         in (state', Program dataSegment functions')
 
-data FreeingVariableState = FreeingVariableState {
-    freed :: S.Set Identifier
-}
-
-initialFreeingVariableState :: FreeingVariableState
-initialFreeingVariableState = FreeingVariableState {
-    freed = S.empty
-}
-
-free :: [NoControlFlowStatement] -> [NoControlFlowStatement]
-free = reverse . snd . free' initialFreeingVariableState . reverse
-
-free' :: FreeingVariableState -> [NoControlFlowStatement] -> (FreeingVariableState, [NoControlFlowStatement])
-
-free' state = \case
-    [] -> (state, [])
-
-    statement@(NCF s) : ss ->
-        let
-        toBeFreed = reference s S.\\ freed state
-        state' = state {freed = freed state `S.union` toBeFreed}
-        (state'', statements) = free' state' ss
-        in
-        ( state''
-        , [FreeVariable var | var <- S.toList toBeFreed] ++
-          statement : statements
-        )
-
-    WhileReference refs : ss ->
-        let
-        toBeFreed = refs S.\\ freed state
-        state' = state {freed = freed state `S.union` toBeFreed}
-        -- Stop freeing in the while loop.
-        (state'', statements) = free' state' ss
-        in
-        ( state''
-        , [FreeVariable var | var <- S.toList toBeFreed] ++
-          statements
-        )
-
-    statement@(GotoIfNot (Variable scalar) _) : ss ->
-        let
-        toBeFreed = S.singleton scalar S.\\ freed state
-        state' = state {freed = freed state `S.union` toBeFreed}
-        (state'', statements) = free' state' ss
-        in
-        ( state''
-        , [FreeVariable var | var <- S.toList toBeFreed] ++
-          statement : statements
-        )
-
-    s@(Label {}) : ss -> second (s :) (free' state ss)
-    s@(Goto {}) : ss -> second (s :) (free' state ss)
-
-    _:ss -> free' state ss
-
 flattenControlFlow :: Program NoExpressionStatement -> Program NoControlFlowStatement
-flattenControlFlow program =
-    Program
-        dataSegment
-        ([Function name params (free body)
-            | Function name params body <- functions])
-    where
-    (_, Program dataSegment functions) = flatten initialState program
+flattenControlFlow = snd . flatten initialState

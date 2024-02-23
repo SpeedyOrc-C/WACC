@@ -8,7 +8,7 @@ import           Control.Arrow
 
 import qualified WACC.Semantics.Structure as SM
 import           WACC.IR.Structure
-import           WACC.Backend.LiteralString
+import           WACC.IR.LiteralString
 
 lookUp :: Ord k => k -> [M.Map k a] -> a
 lookUp _ [] = error "Semantic check has failed!"
@@ -249,13 +249,9 @@ flattenFunction dataSegment name params block =
         ([variableCounter state' ..] `zip` (getSize . snd <$> params))
         body
 
-flattenExpression :: SM.Program -> Program NoExpressionStatement
-flattenExpression p@(SM.Program functions main) =
-    let
-    dataSegment = createDataSegments (getLiteralStrings p)
-    in
-    Program dataSegment (
+flattenExpression :: (String `M.Map` Int, SM.Program) -> Program NoExpressionStatement
+flattenExpression (dataSegment, SM.Program functions main) =
+    Program dataSegment $
         flattenFunction dataSegment "main" [] main
         : [flattenFunction dataSegment name params block
             | (SM.Function _ name params block) <- S.toList functions]
-    )

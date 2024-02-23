@@ -59,15 +59,21 @@ library wacc25-lib
         WACC.Syntax.Structure,
         WACC.Syntax.Error,
         WACC.Syntax.Validation,
+
         WACC.Semantics.Checker,
         WACC.Semantics.Utils,
         WACC.Semantics.Structure,
         WACC.Semantics.Error,
-        WACC.Backend.LiteralString,
-        WACC.Backend.X64.Structure,
+
         WACC.IR.Structure,
+        WACC.IR.LiteralString,
         WACC.IR.FlattenExpression,
         WACC.IR.FlattenControlFlow,
+        WACC.IR.LiveRange,
+        WACC.IR.Generate,
+
+        WACC.Backend.X64.Structure,
+
         Text.AnsiEscape,
         Text.SourceCode,
         Text.Parser
