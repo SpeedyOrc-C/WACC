@@ -10,6 +10,7 @@ import           WACC.Backend.X64.Structure
 data MemoryLocation
     = AtRegister PhysicalRegister
     | AtStack Int Size
+    | AtParameterStack Int Size
 
 data StackSegment
     = StackSegment Size Identifier

@@ -69,7 +69,7 @@ instance FlattenExpression SM.Expression (Scalar, [SingleStatement]) where
               )
             )
 
-        SM.FunctionCall t f args ->
+        SM.FunctionCall t f (unzip -> (types, args)) ->
             let
             (state', (scalars, evaluateArgs)) = flatten state args
             tmp = Temporary "var" (variableCounter state')
@@ -77,7 +77,7 @@ instance FlattenExpression SM.Expression (Scalar, [SingleStatement]) where
             ( state' { variableCounter = variableCounter state' + 1 }
             , ( Variable tmp
               , evaluateArgs ++
-                [Assign (getSize t) tmp (Call f scalars)]
+                [Assign (getSize t) tmp (Call f ((getSize <$> types) `zip` scalars))]
               )
             )
 
@@ -212,6 +212,7 @@ instance HasReference Scalar where
     reference :: Scalar -> S.Set Identifier
     reference = \case
         (Variable var@(Identifier {})) -> S.singleton var
+        (Variable var@(Parameter {})) -> S.singleton var
         _ -> S.empty
 
 instance HasReference Expression where
@@ -221,7 +222,7 @@ instance HasReference Expression where
         Add a b -> reference a `S.union` reference b
         NewArray _ xs -> reference xs
         SeekArrayElement a i -> reference a `S.union` reference i
-        Call _ args -> reference args
+        Call _ args -> reference $ snd <$> args
 
 instance HasReference SingleStatement where
     reference :: SingleStatement -> S.Set Identifier
@@ -260,19 +261,19 @@ instance FlattenExpression SM.Block [NoExpressionStatement] where
 flattenFunction ::
     M.Map String Int -> String -> [(String, SM.Type)] -> SM.Block
     -> Function NoExpressionStatement
-flattenFunction dataSegment name params block =
+flattenFunction dataSegment name (unzip -> (names, types)) block =
     let
     state = initialState dataSegment
     state' = state {
         mappingStack = M.fromList
-            ((fst <$> params) `zip` (Identifier "param" <$> [variableCounter state' ..]))
+            (names `zip` zipWith Parameter names [variableCounter state' ..])
             : mappingStack state
     }
     (_, body) = flatten state' block
     in
     Function
         name
-        ([variableCounter state' ..] `zip` (getSize . snd <$> params))
+        ([variableCounter state' ..] `zip` (getSize <$> types))
         body
 
 flattenExpression :: (String `M.Map` Int, SM.Program) -> Program NoExpressionStatement

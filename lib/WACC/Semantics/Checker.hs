@@ -157,7 +157,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
 
                     -- check if the number of parameters the same as the arguments number
                     case compare (length args) (length paramsTypes) of
-                        EQ -> Ok (returnType, FunctionCall returnType name args')
+                        EQ -> Ok (returnType, FunctionCall returnType name (argsTypes `zip` args'))
                         _ -> Log [SemanticError range $ ArgumentNumberMismatch
                                     name (length paramsTypes) (length args)]
 

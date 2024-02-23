@@ -91,5 +91,5 @@ data Expression
     | And Expression Expression
     | Or Expression Expression
 
-    | FunctionCall Type String [Expression]
+    | FunctionCall Type String [(Type, Expression)]
     deriving (Show, Eq)

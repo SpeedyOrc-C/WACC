@@ -52,7 +52,7 @@ data Expression
 
     | Dereference Scalar
 
-    | Call String [Scalar]
+    | Call String [(Size, Scalar)]
     deriving Show
 
 data Scalar
@@ -63,26 +63,31 @@ data Scalar
 
 data Identifier
     = Identifier String Int
+    | Parameter String Int
     | Temporary String Int
     deriving Show
+
+identifierNo :: Identifier -> Int
+identifierNo = \case
+    Identifier _ n -> n
+    Parameter _ n -> n
+    Temporary _ n -> n
 
 data IdentifierType
 
 instance Eq Identifier where
-    Identifier _ a == Identifier _ b = a == b
-    Temporary _ a == Temporary _ b = a == b
-    _ == _ = False
+    (==) :: Identifier -> Identifier -> Bool
+    a == b = identifierNo a == identifierNo b
 
 instance Ord Identifier where
-    Temporary _ a `compare` Temporary _ b = compare a b
-    Identifier _ a `compare` Identifier _ b = compare a b
-    Identifier _ a `compare` Temporary _ b = compare a b
-    Temporary _ a `compare` Identifier _ b = compare a b
+    compare :: Identifier -> Identifier -> Ordering
+    compare a b = compare (identifierNo a) (identifierNo b)
 
 class HasSize a where
     getSize :: a -> Size
 
 instance HasSize SM.Type where
+    getSize :: SM.Type -> Size
     getSize = \case
         SM.Bool -> B1
         SM.Char -> B1
