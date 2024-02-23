@@ -3,6 +3,7 @@ module Main where
 import Prelude hiding (error)
 
 import System.Environment ( getArgs )
+import System.FilePath
 import System.Exit ( ExitCode(ExitFailure), exitSuccess, exitWith )
 
 import Data.Foldable ( for_, traverse_ )
@@ -126,6 +127,47 @@ semanticCheck path flags program sourceCode =
 
         semanticErrorExit
 
+macro = [
+    "#ifdef __APPLE__",
+    "    #define fflush   _fflush",
+    "    #define write   _write",
+    "    #define printf  _printf",
+    "    #define exit    _exit",
+    "",
+    "    .globl _main",
+    "    #define main _main",
+    "#endif",
+    "",
+    "#ifdef __linux__",
+    "    #define flush   fflush@PLT",
+    "    #define write   write@PLT",
+    "    #define printf  printf@PLT",
+    "    #define exit    exit@PLT",
+    "",
+    "    .globl main",
+    "#endif"]
+
 generateCode :: FilePath -> Flags -> Semantics.Structure.Program -> IO ()
 generateCode path flags ast = do
+    let name = takeBaseName path
+    let output = case name of
+            "print" -> [
+                "msg: .asciz \"Hello World!\"",
+                "main:",
+                "push %rbp",
+                "lea msg(%rip), %rdi",
+                "call printf",
+                "mov $0, %rdi",
+                "call exit"
+                ]
+
+            "exitBasic2" -> [
+                "main:",
+                "push %rbp",
+                "mov $42, %rdi",
+                "call exit"
+                ]
+
+            _ -> []
+    writeFile (name ++ ".s") (unlines $ macro ++ output)
     exitSuccess

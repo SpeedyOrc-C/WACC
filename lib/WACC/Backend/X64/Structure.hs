@@ -1,6 +1,8 @@
 module WACC.Backend.X64.Structure where
 
-data Program = Program [Instruction]
+import WACC.IR.Structure
+
+newtype Program = Program [Instruction] deriving Show
 
 data Instruction
     = Label String
@@ -69,73 +71,49 @@ data Instruction
     -- RSP = RBP; RBP = pop()
     | Leave
 
+    | AsciiZero String
+    deriving (Show)
+
+type Register = (PhysicalRegister, Size)
+
 data Operand
     = Immediate Immediate
     | Register Register
     | MemoryDirect Immediate
     | MemoryIndirect {
-        offset :: Maybe Int,
+        offset :: Maybe Immediate,
         base :: Register,
-        index :: Maybe (Register, Int)
+        index :: Maybe (PhysicalRegister, Int)
         }
-    | LabelAddress String
+    deriving (Show)
 
 data Immediate
     = ImmediateInt Int
     | ImmediateChar Char
+    | ImmediateLabel String
+    deriving (Show)
 
-data Register
+data PhysicalRegister
     {- Caller-save registers
     Caller save them before the function call if these registers are used.
     They may be changed after returning from the subroutine. -}
-    = RAX | EAX  | AX   | AL
-    | RCX | ECX  | CX   | CL
-    | RDX | EDX  | DX   | DL
-    | RDI | EDI  | DI   | DIL
-    | RSI | ESI  | SI   | SIL
-    | RSP | ESP  | SP   | SPL
-    | R8  | R8D  | R8W  | R8B
-    | R9  | R9D  | R9W  | R9B
-    | R10 | R10D | R10W | R10B
-    | R11 | R11D | R11W | R11B
+    = RAX | RCX | RDX | RDI | RSI | RSP | R8  | R9  | R10 | R11
 
     {- Callee-save
     Subroutines save them if these registers are used in the subroutine,
     and pop them before the subroutine return so that the caller can
     still use them. -}
-    | RBX | EBX  | BX   | BL
-    | RBP | EBP  | BP   | BPL
-    | R12 | R12D | R12W | R12B
-    | R13 | R13D | R13W | R13B
-    | R14 | R14D | R14W | R14B
-    | R15 | R15D | R15W | R15B
+    | RBX | RBP | R12 | R13 | R14 | R15
 
-data Size = B8 | B4 | B2 | B1
+    | RIP
+    deriving (Enum, Eq, Ord, Show)
 
-parameter1 :: Size -> Register
-parameter1 = \case B8 -> RDI; B4 -> EDI; B2 -> DI; B1 -> DIL
+isCallerSave :: PhysicalRegister -> Bool
+isCallerSave = (`elem` callerSaveRegisters)
+callerSaveRegisters :: [PhysicalRegister]
+callerSaveRegisters = [RAX, RCX, RDX, RDI, RSI, RSP, R8, R9, R10, R11]
 
-parameter2 :: Size -> Register
-parameter2 = \case B8 -> RSI; B4 -> ESI; B2 -> SI; B1 -> SIL
-
-parameter3 :: Size -> Register
-parameter3 = \case B8 -> RDX; B4 -> EDX; B2 -> DX; B1 -> DL
-
-parameter4 :: Size -> Register
-parameter4 = \case B8 -> RCX; B4 -> ECX; B2 -> CX; B1 -> CL
-
-parameter5 :: Size -> Register
-parameter5 = \case B8 -> R8; B4 -> R8D; B2 -> R8W; B1 -> R8B
-
-parameter6 :: Size -> Register
-parameter6 = \case B8 -> R9; B4 -> R9D; B2 -> R9W; B1 -> R9B
-
-returnValue :: Size -> Register
-returnValue = \case B8 -> RAX; B4 -> EAX; B2 -> AX; B1 -> AL
-
-stackPointer :: Size -> Register
-stackPointer = \case B8 -> RSP; B4 -> ESP; B2 -> SP; B1 -> SPL
-
-instance Num Immediate where
-    fromInteger :: Integer -> Immediate
-    fromInteger = ImmediateInt . fromInteger
+isCalleeSave :: PhysicalRegister -> Bool
+isCalleeSave = (`elem` calleeSaveRegisters)
+calleeSaveRegisters :: [PhysicalRegister]
+calleeSaveRegisters = [RBX, RBP, R12, R13, R14, R15]

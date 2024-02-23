@@ -5,7 +5,7 @@ import Data.Map (Map)
 
 import qualified WACC.Semantics.Structure as SM
 
-data Program s = Program (Map String Int) [Function s]
+data Program s = Program (Map String Int) [Function s] deriving Show
 
 data Function s = Function String [(Int, Size)] [s] deriving Show
 
@@ -34,6 +34,7 @@ data SingleStatement
     = Assign Size Identifier Expression
     | AssignIndirect Size Identifier Expression
     | Return Scalar
+    | Print Scalar
     deriving Show
 
 data Size = B1 | B2 | B4 | B8 deriving (Show, Eq, Ord)

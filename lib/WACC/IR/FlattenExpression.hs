@@ -179,6 +179,15 @@ instance FlattenExpression SM.Statement [NoExpressionStatement] where
               [NE $ Return result]
             )
 
+        SM.Print _ expression ->
+            let
+            (state', (result, evaluateExpression)) = flatten state expression
+            in
+            ( state'
+            , map NE evaluateExpression ++
+              [NE $ Print result]
+            )
+
 instance FlattenExpression [SM.Statement] [NoExpressionStatement] where
     flatten ::
         FlattenerState -> [SM.Statement]
@@ -221,6 +230,7 @@ instance HasReference SingleStatement where
         Assign _ _ e -> reference e
         AssignIndirect _ _ e -> reference e
         Return e -> reference e
+        Print e -> reference e
 
 instance HasReference NoExpressionStatement where
     reference :: NoExpressionStatement -> S.Set Identifier

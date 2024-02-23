@@ -103,6 +103,7 @@ executable wacc25
         FunctionalDependencies
 
     build-depends:
+        filepath,
         wacc25-lib,
         directory,
         base ^>=4.17.1.0
