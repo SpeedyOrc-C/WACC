@@ -65,7 +65,8 @@ free state = \case
 
     _:ss -> free state ss
 
-analyseLiveRange :: Program NoControlFlowStatement -> Program NoControlFlowStatement
+analyseLiveRange ::
+    Program NoControlFlowStatement -> Program NoControlFlowStatement
 analyseLiveRange (Program dataSegment functions) =
     Program dataSegment
         [Function name params (putFreeVariableDirective body)

@@ -15,7 +15,11 @@ nextLabel state = state { labelCounter = labelCounter state + 1}
 class FlattenControlFlow a b where
     flatten :: FlattenerState -> a -> (FlattenerState, b)
 
-instance FlattenControlFlow NoExpressionStatement [NoControlFlowStatement] where
+instance FlattenControlFlow
+    NoExpressionStatement [NoControlFlowStatement] where
+    flatten ::
+        FlattenerState -> NoExpressionStatement
+        -> (FlattenerState, [NoControlFlowStatement])
     flatten state = \case
         NE s -> (state, [NCF s])
 
@@ -50,7 +54,11 @@ instance FlattenControlFlow NoExpressionStatement [NoControlFlowStatement] where
               , WhileReference refs]
             )
 
-instance FlattenControlFlow [NoExpressionStatement] [NoControlFlowStatement] where
+instance FlattenControlFlow
+    [NoExpressionStatement] [NoControlFlowStatement] where
+    flatten ::
+        FlattenerState -> [NoExpressionStatement]
+        -> (FlattenerState, [NoControlFlowStatement])
     flatten state = \case
         [] -> (state, [])
         s:ss ->
@@ -60,12 +68,20 @@ instance FlattenControlFlow [NoExpressionStatement] [NoControlFlowStatement] whe
             in
             (state'', statements ++ statements')
 
-instance FlattenControlFlow (Function NoExpressionStatement) (Function NoControlFlowStatement) where
+instance FlattenControlFlow
+    (Function NoExpressionStatement) (Function NoControlFlowStatement) where
+    flatten ::
+        FlattenerState -> Function NoExpressionStatement
+        -> (FlattenerState, Function NoControlFlowStatement)
     flatten state (Function name params statements) =
         let (state', statements') = flatten state statements
         in (state', Function name params statements')
 
-instance FlattenControlFlow [Function NoExpressionStatement] [Function NoControlFlowStatement] where
+instance FlattenControlFlow
+    [Function NoExpressionStatement] [Function NoControlFlowStatement] where
+    flatten ::
+        FlattenerState -> [Function NoExpressionStatement]
+        -> (FlattenerState, [Function NoControlFlowStatement])
     flatten state = \case
         [] -> (state, [])
         f:fs ->
@@ -75,10 +91,15 @@ instance FlattenControlFlow [Function NoExpressionStatement] [Function NoControl
             in
             (state'', f':fs')
 
-instance FlattenControlFlow (Program NoExpressionStatement) (Program NoControlFlowStatement) where
+instance FlattenControlFlow
+    (Program NoExpressionStatement) (Program NoControlFlowStatement) where
+    flatten ::
+        FlattenerState -> Program NoExpressionStatement
+        -> (FlattenerState, Program NoControlFlowStatement)
     flatten state (Program dataSegment functions) =
         let (state', functions') = flatten state functions
         in (state', Program dataSegment functions')
 
-flattenControlFlow :: Program NoExpressionStatement -> Program NoControlFlowStatement
+flattenControlFlow ::
+    Program NoExpressionStatement -> Program NoControlFlowStatement
 flattenControlFlow = snd . flatten initialState

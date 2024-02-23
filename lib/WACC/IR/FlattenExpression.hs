@@ -8,7 +8,6 @@ import           Control.Arrow
 
 import qualified WACC.Semantics.Structure as SM
 import           WACC.IR.Structure
-import           WACC.IR.LiteralString
 
 lookUp :: Ord k => k -> [M.Map k a] -> a
 lookUp _ [] = error "Semantic check has failed!"
@@ -83,6 +82,9 @@ instance FlattenExpression SM.Expression (Scalar, [SingleStatement]) where
             )
 
 instance FlattenExpression [SM.Expression] ([Scalar], [SingleStatement]) where
+    flatten ::
+        FlattenerState -> [SM.Expression]
+        -> (FlattenerState, ([Scalar], [SingleStatement]))
     flatten state = foldr
         (\expression (state, (allScalars, allStatements)) ->
             let (state', (scalar, statements)) = flatten state expression
@@ -91,7 +93,8 @@ instance FlattenExpression [SM.Expression] ([Scalar], [SingleStatement]) where
         (state, ([], []))
 
 flattenIndirect ::
-    FlattenerState -> SM.Expression -> (FlattenerState, (Scalar, [SingleStatement]))
+    FlattenerState -> SM.Expression
+    -> (FlattenerState, (Scalar, [SingleStatement]))
 flattenIndirect state = \case
     i@(SM.Identifier {}) -> flatten state i
 
@@ -111,6 +114,9 @@ flattenIndirect state = \case
     _ -> error "Semantic check has failed."
 
 instance FlattenExpression SM.Statement [NoExpressionStatement] where
+    flatten ::
+        FlattenerState -> SM.Statement
+        -> (FlattenerState, [NoExpressionStatement])
     flatten state = \case
         SM.Declare t name expression ->
             let
@@ -174,6 +180,9 @@ instance FlattenExpression SM.Statement [NoExpressionStatement] where
             )
 
 instance FlattenExpression [SM.Statement] [NoExpressionStatement] where
+    flatten ::
+        FlattenerState -> [SM.Statement]
+        -> (FlattenerState, [NoExpressionStatement])
     flatten state = \case
         [] -> (state, [])
         statement:statements ->
@@ -187,14 +196,17 @@ class HasReference a where
     reference :: a -> S.Set Identifier
 
 instance HasReference a => HasReference [a] where
+    reference :: HasReference a => [a] -> S.Set Identifier
     reference = S.unions . map reference
 
 instance HasReference Scalar where
+    reference :: Scalar -> S.Set Identifier
     reference = \case
         (Variable var@(Identifier {})) -> S.singleton var
         _ -> S.empty
 
 instance HasReference Expression where
+    reference :: Expression -> S.Set Identifier
     reference = \case
         Scalar s -> reference s
         Add a b -> reference a `S.union` reference b
@@ -203,6 +215,7 @@ instance HasReference Expression where
         Call _ args -> reference args
 
 instance HasReference SingleStatement where
+    reference :: SingleStatement -> S.Set Identifier
     reference = \case
         Assign _ var@(Identifier {}) e -> var `S.insert` reference e
         Assign _ _ e -> reference e
@@ -210,6 +223,7 @@ instance HasReference SingleStatement where
         Return e -> reference e
 
 instance HasReference NoExpressionStatement where
+    reference :: NoExpressionStatement -> S.Set Identifier
     reference = \case
         NE s -> reference s
 
@@ -222,6 +236,8 @@ instance HasReference NoExpressionStatement where
                 , reference condition]
 
 instance FlattenExpression SM.Block [NoExpressionStatement] where
+    flatten ::
+        FlattenerState -> SM.Block -> (FlattenerState, [NoExpressionStatement])
     flatten state (SM.Block statements) =
         let
         (state', statements') =

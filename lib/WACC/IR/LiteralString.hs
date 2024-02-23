@@ -19,11 +19,11 @@ instance HasLiteralStrings Program where
         getLiteralStrings (S.toList fs) `S.union` getLiteralStrings ss
 
 instance HasLiteralStrings Function where
-    -- getLiteralStrings :: Function -> [String]
+    getLiteralStrings :: Function -> S.Set String
     getLiteralStrings (Function _ _ _ (Block ss)) = getLiteralStrings ss
 
 instance HasLiteralStrings Statement where
-    -- getLiteralStrings :: Statement -> [String]
+    getLiteralStrings :: Statement -> S.Set String
     getLiteralStrings = \case
         Declare _ _ (LiteralString s) -> S.singleton s
         Assign _ _ (LiteralString s) -> S.singleton s
