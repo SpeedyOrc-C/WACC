@@ -86,6 +86,7 @@ library wacc25-lib
 
     build-depends:
         mtl,
+        transformers,
         directory,
         containers,
         base ^>=4.17.1.0

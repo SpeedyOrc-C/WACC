@@ -18,6 +18,7 @@ import qualified WACC.Semantics.Checker   as Semantics.Checker
 import qualified WACC.Semantics.Structure as Semantics.Structure
 import qualified WACC.Semantics.Utils     as Semantics.Utils
 import qualified WACC.Semantics.Error     as Semantics.Error
+import qualified WACC.IR.Generate as IR.Generate
 
 syntaxErrorExit :: IO ()
 syntaxErrorExit = exitWith $ ExitFailure 100
@@ -169,5 +170,7 @@ generateCode path flags ast = do
                 ]
 
             _ -> []
+    let ir = IR.Generate.generateIR ast
+    print ir
     writeFile (name ++ ".s") (unlines $ macro ++ output)
     exitSuccess

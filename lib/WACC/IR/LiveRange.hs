@@ -62,6 +62,7 @@ free state = \case
 
     s@(Label {}) : ss -> second (s :) (free state ss)
     s@(Goto {}) : ss -> second (s :) (free state ss)
+    s@(GotoIfNot {}) : ss -> second (s :) (free state ss)
 
     _:ss -> free state ss
 

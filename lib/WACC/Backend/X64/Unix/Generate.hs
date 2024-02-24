@@ -18,7 +18,7 @@ data StackSegment
 
 data MemoryPool = MemoryPool {
     registers :: S.Set PhysicalRegister,
-    registerPool :: M.Map PhysicalRegister Identifier,
+    registerPool :: M.Map Identifier PhysicalRegister,
     stackPool :: [StackSegment]
 }
 
