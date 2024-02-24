@@ -16,7 +16,7 @@ data NoExpressionStatement
     -- Cannot free the "free variables" inside the while loop
     -- as they might be referenced again.
     -- References might only be freed after the loop.
-    | While Scalar [NoExpressionStatement] (Set Identifier)
+    | While (Scalar, [SingleStatement]) [NoExpressionStatement] (Set Identifier)
     deriving Show
 
 data NoControlFlowStatement
@@ -34,25 +34,57 @@ data SingleStatement
     = Assign Size Identifier Expression
     | AssignIndirect Size Identifier Expression
     | Return Scalar
-    | Print Scalar
+    | Exit Scalar
+    | Free Scalar
+
+    | PrintBool Scalar
+    | PrintInt Scalar
+    | PrintChar Scalar
+    | PrintString Scalar
+    | PrintAddress Scalar
+    | PrintLineBreak
     deriving Show
 
 data Size = B1 | B2 | B4 | B8 deriving (Show, Eq, Ord)
 
 data Expression
     = Scalar Scalar
+
+    | Not Scalar
+    | Negate Scalar
+    | Length Scalar
+    | Order Scalar
+    | Character Scalar
+
+    | Multiply Scalar Scalar
+    | Divide Scalar Scalar
+    | Remainder Scalar Scalar
     | Add Scalar Scalar
+    | Subtract Scalar Scalar
+
+    | Greater Size Scalar Scalar
+    | GreaterEqual Size Scalar Scalar
+    | Less Size Scalar Scalar
+    | LessEqual Size Scalar Scalar
+
+    | Equal Size Scalar Scalar
+    | NotEqual Size Scalar Scalar
+
+    | And Scalar Scalar
+    | Or Scalar Scalar
 
     | NewArray Size [Scalar]
-    | SeekArrayElement Scalar Scalar
+    | SeekArrayElement Size Scalar Scalar
 
-    | NewPair Scalar Scalar
+    | NewPair (Size, Size) (Scalar, Scalar)
     | SeekPairFirst Scalar
     | SeekPairSecond Scalar
 
     | Dereference Scalar
 
     | Call String [(Size, Scalar)]
+    | ReadInt
+    | ReadChar
     deriving Show
 
 data Scalar

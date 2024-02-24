@@ -2,6 +2,9 @@ module WACC.IR.Generate where
 
 import Control.Arrow
 
+import qualified Data.Map as M
+import           Data.Foldable
+
 import qualified WACC.Semantics.Structure as Semantics
 import qualified WACC.IR.Structure as IR
 
@@ -10,20 +13,21 @@ import           WACC.IR.FlattenExpression (flattenExpression)
 import           WACC.IR.FlattenControlFlow (flattenControlFlow)
 import           WACC.IR.LiveRange (analyseLiveRange)
 
--- db = do
---     raw <- readFile "draft.wacc"
---     let Right (Parsed _ ast _) = parseString Parser.program raw
---     let Ok ast' = checkProgram ast
---     let Program _ functions = flattenControlFlow $ flattenExpression ast'
---     for_ functions $ \(Function name params statements) -> do
---         putStrLn $ "<" ++ name ++ ">" ++ " " ++ show params
---         for_ statements $ \statement -> do
---             print statement
---         putStrLn ""
-
 generateIR :: Semantics.Program -> IR.Program IR.NoControlFlowStatement
 generateIR =
         createDataSegments &&& id
     >>> flattenExpression
     >>> flattenControlFlow
     >>> analyseLiveRange
+
+debug :: IR.Program IR.NoControlFlowStatement -> IO ()
+debug (IR.Program (M.toList -> dataSegment) functions) = do
+    for_ dataSegment $ \(string, number) -> do
+        putStrLn $ show number ++ "\t" ++ show string
+    putStrLn ""
+
+    for_ functions $ \(IR.Function name params statements) -> do
+        putStrLn $ "<" ++ name ++ ">" ++ " " ++ show params
+        for_ statements $ \statement -> do
+            putStrLn $ "    " ++ show statement
+        putStrLn ""

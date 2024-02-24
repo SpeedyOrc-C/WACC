@@ -22,7 +22,7 @@ newtype Block = Block [Statement] deriving (Show, Eq)
 data Statement
     = Declare Type String Expression
     | Assign Type Expression Expression
-    | Read Expression
+    | Read Type Expression
     | Free Expression
     | Return Expression
     | Exit Expression

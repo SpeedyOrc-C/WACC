@@ -273,7 +273,7 @@ instance CheckSemantics Syntax.Statement Statement where
             (destinationType, destination') <- check state destination
 
             if Int == destinationType || Char == destinationType
-                then Ok (Read destination')
+                then Ok (Read destinationType destination')
                 else Log [SemanticError range $ InvalidRead destinationType]
 
         -- Free an array or a pair, this does not include string.

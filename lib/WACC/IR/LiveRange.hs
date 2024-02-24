@@ -49,9 +49,9 @@ free state = \case
           statements
         )
 
-    statement@(GotoIfNot (Variable scalar) _) : ss ->
+    statement@(GotoIfNot variable _) : ss ->
         let
-        toBeFreed = S.singleton scalar S.\\ freed state
+        toBeFreed = reference variable S.\\ freed state
         state' = state {freed = freed state `S.union` toBeFreed}
         (state'', statements) = free state' ss
         in

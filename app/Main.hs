@@ -171,6 +171,6 @@ generateCode path flags ast = do
 
             _ -> []
     let ir = IR.Generate.generateIR ast
-    print ir
-    writeFile (name ++ ".s") (unlines $ macro ++ output)
+    IR.Generate.debug ir
+
     exitSuccess

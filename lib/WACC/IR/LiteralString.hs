@@ -22,14 +22,22 @@ instance HasLiteralStrings Function where
     getLiteralStrings :: Function -> S.Set String
     getLiteralStrings (Function _ _ _ (Block ss)) = getLiteralStrings ss
 
+instance HasLiteralStrings Expression where
+    getLiteralStrings :: Expression -> S.Set String
+    getLiteralStrings = \case
+        LiteralString s -> S.singleton s
+        LiteralArray _ ss -> S.unions $ getLiteralStrings <$> ss
+        LiteralPair _ (a, b) -> getLiteralStrings a `S.union` getLiteralStrings b
+        _ -> S.empty
+
 instance HasLiteralStrings Statement where
     getLiteralStrings :: Statement -> S.Set String
     getLiteralStrings = \case
-        Declare _ _ (LiteralString s) -> S.singleton s
-        Assign _ _ (LiteralString s) -> S.singleton s
-        Return (LiteralString s) -> S.singleton s
-        Print String (LiteralString s) -> S.singleton s
-        PrintLine String (LiteralString s) -> S.singleton s
+        Declare _ _ e -> getLiteralStrings e
+        Assign _ _ e -> getLiteralStrings e
+        Return e -> getLiteralStrings e
+        Print String e -> getLiteralStrings e
+        PrintLine String e -> getLiteralStrings e
         Scope (Block ss') -> getLiteralStrings ss'
         If _ (Block ss') (Block ss'') ->
             getLiteralStrings ss' `S.union` getLiteralStrings ss''
