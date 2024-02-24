@@ -3,8 +3,9 @@ module WACC.IR.FlattenExpression where
 import qualified Data.Map as M
 import qualified Data.Set as S
 import           Data.Maybe
-import           Data.Function
-import           Control.Arrow
+import           Data.Functor.Identity
+import           Control.Monad
+import           Control.Monad.Trans.State.Lazy
 
 import qualified WACC.Semantics.Structure as SM
 import           WACC.IR.Structure
@@ -29,177 +30,135 @@ initialState ds = FlattenerState {
 nextVariable :: FlattenerState -> FlattenerState
 nextVariable state = state { variableCounter = variableCounter state + 1 }
 
-class FlattenExpression a b where
-    flatten :: FlattenerState -> a -> (FlattenerState, b)
+newTemporary :: State FlattenerState Identifier
+newTemporary = do
+    number <- gets variableCounter
+    modify nextVariable
+    return $ Temporary "var" number
 
-instance FlattenExpression SM.Expression (Scalar, [SingleStatement]) where
-    flatten :: FlattenerState
-        -> SM.Expression -> (FlattenerState, (Scalar, [SingleStatement]))
-    flatten state = \case
-        SM.Identifier _ name ->
-            let identifier = lookUp name (mappingStack state)
-            in (state, (Variable identifier, []))
+newVariable :: String -> State FlattenerState Identifier
+newVariable name = do
+    number <- gets variableCounter
+    modify nextVariable
+    return $ Identifier name number
 
-        SM.LiteralBool x -> (state, (Immediate (if x then 1 else 0), []))
-        SM.LiteralInt x -> (state, (Immediate x, []))
-        SM.LiteralString x -> (state, (String (dataSegment state M.! x), []))
+newParameter :: String -> State FlattenerState Identifier
+newParameter name = do
+    number <- gets variableCounter
+    modify nextVariable
+    return $ Parameter name number
 
-        SM.Add a b ->
-            let
-            (state', (a', evaluateLeft)) = flatten state a
-            (state'', (b', evaluateRight)) = flatten state' b
-            tmp = Temporary "var" (variableCounter state'')
-            in
-            ( nextVariable state''
-            , ( Variable tmp
-              , evaluateLeft ++ evaluateRight ++
-                [Assign B4 tmp (Add a' b')]
-              )
-            )
+expressions :: [SM.Expression] -> State FlattenerState ([Scalar], [SingleStatement])
+expressions xs = do
+    (unzip -> (scalars, concat -> evaluate)) <- traverse expression xs
+    return (scalars, evaluate)
 
-        SM.LiteralArray t es ->
-            let
-            (state', (scalars, evaluateElements)) = flatten state es
-            tmp = Temporary "var" (variableCounter state')
-            in
-            ( nextVariable state'
-            , ( Variable tmp
-              , evaluateElements ++
-                [Assign B8 tmp (NewArray (getSize t) scalars)]
-              )
-            )
+expression :: SM.Expression -> State FlattenerState (Scalar, [SingleStatement])
+expression = \case
+    SM.Identifier _ name -> do
+        identifier <- gets $ lookUp name . mappingStack
+        return (Variable identifier, [])
 
-        SM.FunctionCall t f (unzip -> (types, args)) ->
-            let
-            (state', (scalars, evaluateArgs)) = flatten state args
-            tmp = Temporary "var" (variableCounter state')
-            in
-            ( state' { variableCounter = variableCounter state' + 1 }
-            , ( Variable tmp
-              , evaluateArgs ++
-                [Assign (getSize t) tmp (Call f ((getSize <$> types) `zip` scalars))]
-              )
-            )
+    SM.LiteralBool bool ->
+        return (Immediate (if bool then 1 else 0), [])
 
-instance FlattenExpression [SM.Expression] ([Scalar], [SingleStatement]) where
-    flatten ::
-        FlattenerState -> [SM.Expression]
-        -> (FlattenerState, ([Scalar], [SingleStatement]))
-    flatten state = foldr
-        (\expression (state, (allScalars, allStatements)) ->
-            let (state', (scalar, statements)) = flatten state expression
-            in  (state', (scalar:allScalars, statements++allStatements))
-        )
-        (state, ([], []))
+    SM.LiteralInt int ->
+        return (Immediate int, [])
 
-flattenIndirect ::
-    FlattenerState -> SM.Expression
-    -> (FlattenerState, (Scalar, [SingleStatement]))
-flattenIndirect state = \case
-    i@(SM.Identifier {}) -> flatten state i
+    SM.LiteralString str -> do
+        number <- gets $ (M.! str) . dataSegment
+        return (String number, [])
 
-    SM.ArrayElement _ array index ->
-        let
-        (state', (index', evaluateIndex)) = flatten state index
-        (state'', (array', evaluateElementAddress)) = flattenIndirect state' array
-        variable = Temporary "var" (variableCounter state'')
-        in
-        ( nextVariable state''
-        , ( Variable variable
-          , evaluateIndex ++ evaluateElementAddress ++
-            [Assign B8 variable (SeekArrayElement array' index')]
-          )
-        )
+    SM.Add a b -> do
+        (a', evaluateA) <- expression a
+        (b', evaluateB) <- expression b
+        tmp <- newTemporary
+        return (Variable tmp,
+            evaluateA ++ evaluateB ++ [Assign B4 tmp (Add a' b')])
+
+    SM.LiteralArray t xs -> do
+        (scalars, evaluate) <- expressions xs
+        tmp <- newTemporary
+        return (Variable tmp,
+            evaluate ++
+            [Assign B8 tmp (NewArray (getSize t) scalars)])
+
+    SM.FunctionCall t f (unzip -> (ts, args)) -> do
+        (scalars, evaluate) <- expressions args
+        tmp <- newTemporary
+        return (Variable tmp,
+            evaluate ++
+            [Assign (getSize t) tmp (Call f ((getSize <$> ts) `zip` scalars))])
+
+indirectExpression :: SM.Expression -> State FlattenerState (Scalar, [SingleStatement])
+indirectExpression = \case
+    i@(SM.Identifier {}) -> expression i
+
+    SM.ArrayElement _ array index -> do
+        (index', evaluateIndex) <- expression index
+        (array', evaluateElementAddress) <- indirectExpression array
+        tmp <- newTemporary
+        return (Variable tmp,
+            evaluateIndex ++ evaluateElementAddress ++
+            [Assign B8 tmp (SeekArrayElement array' index')])
 
     _ -> error "Semantic check has failed."
 
-instance FlattenExpression SM.Statement [NoExpressionStatement] where
-    flatten ::
-        FlattenerState -> SM.Statement
-        -> (FlattenerState, [NoExpressionStatement])
-    flatten state = \case
-        SM.Declare t name expression ->
-            let
-            (state', (result, evaluation)) = flatten state expression
-            identifier = Identifier name (variableCounter state')
-            in
-            ( nextVariable state' {
-                mappingStack =
-                    M.insert name identifier
-                    (head (mappingStack state)) : tail (mappingStack state)
-            }
-            , map NE evaluation ++
-              [NE $ Assign (getSize t) identifier (Scalar result)]
-            )
+statement :: SM.Statement -> State FlattenerState [NoExpressionStatement]
+statement = \case
+    SM.Declare t name rightValue -> do
+        (result, evaluation) <- expression rightValue
+        identifier <- newVariable name
+        modify $ \s -> s {
+            mappingStack = M.insert name identifier
+                (head (mappingStack s)) : tail (mappingStack s)
+        }
+        return $ map NE evaluation ++
+            [NE $ Assign (getSize t) identifier (Scalar result)]
 
-        SM.Assign t (SM.Identifier _ name) expression ->
-            let
-            variable = lookUp name (mappingStack state)
-            (state', (result, evaluation)) = flatten state expression
-            in
-            ( state'
-            , map NE evaluation ++
-              [NE $ Assign (getSize t) variable (Scalar result)]
-            )
+    SM.Assign t (SM.Identifier _ name) rightValue -> do
+        identifier <- gets $ lookUp name . mappingStack
+        (result, evaluation) <- expression rightValue
+        return $ map NE evaluation ++
+            [NE $ Assign (getSize t) identifier (Scalar result)]
 
-        SM.Assign t left expression ->
-            let
-            (state', (result, evaluateExpression)) = flatten state expression
-            (state'', (Variable address, evaluateAddress)) =
-                flattenIndirect state' left
-            in
-            ( state''
-            , map NE evaluateExpression ++ map NE evaluateAddress ++
-              [NE $ AssignIndirect (getSize t) address (Scalar result)]
-            )
+    SM.Assign t leftValue rightValue -> do
+        (result, evaluateRight) <- expression rightValue
+        (scalar, evaluateLeft) <- indirectExpression leftValue
+        let Variable identifier = scalar
+        return $ map NE evaluateRight ++ map NE evaluateLeft ++
+            [NE $ AssignIndirect (getSize t) identifier (Scalar result)]
 
-        SM.While condition body ->
-            let
-            (state', (condition', evaluateCondition)) = flatten state condition
-            (state'', body') = flatten state' body
-            possibleFreeVariables =
-                S.fromList $ snd <$> concatMap M.toList (mappingStack state')
-            in
-            ( state''
-            , map NE evaluateCondition ++
-              [While condition' body'
-                (reference body' `S.intersection` possibleFreeVariables)]
-            )
+    SM.While condition body -> do
+        (condition', evaluateCondition) <- expression condition
+        body' <- block body
+        possibleFreeVariables <- gets $
+            S.fromList . map snd . concatMap M.toList . mappingStack
+        return $ map NE evaluateCondition ++
+            [While condition' body' (reference body' `S.intersection` possibleFreeVariables)]
 
-        SM.Scope block ->
-            flatten state block &
-                first (\s -> s { mappingStack = tail $ mappingStack s })
+    SM.Scope b -> do
+        b' <- block b
+        modify $ \s -> s { mappingStack = tail $ mappingStack s }
+        return b'
 
-        SM.Return expression ->
-            let
-            (state', (result, evaluateExpression)) = flatten state expression
-            in
-            ( state'
-            , map NE evaluateExpression ++
-              [NE $ Return result]
-            )
+    SM.Return e -> do
+        (result, evaluateExpression) <- expression e
+        return $ map NE evaluateExpression ++
+            [NE $ Return result]
 
-        SM.Print _ expression ->
-            let
-            (state', (result, evaluateExpression)) = flatten state expression
-            in
-            ( state'
-            , map NE evaluateExpression ++
-              [NE $ Print result]
-            )
+    _ -> undefined
 
-instance FlattenExpression [SM.Statement] [NoExpressionStatement] where
-    flatten ::
-        FlattenerState -> [SM.Statement]
-        -> (FlattenerState, [NoExpressionStatement])
-    flatten state = \case
-        [] -> (state, [])
-        statement:statements ->
-            let
-            (state', statement') = flatten state statement
-            (state'', statements'') = flatten state' statements
-            in
-            (state'', statement' ++ statements'')
+statements :: [SM.Statement] -> State FlattenerState [NoExpressionStatement]
+statements xs = concat <$> traverse statement xs
+
+block :: SM.Block -> State FlattenerState [NoExpressionStatement]
+block (SM.Block xs) = do
+    modify $ \s -> s { mappingStack = M.empty : mappingStack s }
+    statements xs
+
+class FlattenExpression a b where
+    flatten :: FlattenerState -> a -> (FlattenerState, b)
 
 class HasReference a where
     reference :: a -> S.Set Identifier
@@ -246,39 +205,39 @@ instance HasReference NoExpressionStatement where
                 , reference elseClause
                 , reference condition]
 
-instance FlattenExpression SM.Block [NoExpressionStatement] where
-    flatten ::
-        FlattenerState -> SM.Block -> (FlattenerState, [NoExpressionStatement])
-    flatten state (SM.Block statements) =
-        let
-        (state', statements') =
-            flatten
-                state { mappingStack = M.empty : mappingStack state }
-                statements
-        in
-        (state', statements')
+function :: SM.Function -> State FlattenerState (Function NoExpressionStatement)
+function (SM.Function _ functionName params@(unzip -> (names, types)) b) = do
+    oldState <- get
 
-flattenFunction ::
-    M.Map String Int -> String -> [(String, SM.Type)] -> SM.Block
-    -> Function NoExpressionStatement
-flattenFunction dataSegment name (unzip -> (names, types)) block =
-    let
-    state = initialState dataSegment
-    state' = state {
-        mappingStack = M.fromList
-            (names `zip` zipWith Parameter names [variableCounter state' ..])
-            : mappingStack state
+    firstParameterNo <- gets variableCounter
+
+    (map fst -> identifiers) <- forM params $ \(name, t) -> do
+        identifier <- newParameter name
+        return (identifier, getSize t)
+
+    modify $ \s -> s {
+        mappingStack = M.fromList (names `zip` identifiers) : mappingStack s
     }
-    (_, body) = flatten state' block
-    in
-    Function
-        name
-        ([variableCounter state' ..] `zip` (getSize <$> types))
-        body
+
+    b' <- block b
+
+    put oldState
+
+    return $ Function
+        functionName
+        ([firstParameterNo..] `zip` map getSize types)
+        b'
+
+functions :: [SM.Function] -> State FlattenerState [Function NoExpressionStatement]
+functions = traverse function
+
+program :: SM.Program -> State FlattenerState (Program NoExpressionStatement)
+program (SM.Program fs main) = do
+    dataSegment <- gets dataSegment
+    let allFunctions = SM.Function SM.Int "main" [] main : S.toList fs
+    functions' <- functions allFunctions
+    return $ Program dataSegment functions'
 
 flattenExpression :: (String `M.Map` Int, SM.Program) -> Program NoExpressionStatement
-flattenExpression (dataSegment, SM.Program functions main) =
-    Program dataSegment $
-        flattenFunction dataSegment "main" [] main
-        : [flattenFunction dataSegment name params block
-            | (SM.Function _ name params block) <- S.toList functions]
+flattenExpression (dataSegment, p) = runIdentity $ evalStateT
+    (program p) (initialState dataSegment)
