@@ -1,8 +1,12 @@
 module WACC.Backend.X64.Structure where
 
-import WACC.IR.Structure
+import Data.String
 
-newtype Program = Program [Instruction] deriving Show
+import WACC.IR.Structure (Size)
+
+newtype Program = Program {
+    dataSegmentsDefinition :: [Instruction]
+} deriving Show
 
 data Instruction
     = Label String
@@ -63,7 +67,7 @@ data Instruction
     | JumpBelowEqual Operand
 
     -- Push next instruction's address and jump to it.
-    | Call Operand
+    | Call Immediate
 
     -- Pop the return address and jump back to it.
     | Return
@@ -72,6 +76,17 @@ data Instruction
     | Leave
 
     | AsciiZero String
+    | Int Int
+    | Global String
+
+    -- Macro directives
+    | IfDefined String
+    | EndIf
+    | Define String String
+
+    -- For layout use only, not compiled.
+    | Comment String
+    | EmptyLine
     deriving (Show)
 
 type Register = (PhysicalRegister, Size)
@@ -83,7 +98,7 @@ data Operand
     | MemoryIndirect {
         offset :: Maybe Immediate,
         base :: Register,
-        index :: Maybe (PhysicalRegister, Int)
+        index :: Maybe (Register, Int)
         }
     deriving (Show)
 
@@ -117,3 +132,7 @@ isCalleeSave :: PhysicalRegister -> Bool
 isCalleeSave = (`elem` calleeSaveRegisters)
 calleeSaveRegisters :: [PhysicalRegister]
 calleeSaveRegisters = [RBX, RBP, R12, R13, R14, R15]
+
+instance IsString Immediate where
+    fromString :: String -> Immediate
+    fromString = ImmediateLabel
