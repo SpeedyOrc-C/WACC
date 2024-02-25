@@ -12,4 +12,4 @@ test:
   stage: test
   script:
     - cabal update
-    - cabal test
+    - cabal test --test-show-details=always
