@@ -48,19 +48,19 @@ data Instruction
     -- Bitwise AND
     | Test Operand Operand
 
-    | Jump Operand
-    | JumpZero Operand
-    | JumpNonZero Operand
-    | JumpNegative Operand
-    | JumpNonNegative Operand
-    | JumpGreater Operand
-    | JumpGreaterEqual Operand
-    | JumpLess Operand
-    | JumpLessEqual Operand
-    | JumpAbove Operand
-    | JumpAboveEqual Operand
-    | JumpBelow Operand
-    | JumpBelowEqual Operand
+    | Jump String
+    | JumpZero String
+    | JumpNonZero String
+    | JumpNegative String
+    | JumpNonNegative String
+    | JumpGreater String
+    | JumpGreaterEqual String
+    | JumpLess String
+    | JumpLessEqual String
+    | JumpAbove String
+    | JumpAboveEqual String
+    | JumpBelow String
+    | JumpBelowEqual String
 
     -- Push next instruction's address and jump to it.
     | Call Operand

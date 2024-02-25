@@ -88,3 +88,10 @@ free mp@MemoryPool{..} ident
                 findIdent (StackSegment _ ident) = True
                 findIdent _ = False
             
+convert :: (IR.NoControlFlowStatement, MemoryPool) -> (Seq Instruction, MemoryPool)
+convert (IR.Label str, memory)
+    = (Sequence.Empty |> Label str, memory)
+convert (IR.Goto str, memory)
+    = (Sequence.Empty |> Jump str, memory)
+convert (IR.FreeVariable ident, memory)
+    = (Sequence.Empty, free memory ident)
