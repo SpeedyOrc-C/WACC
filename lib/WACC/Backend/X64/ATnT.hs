@@ -75,6 +75,8 @@ instance ATnT Instruction where
         Leave -> "leave"
         EmptyLine -> ""
 
+        Add from to -> "add " ++ atnt from ++ ", " ++ atnt to
+
         Int n -> ".int " ++ show n
         Global l -> ".globl " ++ l
         AsciiZero s -> ".asciz " ++ show s

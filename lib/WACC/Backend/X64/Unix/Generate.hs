@@ -113,9 +113,14 @@ scalar = \case
     IR.Immediate n -> return $
         Immediate (ImmediateInt n)
 
-    IR.Variable name -> do
+    IR.Variable identifier@(IR.Temporary {}) -> do
         memoryTable <- gets memoryTable
-        return $ operandFromMemoryLocation $ memoryTable M.! name
+        free identifier
+        return $ operandFromMemoryLocation $ memoryTable M.! identifier
+
+    IR.Variable identifier -> do
+        memoryTable <- gets memoryTable
+        return $ operandFromMemoryLocation $ memoryTable M.! identifier
 
     IR.String n ->
         return $ MemoryIndirect (Just $ ImmediateLabel ("str." ++ show n)) (RIP, B8) Nothing
@@ -125,6 +130,14 @@ expression = \case
     IR.Scalar s -> do
         op <- scalar s
         return (op, [])
+
+    IR.Add a b -> do
+        a' <- scalar a
+        b' <- scalar b
+        return
+            ( Register (RAX, B4)
+            , [ Move a' (Register (RAX, B4))
+              , Add b' (Register (RAX, B4))])
 
 
 singleStatement :: IR.SingleStatement -> State GeneratorState [Instruction]
@@ -139,6 +152,10 @@ singleStatement = \case
 
         case memoryTable M.!? to of
             Just location -> do
+                return $ evaluate ++
+                    [Move op (operandFromMemoryLocation location)]
+            Nothing -> do
+                location <- allocate to size
                 return $ evaluate ++
                     [Move op (operandFromMemoryLocation location)]
 
@@ -166,6 +183,11 @@ instruction = \case
 
     IR.Goto name ->
         return [Jump (Immediate (ImmediateLabel name))]
+
+    IR.FreeVariable _ ->
+        return []
+
+    e -> error $ "Not implemented: " ++ show e
 
 instructions :: [IR.NoControlFlowStatement] -> State GeneratorState [Instruction]
 instructions xs = concat <$> traverse instruction xs
