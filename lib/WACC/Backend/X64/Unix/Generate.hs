@@ -16,6 +16,8 @@ import           WACC.Backend.X64.Structure
 import           WACC.Backend.StackPool
 import Data.Functor
 
+{- This indicates the location of the data. Stored in registers,
+   stored in the stack or stored in the parameter stack. -}
 data MemoryLocation
     = AtRegister Register
     | AtStack Int Size
