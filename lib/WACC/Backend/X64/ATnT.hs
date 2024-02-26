@@ -86,8 +86,14 @@ instance ATnT Instruction where
         Leave -> "leave"
         EmptyLine -> ""
 
+        Not op -> "not " ++ atnt op
         Add from to -> "add " ++ atnt from ++ ", " ++ atnt to
         Subtract from to -> "sub " ++ atnt from ++ ", " ++ atnt to
+
+        Jump l -> "jmp " ++ atnt l
+        JumpZero l -> "jz " ++ atnt l
+
+        Test a b -> "test " ++ atnt a ++ ", " ++ atnt b
 
         Int n -> ".int " ++ show n
         Global l -> ".globl " ++ l
