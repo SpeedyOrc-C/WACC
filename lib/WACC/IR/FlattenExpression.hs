@@ -190,20 +190,22 @@ indirectExpression = \case
             [Assign B8 tmp (SeekPairSecond pair')])
 
     SM.PairFirst _ pair -> do
-        (pair', evaluatePair) <- indirectExpression pair
+        (address, evaluatePair) <- indirectExpression pair
+        value <- newTemporary
         tmp <- newTemporary
-        return (Variable tmp,
+        return (Variable value,
             evaluatePair ++
-            [ Assign B8 tmp (SeekPairFirst pair')
-            , Assign B8 tmp (Dereference (Variable tmp))])
+            [ Assign B8 value (Dereference address)
+            , Assign B8 tmp (SeekPairFirst (Variable value))])
 
     SM.PairSecond _ pair -> do
-        (pair', evaluatePair) <- indirectExpression pair
+        (address, evaluatePair) <- indirectExpression pair
+        value <- newTemporary
         tmp <- newTemporary
         return (Variable tmp,
             evaluatePair ++
-            [ Assign B8 tmp (SeekPairSecond pair')
-            , Assign B8 tmp (Dereference (Variable tmp))])
+            [ Assign B8 value (Dereference address)
+            , Assign B8 tmp (SeekPairSecond (Variable value))])
 
     _ -> error "Semantic check has failed."
 
@@ -219,7 +221,7 @@ statement = \case
         return $ map NE evaluation ++
             [NE $ Assign (getSize t) identifier (Scalar result)]
 
-    SM.Assign t (SM.Identifier _ name) rightValue -> do
+    SM.Assign _ (SM.Identifier t name) rightValue -> do
         identifier <- gets $ lookUp name . mappingStack
         (result, evaluation) <- expression rightValue
         return $ map NE evaluation ++

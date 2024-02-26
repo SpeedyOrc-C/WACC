@@ -258,15 +258,17 @@ instance CheckSemantics Syntax.Statement Statement where
             ((leftType, left'), (rightType, right')) <-
                 (,) <$> check state left <*> check state right
 
-            if leftType == Any && rightType == Any
-                then Log [SemanticError (expressionRange right)
-                            BothSideAnyAssignment]
-                else
-                    if (isLiter right && (leftType <? rightType))
-                            || (leftType <| rightType)
-                        then Ok (Assign leftType left' right')
-                        else Log [SemanticError (expressionRange right) $
-                                IncompatibleAssignment leftType rightType]
+            if leftType == Any && rightType == Any then
+                Log [SemanticError (expressionRange right) BothSideAnyAssignment]
+
+            else if (isLiter right && (leftType <? rightType))
+                    || (leftType <| rightType) then
+                case (leftType, rightType) of
+                    (Any, t) -> Ok (Assign t left' right')
+                    (t, _) -> Ok (Assign t left' right')
+
+            else Log [SemanticError (expressionRange right) $
+                        IncompatibleAssignment leftType rightType]
 
         -- Read an character or an integer.
         Syntax.Read destination range -> do

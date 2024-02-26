@@ -163,6 +163,18 @@ expression = \case
         op <- scalar s
         return (op, Sq.empty)
 
+    IR.Not a -> do
+        a' <- scalar a
+        return (Register (RAX, B4), Sq.fromList
+            [ Move a' (Register (RAX, B4))
+            , Not (Register (RAX, B4))])
+
+    IR.Negate a -> do
+        a' <- scalar a
+        return (Register (RAX, B4), Sq.fromList
+            [ Move a' (Register (RAX, B4))
+            , Negate (Register (RAX, B4))])
+
     IR.Add a b -> do
         a' <- scalar a
         b' <- scalar b
@@ -171,6 +183,42 @@ expression = \case
             , Sq.fromList
               [ Move a' (Register (RAX, B4))
               , Add b' (Register (RAX, B4))])
+
+    IR.Subtract a b -> do
+        a' <- scalar a
+        b' <- scalar b
+        return
+            ( Register (RAX, B4)
+            , Sq.fromList
+              [ Move a' (Register (RAX, B4))
+              , Subtract b' (Register (RAX, B4))])
+
+    IR.Multiply a b -> do
+        a' <- scalar a
+        b' <- scalar b
+        return
+            ( Register (RAX, B4)
+            , Sq.fromList
+              [ Move a' (Register (RAX, B4))
+              , Multiply b' (Register (RAX, B4))])
+
+    IR.Divide a b -> do
+        a' <- scalar a
+        b' <- scalar b
+        return ( Register (RAX, B4), Sq.fromList
+            [ Move a' (Register (RAX, B4))
+            , Move (Immediate $ ImmediateInt 0) (Register (RDX, B4))
+            , DivideI b'
+            ])
+
+    IR.Remainder a b -> do
+        a' <- scalar a
+        b' <- scalar b
+        return ( Register (RDX, B4), Sq.fromList
+            [ Move a' (Register (RAX, B4))
+            , Move (Immediate $ ImmediateInt 0) (Register (RDX, B4))
+            , DivideI b'
+            ])
 
     IR.Call size name scalarsWithSize@(unzip -> (sizes, scalars)) -> do
         memoryTable <- gets memoryTable
@@ -275,7 +323,7 @@ singleStatement = \case
         (op, evaluate) <- expression from
 
         case memoryTable M.!? to of
-            Just location -> do
+            Just location ->
                 return $ evaluate ><
                     move size op (operandFromMemoryLocation location)
             Nothing -> do
@@ -283,12 +331,14 @@ singleStatement = \case
                 return $ evaluate ><
                     move size op (operandFromMemoryLocation location)
 
-    -- IR.AssignIndirect size to from -> do
-    --     memoryTable <- gets memoryTable
-    --     (op, evaluate) <- expression from
+    IR.AssignIndirect size to from -> do
+        memoryTable <- gets memoryTable
+        (op, evaluate) <- expression from
 
-    --     case memoryTable M.!? to of
-
+        case memoryTable M.! to of
+            AtRegister reg ->
+                return $ evaluate ><
+                    move size op (MemoryIndirect Nothing reg Nothing)
 
     IR.PrintString s -> do
         op <- scalar s
@@ -320,6 +370,12 @@ instruction = \case
 
     IR.Goto name ->
         return $ Sq.singleton $ Jump (ImmediateLabel name)
+
+    IR.GotoIfNot s name -> do
+        op <- scalar s
+        return $ Sq.fromList
+            [ Move op (Register (RAX, B1))
+            , Test (Immediate $ ImmediateLabel name) (Immediate $ ImmediateInt 1)]
 
     IR.FreeVariable identifier -> do
         free identifier

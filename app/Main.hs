@@ -158,7 +158,7 @@ generateCode path flags ast = do
     let asm = Unix.Generate.generateX64 ir
     let output = ATnT.atnt asm
 
-    -- traverse_ print asm
+    IR.Generate.debug ir
 
     writeFile (name ++ ".S") output
 
