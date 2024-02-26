@@ -2,7 +2,10 @@ module WACC.Backend.X64.Unix.Generate where
 
 import qualified Data.Map as M
 import qualified Data.Set as S
+import qualified Data.Sequence as Sq
+import Data.Sequence((|>), (<|), (><), Seq((:|>)))
 import           Data.List
+import           Data.Foldable
 import           Data.Function
 import           Data.Traversable
 import           Control.Monad.Trans.State.Lazy
@@ -11,6 +14,7 @@ import qualified WACC.IR.Structure as IR
 import           WACC.IR.Structure (Size(..), Identifier)
 import           WACC.Backend.X64.Structure
 import           WACC.Backend.StackPool
+import Data.Functor
 
 data MemoryLocation
     = AtRegister Register
@@ -39,6 +43,8 @@ parameter n size = case n of
     6 -> Register (R9, size)
     5 -> Register (R8, size)
     _ -> error $ "Cannot use parameter " ++ show n
+
+parameterList = [RDI, RSI, RDX, RCX, R9, R8]
 
 data GeneratorState = GeneratorState {
     memoryTable :: M.Map Identifier MemoryLocation,
@@ -85,7 +91,7 @@ free name = do
     registerPool <- gets registerPool
 
     case memoryTable M.! name of
-        AtRegister reg@(physicalRegister, _) -> do
+        AtRegister (physicalRegister, _) -> do
             modify $ \s -> s {
                 registerPool = S.delete physicalRegister registerPool,
                 memoryTable = M.delete name memoryTable
@@ -125,26 +131,144 @@ scalar = \case
     IR.String n ->
         return $ MemoryIndirect (Just $ ImmediateLabel ("str." ++ show n)) (RIP, B8) Nothing
 
-expression :: IR.Expression -> State GeneratorState (Operand, [Instruction])
+usedCallerSaveRegisters :: State GeneratorState ([PhysicalRegister], [PhysicalRegister])
+usedCallerSaveRegisters = do
+    registerPool <- gets registerPool
+    let used = registerPool `S.intersection` callerSaveRegisters
+    let usedParam = used `S.intersection` S.fromList parameterList
+
+    let usedParamRegs = S.toList usedParam
+    let usedNonParamRegs = S.toList (used S.\\ usedParam)
+
+    return (usedParamRegs, usedNonParamRegs)
+
+pushRegisters :: [PhysicalRegister] -> (Seq Instruction, Seq Instruction)
+pushRegisters pushed =
+    ( Sq.fromList [Push (Register (x, B8)) | x <- pushed]
+    , Sq.fromList [Pop (Register (x, B8)) | x <- reverse pushed])
+
+moveESP :: Int -> (Seq Instruction, Seq Instruction)
+moveESP x
+    | x <= 0 = (Sq.empty, Sq.empty)
+    | otherwise = (
+        Sq.singleton (Subtract
+            (Immediate $ ImmediateInt x)
+            (Register (RSP, B8))),
+        Sq.singleton (Add
+            (Immediate $ ImmediateInt x)
+            (Register (RSP, B8))))
+expression :: IR.Expression -> State GeneratorState (Operand, Seq Instruction)
 expression = \case
     IR.Scalar s -> do
         op <- scalar s
-        return (op, [])
+        return (op, Sq.empty)
 
     IR.Add a b -> do
         a' <- scalar a
         b' <- scalar b
         return
             ( Register (RAX, B4)
-            , [ Move a' (Register (RAX, B4))
+            , Sq.fromList
+              [ Move a' (Register (RAX, B4))
               , Add b' (Register (RAX, B4))])
 
+    IR.Call size name scalarsWithSize@(unzip -> (sizes, scalars)) -> do
+        memoryTable <- gets memoryTable
+        (usedParamRegs, usedNonParamRegs) <- usedCallerSaveRegisters
 
-singleStatement :: IR.SingleStatement -> State GeneratorState [Instruction]
+        let (_, unzip -> (stackScalarsSizes, stackScalars)) =
+                splitAt 6 scalarsWithSize
+
+        let pushedParamsOver6Size = sum (IR.sizeToInt <$> stackScalarsSizes)
+
+        let pushedOffset =
+                8 * (length usedParamRegs + length usedNonParamRegs)
+                + pushedParamsOver6Size
+
+        let usedParamRegsWithIndices = zip usedParamRegs
+                [pushedParamsOver6Size, pushedParamsOver6Size + 8..]
+
+        scalars' <- for scalars $ \case
+            IR.Variable identifier -> return $
+                case memoryTable M.! identifier of
+                    AtStack offset _ ->
+                        MemoryIndirect
+                            (Just $ ImmediateInt (offset + pushedOffset))
+                            (RSP, B8)
+                            Nothing
+
+                    AtRegister (reg, size) ->
+                        case lookup reg usedParamRegsWithIndices of
+                            Nothing -> Register (reg, size)
+                            Just offset ->
+                                MemoryIndirect
+                                    (Just $ ImmediateInt offset)
+                                    (RSP, B8)
+                                    Nothing
+
+                    location -> operandFromMemoryLocation location
+
+            s -> scalar s
+
+        let (operandsToBeMoved, operandsToBePushed) = splitAt 6 scalars'
+
+        let allToBePushed =
+                usedNonParamRegs ++
+                reverse usedParamRegs
+
+        let (pushes, pops) = pushRegisters allToBePushed
+            (minuses, adds) = moveESP pushedParamsOver6Size
+            assignParameter' :: Int -> [(Size, Operand)] -> Seq Instruction
+            assignParameter' _ [] = Sq.empty
+            assignParameter' offset ((size, op):ops) =
+                move size op
+                    (MemoryIndirect
+                        (Just (ImmediateInt offset'))
+                        (RSP, B8)
+                        Nothing) ><
+                assignParameter' offset' ops
+                where
+                    offset' = offset - IR.sizeToInt size
+
+        let assignInstructions :: Seq Instruction
+            assignInstructions =
+                asum (paramList <&> \(i, (size, op)) ->
+                    move size op (parameter i size)) ><
+                assignParameter' pushedParamsOver6Size paramStack
+                where
+                    (paramReg, paramStack) = splitAt 6 (zip sizes scalars')
+                    paramList = zip [1..6] paramReg
+
+        return
+            (Register (RAX, size),
+            pushes ><
+            minuses ><
+            (assignInstructions |>
+            Call (ImmediateLabel name)) ><
+            adds ><
+            pops
+            )
+
+    _ -> undefined
+
+singleStatement :: IR.SingleStatement -> State GeneratorState (Seq Instruction)
 singleStatement = \case
     IR.Exit s -> do
         op <- scalar s
-        return [Move op (parameter 1 B4), Call "exit"]
+        return $ Sq.fromList [Move op (parameter 1 B4), Call "exit"]
+
+    IR.Assign size to from@(IR.Scalar (IR.String {})) -> do
+        memoryTable <- gets memoryTable
+        (op, evaluate) <- expression from
+
+        case memoryTable M.!? to of
+            Just location -> do
+                return $ evaluate ><
+                    move B8 op (operandFromMemoryLocation location)
+            Nothing -> do
+                location <- allocate to size
+                return $ evaluate ><
+                    move B8 op (operandFromMemoryLocation location)
 
     IR.Assign size to from -> do
         memoryTable <- gets memoryTable
@@ -152,47 +276,65 @@ singleStatement = \case
 
         case memoryTable M.!? to of
             Just location -> do
-                return $ evaluate ++
-                    [Move op (operandFromMemoryLocation location)]
+                return $ evaluate ><
+                    move size op (operandFromMemoryLocation location)
             Nothing -> do
                 location <- allocate to size
-                return $ evaluate ++
-                    [Move op (operandFromMemoryLocation location)]
+                return $ evaluate ><
+                    move size op (operandFromMemoryLocation location)
+
+    -- IR.AssignIndirect size to from -> do
+    --     memoryTable <- gets memoryTable
+    --     (op, evaluate) <- expression from
+
+    --     case memoryTable M.!? to of
+
 
     IR.PrintString s -> do
         op <- scalar s
         registerPool <- gets registerPool
         return $
             if RDI `elem` S.elems registerPool then
+                Sq.fromList
                 [ Push (Register (RDI, B8))
                 , LoadAddress op (parameter 1 B8)
                 , Call "print_string"
                 , Pop (Register (RDI, B8))]
             else
+                Sq.fromList
                 [ LoadAddress op (parameter 1 B8)
                 , Call "print_string"]
 
+    IR.Return s -> do
+        op <- scalar s
+        return $ Sq.fromList [Move op (Register (RAX, B8)), Leave, Return]
+
     e -> error $ "Not implemented: " ++ show e
 
-instruction :: IR.NoControlFlowStatement -> State GeneratorState [Instruction]
+instruction :: IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
 instruction = \case
     IR.NCF statement -> singleStatement statement
 
     IR.Label name ->
-        return [Label name]
+        return $ Sq.singleton $ Label name
 
     IR.Goto name ->
-        return [Jump (Immediate (ImmediateLabel name))]
+        return $ Sq.singleton $ Jump (ImmediateLabel name)
 
-    IR.FreeVariable _ ->
-        return []
+    IR.FreeVariable identifier -> do
+        free identifier
+        return Sq.empty
+
+    IR.WhileReference identifiers -> do
+        traverse_ free (S.toList identifiers)
+        return Sq.empty
 
     e -> error $ "Not implemented: " ++ show e
 
-instructions :: [IR.NoControlFlowStatement] -> State GeneratorState [Instruction]
-instructions xs = concat <$> traverse instruction xs
+instructions :: [IR.NoControlFlowStatement] -> State GeneratorState (Seq Instruction)
+instructions = fmap asum . traverse instruction
 
-function :: IR.Function IR.NoControlFlowStatement -> State GeneratorState [Instruction]
+function :: IR.Function IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
 function (IR.Function name parameters statements) = do
     oldState <- get
 
@@ -201,17 +343,20 @@ function (IR.Function name parameters statements) = do
     put oldState
 
     return $
+        (Sq.fromList
         [ Label name
         , Push (Register (RBP, B8))
-        , Move (Register (RSP, B8)) (Register (RBP, B8))] ++
+        , Move (Register (RSP, B8)) (Register (RBP, B8))] ><
+        ss) ><
+        Sq.fromList (if name == "main" then [Leave, Return] else [])
 
-        ss ++
+functions :: [IR.Function IR.NoControlFlowStatement] -> State GeneratorState (Seq Instruction)
+functions = fmap asum . traverse function
 
-        [ Leave
-        , Return]
-
-macro :: [Instruction]
-macro = [
+macro :: Seq Instruction
+macro =
+    Sq.fromList
+    [
     IfDefined "__APPLE__",
         Define "fflush" "_fflush",
         Define "write"  "_write",
@@ -244,8 +389,9 @@ print_string:
     leave
     ret
 -}
-innerPrintString :: [Instruction]
-innerPrintString = [
+innerPrintString :: Seq Instruction
+innerPrintString = Sq.fromList
+    [
     Label "print_string",
     Push (Register (RBP, B8)),
     Move (Register (RSP, B8)) (Register (RBP, B8)),
@@ -260,21 +406,22 @@ innerPrintString = [
     Return
     ]
 
-program :: IR.Program IR.NoControlFlowStatement -> State GeneratorState [Instruction]
-program (IR.Program dataSegment functions) = do
-    functions' <- traverse function functions
+program :: IR.Program IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
+program (IR.Program dataSegment fs) = do
+    functions' <- functions fs
 
     dataSegment' <-
-        for (M.toList dataSegment) $ \(name, number) -> do
-            return
+        for (Sq.fromList $ M.toList dataSegment) $ \(name, number) -> do
+            return $ Sq.fromList
                 [ Label ("str." ++ show number)
                 , Int (length name + 1)
                 , AsciiZero name]
 
-    return $
-        macro ++ [EmptyLine] ++
-        intercalate [EmptyLine] (functions' ++ [innerPrintString]) ++ [EmptyLine] ++
-        concat dataSegment'
+    return
+        $  (macro |> EmptyLine)
+        >< (functions' |> EmptyLine)
+        >< (innerPrintString |> EmptyLine)
+        >< asum dataSegment'
 
-generateX64 :: IR.Program IR.NoControlFlowStatement -> [Instruction]
+generateX64 :: IR.Program IR.NoControlFlowStatement -> Seq Instruction
 generateX64 p = evalState (program p) (GeneratorState M.empty S.empty [])

@@ -142,7 +142,7 @@ expression = \case
         tmp <- newTemporary
         return (Variable tmp,
             evaluate ++
-            [Assign (getSize t) tmp (Call f ((getSize <$> ts) `zip` scalars))])
+            [Assign (getSize t) tmp (Call (getSize t) f ((getSize <$> ts) `zip` scalars))])
     where
     unary :: Size -> (Scalar -> Expression) -> SM.Expression
                 -> State FlattenerState (Scalar, [SingleStatement])
@@ -175,19 +175,35 @@ indirectExpression = \case
             evaluateIndex ++ evaluateElementAddress ++
             [Assign B8 tmp (SeekArrayElement (getSize t) array' index')])
 
-    SM.PairFirst _ pair -> do
+    SM.PairFirst _ pair@(SM.Identifier {}) -> do
         (pair', evaluatePair) <- indirectExpression pair
         tmp <- newTemporary
         return (Variable tmp,
             evaluatePair ++
             [Assign B8 tmp (SeekPairFirst pair')])
 
-    SM.PairSecond _ pair -> do
+    SM.PairSecond _ pair@(SM.Identifier {}) -> do
         (pair', evaluatePair) <- indirectExpression pair
         tmp <- newTemporary
         return (Variable tmp,
             evaluatePair ++
             [Assign B8 tmp (SeekPairSecond pair')])
+
+    SM.PairFirst _ pair -> do
+        (pair', evaluatePair) <- indirectExpression pair
+        tmp <- newTemporary
+        return (Variable tmp,
+            evaluatePair ++
+            [ Assign B8 tmp (SeekPairFirst pair')
+            , Assign B8 tmp (Dereference (Variable tmp))])
+
+    SM.PairSecond _ pair -> do
+        (pair', evaluatePair) <- indirectExpression pair
+        tmp <- newTemporary
+        return (Variable tmp,
+            evaluatePair ++
+            [ Assign B8 tmp (SeekPairSecond pair')
+            , Assign B8 tmp (Dereference (Variable tmp))])
 
     _ -> error "Semantic check has failed."
 
@@ -348,7 +364,7 @@ instance HasReference Expression where
 
         Dereference s -> reference s
 
-        Call _ args -> reference $ snd <$> args
+        Call _ _ args -> reference $ snd <$> args
         ReadInt -> S.empty
         ReadChar -> S.empty
 

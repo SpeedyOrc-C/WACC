@@ -38,17 +38,6 @@ free state = \case
           statement : statements
         )
 
-    WhileReference refs : ss ->
-        let
-        toBeFreed = refs S.\\ freed state
-        state' = state {freed = freed state `S.union` toBeFreed}
-        (state'', statements) = free state' ss
-        in
-        ( state''
-        , [FreeVariable var | var <- S.toList toBeFreed] ++
-          statements
-        )
-
     statement@(GotoIfNot variable _) : ss ->
         let
         toBeFreed = reference variable S.\\ freed state
@@ -62,7 +51,6 @@ free state = \case
 
     s@(Label {}) : ss -> second (s :) (free state ss)
     s@(Goto {}) : ss -> second (s :) (free state ss)
-    s@(GotoIfNot {}) : ss -> second (s :) (free state ss)
 
     _:ss -> free state ss
 
