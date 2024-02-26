@@ -7,10 +7,13 @@ import qualified Data.Sequence as Sq
 import Data.Sequence (Seq)
 import WACC.IR.Structure (Size(..))
 
+{- A program is made up of a list of instructions. -}
 newtype Program = Program {
     dataSegmentsDefinition :: [Instruction]
 } deriving Show
 
+{- This is a function to generate move instructions 
+   between two operands, handling special cases. -}
 move :: Size -> Operand -> Operand -> Seq Instruction
 move _ from@(Register _) to = return $ Move from to
 move _ from to@(Register _) = return $ Move from to
@@ -55,19 +58,20 @@ data Instruction
     | ShiftRight Int Operand
     | ShiftRightArithmetic Int Operand
 
-    -- RDX:RAX = RAX * Operand
+    {- RDX:RAX = RAX * Operand -} 
     | MultiplyFullI Operand
     | MultiplyFullU Operand
 
-    -- (RAX, RDX) = (RDX:RAX / Operand, RDX:RAX % Operand)
+    {- (RAX, RDX) = (RDX:RAX / Operand, RDX:RAX % Operand) -}
     | DivideI Operand
     | DivideU Operand
 
-    -- Operand 2 - Operand 1
+    {- Operand 2 - Operand 1 -}
     | Compare Operand Operand
-    -- Bitwise AND
+    {- Bitwise AND -}
     | Test Operand Operand
 
+    {- Different kinds of Jump instructions. -}
     | Jump Immediate
     | JumpZero Immediate
     | JumpNonZero Immediate
@@ -82,31 +86,36 @@ data Instruction
     | JumpBelow Immediate
     | JumpBelowEqual Immediate
 
-    -- Push next instruction's address and jump to it.
+    {- Push next instruction's address and jump to it. -}
     | Call Immediate
 
-    -- Pop the return address and jump back to it.
+    {- Pop the return address and jump back to it. -}
     | Return
 
-    -- RSP = RBP; RBP = pop()
+    {- RSP = RBP; RBP = pop() -}
     | Leave
 
+    {- Null-terminated ASCII string. -}
     | AsciiZero String
+
     | Int Int
     | Global String
 
-    -- Macro directives
+    {- Macro directives -}
     | IfDefined String
     | EndIf
     | Define String String
 
-    -- For layout use only, not compiled.
+    {- For layout use only, not compiled. -}
     | Comment String
     | EmptyLine
     deriving (Show)
 
+{- Representation of registers and their sizes. -}
 type Register = (PhysicalRegister, Size)
 
+{- Operand types for instructions, it can be an immediate value,
+   a register, or a memory address. -}
 data Operand
     = Immediate Immediate
     | Register Register
@@ -118,6 +127,7 @@ data Operand
         }
     deriving (Show)
 
+{- Immediate values can be integers, characters, or labels. -}
 data Immediate
     = ImmediateInt Int
     | ImmediateChar Char
@@ -139,18 +149,21 @@ data PhysicalRegister
     | RIP
     deriving (Enum, Eq, Ord, Show)
 
+{- Check if a register is caller-save. -}
 isCallerSave :: PhysicalRegister -> Bool
 isCallerSave = (`elem` callerSaveRegisters)
 callerSaveRegisters :: S.Set PhysicalRegister
 callerSaveRegisters = S.fromList
     [RAX, RCX, RDX, RDI, RSI, RSP, R8, R9, R10, R11]
 
+{- Check if a register is callee-save. -}
 isCalleeSave :: PhysicalRegister -> Bool
 isCalleeSave = (`elem` calleeSaveRegisters)
 calleeSaveRegisters :: S.Set PhysicalRegister
 calleeSaveRegisters = S.fromList
     [RBX, RBP, R12, R13, R14, R15]
 
+{- Enables using string literals as immediate labels in the assembly code. -}
 instance IsString Immediate where
     fromString :: String -> Immediate
     fromString = ImmediateLabel
