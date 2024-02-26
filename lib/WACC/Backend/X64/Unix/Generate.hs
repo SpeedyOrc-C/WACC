@@ -44,7 +44,8 @@ parameter n size = case n of
     5 -> (R8, size)
     _ -> error $ "Cannot use parameter " ++ show n
 
-parameterList = [RDI, RSI, RDX, RCX, R9, R8]
+parameterList :: [PhysicalRegister]
+parameterList = [RDI, RSI, RDX, RCX, R8, R9]
 
 data GeneratorState = GeneratorState {
     memoryTable :: M.Map Identifier MemoryLocation,
@@ -171,6 +172,36 @@ expression = \case
             , Sq.fromList
               [ Move a' (Register (RAX, B4))
               , Add b' (Register (RAX, B4))])
+    IR.NewPair (fstSize, sndSize) (a, b) -> do
+        a' <- scalar a
+        b' <- scalar b
+        (operand, address) <- expression (IR.Call B8 "_malloc" [(B4, IR.Immediate 16)])
+        return(
+            Register (RAX, B8)
+            , address >< move B8 (Register (RAX, B8)) (Register (RDX, B8)) >< 
+            move fstSize a' (MemoryIndirect Nothing (RDX, B8) Nothing) ><
+            move sndSize b' (MemoryIndirect (Just (ImmediateInt 8)) (RDX, B8) Nothing)
+            )
+
+    IR.NewArray size scalars -> do
+        scalars' <- traverse scalar scalars
+        let len = length scalars
+        (operand, address) <- expression (IR.Call B8 "_malloc" [(B4, IR.Immediate (4 + IR.sizeToInt size * length scalars'))])
+        return(
+            Register (RAX, B8)
+            , ((Comment (show len ++ " element array") <| address) |> Add (Immediate (ImmediateInt 4)) (Register (RAX, B8)))>< 
+            move B8 (Register (RAX, B8)) (Register (RDX, B8)) ><
+            move size (Immediate (ImmediateInt (length scalars))) (MemoryIndirect
+                        (Just (ImmediateInt (-4))) 
+                        (RDX, B8)
+                        Nothing) ><
+            asum
+                [move size scalar' (MemoryIndirect
+                        (Just (ImmediateInt (IR.sizeToInt size * i))) 
+                        (RDX, B8)
+                        Nothing) 
+                    |(scalar', i) <- zip scalars' [0..]]
+            >< move B8 (Register (RDX, B8)) (Register (RAX, B8)))
 
     IR.Call size name scalarsWithSize@(unzip -> (sizes, scalars)) -> do
         memoryTable <- gets memoryTable
@@ -209,8 +240,6 @@ expression = \case
                     location -> operandFromMemoryLocation location
 
             s -> scalar s
-
-        let (operandsToBeMoved, operandsToBePushed) = splitAt 6 scalars'
 
         let allToBePushed =
                 usedNonParamRegs ++
