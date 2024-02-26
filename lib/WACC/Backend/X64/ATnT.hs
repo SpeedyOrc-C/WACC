@@ -2,6 +2,8 @@ module WACC.Backend.X64.ATnT where
 
 import WACC.Backend.X64.Structure
 import WACC.IR.Structure (Size(..))
+import qualified Data.Sequence as Sq
+import Data.Foldable (Foldable(toList))
 
 class ATnT a where
     atnt :: a -> String
@@ -59,6 +61,13 @@ ident = \case
     Global {} -> ""
     _ -> "    "
 
+sizeSuffix :: Size -> String
+sizeSuffix = \case
+    B1 -> "b"
+    B2 -> "w"
+    B4 -> "l"
+    B8 -> "q"
+
 instance ATnT Instruction where
     atnt s = ident s ++ case s of
         Label l -> l ++ ":"
@@ -67,6 +76,8 @@ instance ATnT Instruction where
         Define l s -> "#define " ++ l ++ " " ++ s
 
         Move from to -> "mov " ++ atnt from ++ ", " ++ atnt to
+        MoveSize size from to -> "mov" ++ sizeSuffix size ++ " " ++ atnt from ++ ", " ++ atnt to
+
         LoadAddress from to -> "lea " ++ atnt from ++ ", " ++ atnt to
         Push op -> "push " ++ atnt op
         Pop op -> "pop " ++ atnt op
@@ -76,11 +87,16 @@ instance ATnT Instruction where
         EmptyLine -> ""
 
         Add from to -> "add " ++ atnt from ++ ", " ++ atnt to
+        Subtract from to -> "sub " ++ atnt from ++ ", " ++ atnt to
 
         Int n -> ".int " ++ show n
         Global l -> ".globl " ++ l
         AsciiZero s -> ".asciz " ++ show s
 
+        e -> error $ "ATnT: " ++ show e
+
+instance ATnT (Sq.Seq Instruction) where
+    atnt = unlines . map atnt . toList
 
 generateFile :: ATnT a => [a] -> String
 generateFile = unlines . map atnt

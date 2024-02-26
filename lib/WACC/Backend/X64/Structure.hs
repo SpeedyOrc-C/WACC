@@ -2,11 +2,24 @@ module WACC.Backend.X64.Structure where
 
 import Data.String
 
-import WACC.IR.Structure (Size)
+import qualified Data.Set as S
+import qualified Data.Sequence as Sq
+import Data.Sequence (Seq)
+import WACC.IR.Structure (Size(..))
 
 newtype Program = Program {
     dataSegmentsDefinition :: [Instruction]
 } deriving Show
+
+move :: Size -> Operand -> Operand -> Seq Instruction
+move _ from@(Register _) to = return $ Move from to
+move _ from to@(Register _) = return $ Move from to
+move _ from@(MemoryIndirect (Just (ImmediateLabel {})) (RIP, B8) Nothing) to =
+    return $ LoadAddress from to
+move size from@(MemoryIndirect {}) to@(MemoryIndirect {}) =
+    Sq.fromList [ Move from (Register (RAX, size))
+    , Move (Register (RAX, size)) to]
+move size from to = return $ MoveSize size from to
 
 data Instruction
     = Label String
@@ -14,6 +27,9 @@ data Instruction
     | Move Operand Operand
     | MoveSign Operand Operand
     | MoveZero Operand Operand
+    | MoveSize Size Operand Operand
+    | MoveSignSize Size Operand Operand
+    | MoveZeroSize Size Operand Operand
 
     | Push Operand
     | Pop Operand
@@ -52,19 +68,19 @@ data Instruction
     -- Bitwise AND
     | Test Operand Operand
 
-    | Jump Operand
-    | JumpZero Operand
-    | JumpNonZero Operand
-    | JumpNegative Operand
-    | JumpNonNegative Operand
-    | JumpGreater Operand
-    | JumpGreaterEqual Operand
-    | JumpLess Operand
-    | JumpLessEqual Operand
-    | JumpAbove Operand
-    | JumpAboveEqual Operand
-    | JumpBelow Operand
-    | JumpBelowEqual Operand
+    | Jump Immediate
+    | JumpZero Immediate
+    | JumpNonZero Immediate
+    | JumpNegative Immediate
+    | JumpNonNegative Immediate
+    | JumpGreater Immediate
+    | JumpGreaterEqual Immediate
+    | JumpLess Immediate
+    | JumpLessEqual Immediate
+    | JumpAbove Immediate
+    | JumpAboveEqual Immediate
+    | JumpBelow Immediate
+    | JumpBelowEqual Immediate
 
     -- Push next instruction's address and jump to it.
     | Call Immediate
@@ -125,13 +141,15 @@ data PhysicalRegister
 
 isCallerSave :: PhysicalRegister -> Bool
 isCallerSave = (`elem` callerSaveRegisters)
-callerSaveRegisters :: [PhysicalRegister]
-callerSaveRegisters = [RAX, RCX, RDX, RDI, RSI, RSP, R8, R9, R10, R11]
+callerSaveRegisters :: S.Set PhysicalRegister
+callerSaveRegisters = S.fromList
+    [RAX, RCX, RDX, RDI, RSI, RSP, R8, R9, R10, R11]
 
 isCalleeSave :: PhysicalRegister -> Bool
 isCalleeSave = (`elem` calleeSaveRegisters)
-calleeSaveRegisters :: [PhysicalRegister]
-calleeSaveRegisters = [RBX, RBP, R12, R13, R14, R15]
+calleeSaveRegisters :: S.Set PhysicalRegister
+calleeSaveRegisters = S.fromList
+    [RBX, RBP, R12, R13, R14, R15]
 
 instance IsString Immediate where
     fromString :: String -> Immediate
