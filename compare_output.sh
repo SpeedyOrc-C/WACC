@@ -12,12 +12,10 @@ for file in $(find "$directory" -type f); do
         file_content=$(cat $file)
         expected_output=$(echo "$file_content" | sed -n '/Output:/,/Program:/p' | sed '/Output:/d; /Program:/d' | sed -n '/Exit:/q;p' | sed 's/^# //g' | sed 's/^#//g')
 
-        echo "Compiling..."
-        cabal run wacc25 -- "$file" --no-text-deco
-        echo
-
-        if [ $? -eq 0 ]; then
-            echo "Executing..."
+        echo "Compiling...\n"
+        if cabal run wacc25 -- "$file" --no-text-deco; then
+            echo "\nCompilation of $filename succeeded!"
+            echo "\nExecuting..."
             
             if gcc -o "$exec_name" -z noexecstack "$exec_name.S"; then
                 echo "\nExecution succeeded!"
@@ -35,7 +33,7 @@ for file in $(find "$directory" -type f); do
                 echo "\nExecution failed!"
             fi
         else
-            echo "compilation of $filename failed"
+            echo "\nCompilation of $filename failed!"
         fi
 
         echo "\n\n"
