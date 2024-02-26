@@ -24,6 +24,7 @@ data MemoryLocation
     | AtParameterStack Int Size
     deriving (Show)
 
+{- Function to rank physical registers based on priority. -}
 rankRegister :: PhysicalRegister -> Int
 rankRegister = \case
     RBX -> 1; R12 -> 2;  R13 -> 3;  R14 -> 4
@@ -32,6 +33,7 @@ rankRegister = \case
 
     r -> error $ "Cannot use register " ++ show r
 
+{- A set of all available physical registers. -}
 registers :: S.Set PhysicalRegister
 registers = S.fromList
     [RBX, R12, R13, R14, R15, R10, R11, R9, R8, RCX, RSI, RDI]
