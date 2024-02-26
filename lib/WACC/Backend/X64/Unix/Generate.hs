@@ -34,14 +34,14 @@ registers :: S.Set PhysicalRegister
 registers = S.fromList
     [RBX, R12, R13, R14, R15, R10, R11, R9, R8, RCX, RSI, RDI]
 
-parameter :: Int -> Size -> Operand
+parameter :: Int -> Size -> Register
 parameter n size = case n of
-    1 -> Register (RDI, size)
-    2 -> Register (RSI, size)
-    3 -> Register (RDX, size)
-    4 -> Register (RCX, size)
-    6 -> Register (R9, size)
-    5 -> Register (R8, size)
+    1 -> (RDI, size)
+    2 -> (RSI, size)
+    3 -> (RDX, size)
+    4 -> (RCX, size)
+    6 -> (R9, size)
+    5 -> (R8, size)
     _ -> error $ "Cannot use parameter " ++ show n
 
 parameterList = [RDI, RSI, RDX, RCX, R9, R8]
@@ -233,7 +233,7 @@ expression = \case
         let assignInstructions :: Seq Instruction
             assignInstructions =
                 asum (paramList <&> \(i, (size, op)) ->
-                    move size op (parameter i size)) ><
+                    move size op (Register (parameter i size))) ><
                 assignParameter' pushedParamsOver6Size paramStack
                 where
                     (paramReg, paramStack) = splitAt 6 (zip sizes scalars')
@@ -255,7 +255,7 @@ singleStatement :: IR.SingleStatement -> State GeneratorState (Seq Instruction)
 singleStatement = \case
     IR.Exit s -> do
         op <- scalar s
-        return $ Sq.fromList [Move op (parameter 1 B4), Call "exit"]
+        return $ Sq.fromList [Move op (Register (parameter 1 B4)), Call "exit"]
 
     IR.Assign size to from@(IR.Scalar (IR.String {})) -> do
         memoryTable <- gets memoryTable
@@ -297,12 +297,12 @@ singleStatement = \case
             if RDI `elem` S.elems registerPool then
                 Sq.fromList
                 [ Push (Register (RDI, B8))
-                , LoadAddress op (parameter 1 B8)
+                , LoadAddress op (Register (parameter 1 B8))
                 , Call "print_string"
                 , Pop (Register (RDI, B8))]
             else
                 Sq.fromList
-                [ LoadAddress op (parameter 1 B8)
+                [ LoadAddress op (Register (parameter 1 B8))
                 , Call "print_string"]
 
     IR.Return s -> do
@@ -337,6 +337,25 @@ instructions = fmap asum . traverse instruction
 function :: IR.Function IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
 function (IR.Function name parameters statements) = do
     oldState <- get
+
+    let assignParameters :: Int -> [(Identifier, Size)] -> Int -> State GeneratorState (Seq Instruction)
+        assignParameters _ [] _ = return Sq.empty
+        assignParameters i ((ident, size): idents) offset
+            | i <= 6 = do
+                memoryTable <- gets memoryTable
+                modify $ \s -> s {
+                    memoryTable = M.insert ident (AtRegister (parameter i size)) memoryTable
+                }
+                _ <- assignParameters (i + 1) idents offset
+                return Sq.Empty
+            | otherwise = do
+                memoryTable <- gets memoryTable
+                modify $ \s -> s {
+                    memoryTable = M.insert ident (AtStack offset size) memoryTable
+                }
+                _ <- assignParameters (i + 1) idents (offset + IR.sizeToInt size)
+                return Sq.Empty
+    _ <- assignParameters 1 parameters 0
 
     ss <- instructions statements
 

@@ -7,7 +7,7 @@ import qualified WACC.Semantics.Structure as SM
 
 data Program s = Program (Map String Int) [Function s] deriving Show
 
-data Function s = Function String [(Int, Size)] [s] deriving Show
+data Function s = Function String [(Identifier, Size)] [s] deriving Show
 
 data NoExpressionStatement
     = NE SingleStatement
