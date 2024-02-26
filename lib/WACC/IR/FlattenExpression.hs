@@ -421,7 +421,7 @@ function (SM.Function _ functionName params@(unzip -> (names, types)) b) = do
 
     return $ Function
         functionName
-        ([firstParameterNo..] `zip` map getSize types)
+        (identifiers `zip` map getSize types)
         b'
 
 functions :: [SM.Function] -> State FlattenerState [Function NoExpressionStatement]
