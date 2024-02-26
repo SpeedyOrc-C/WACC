@@ -5,9 +5,12 @@ import WACC.IR.Structure (Size(..))
 import qualified Data.Sequence as Sq
 import Data.Foldable (Foldable(toList))
 
+{- Define a typeclass for types that 
+   can be converted to AT&T assembly syntax. -}
 class ATnT a where
     atnt :: a -> String
 
+{- Convert a register and its size to its AT&T syntax string representation. -}
 atntRegister :: Register -> String
 atntRegister (physicalRegister, size) = case physicalRegister of
     RAX -> case size of B8 -> "rax"; B4 -> "eax"; B2 -> "ax"; B1 -> "al"
@@ -31,6 +34,8 @@ atntRegister (physicalRegister, size) = case physicalRegister of
         B8 -> "rip"
         _ -> error "Cannot use RIP with size other than 8 bits"
 
+{- Make Register, Immediate, and Operand types instances of ATnT,
+   enabling their conversion to AT&T syntax.-}
 instance ATnT Register where
     atnt reg = "%" ++ atntRegister reg
 
@@ -52,6 +57,7 @@ instance ATnT Operand where
             Just (reg, scale) -> ", " ++ atnt reg ++ ", " ++ show scale
             Nothing -> ""
 
+{- Helper function to prepend an appropriate indent to most instructions. -}
 ident :: Instruction -> String
 ident = \case
     Label {} -> ""
@@ -61,6 +67,7 @@ ident = \case
     Global {} -> ""
     _ -> "    "
 
+{- Convert a Size value to its corresponding AT&T operand size suffix. -}
 sizeSuffix :: Size -> String
 sizeSuffix = \case
     B1 -> "b"
@@ -68,6 +75,8 @@ sizeSuffix = \case
     B4 -> "l"
     B8 -> "q"
 
+{- Implement ATnT instance for Instruction, 
+   converting instructions to AT&T syntax. -}
 instance ATnT Instruction where
     atnt s = ident s ++ case s of
         Label l -> l ++ ":"
@@ -76,7 +85,8 @@ instance ATnT Instruction where
         Define l s -> "#define " ++ l ++ " " ++ s
 
         Move from to -> "mov " ++ atnt from ++ ", " ++ atnt to
-        MoveSize size from to -> "mov" ++ sizeSuffix size ++ " " ++ atnt from ++ ", " ++ atnt to
+        MoveSize size from to -> "mov" ++ sizeSuffix size ++ " " ++ atnt from
+                                 ++ ", " ++ atnt to
 
         LoadAddress from to -> "lea " ++ atnt from ++ ", " ++ atnt to
         Push op -> "push " ++ atnt op
@@ -101,8 +111,11 @@ instance ATnT Instruction where
 
         e -> error $ "ATnT: " ++ show e
 
+{- Convert a sequence of instructions to a single AT&T syntax string. -}
 instance ATnT (Sq.Seq Instruction) where
     atnt = unlines . map atnt . toList
 
+{- Generate the AT&T syntax assembly file from a list of elements
+   that can be converted to AT&T syntax. -}
 generateFile :: ATnT a => [a] -> String
 generateFile = unlines . map atnt
