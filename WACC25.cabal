@@ -73,6 +73,9 @@ library wacc25-lib
         WACC.IR.Generate,
 
         WACC.Backend.X64.Structure,
+        WACC.Backend.X64.Unix.Generate,
+        WACC.Backend.X64.ATnT,
+        WACC.Backend.StackPool,
 
         Text.AnsiEscape,
         Text.SourceCode,

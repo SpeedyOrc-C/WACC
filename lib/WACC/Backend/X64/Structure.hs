@@ -1,8 +1,25 @@
 module WACC.Backend.X64.Structure where
 
-import WACC.IR.Structure
+import Data.String
 
-newtype Program = Program [Instruction] deriving Show
+import qualified Data.Set as S
+import qualified Data.Sequence as Sq
+import Data.Sequence (Seq)
+import WACC.IR.Structure (Size(..))
+
+newtype Program = Program {
+    dataSegmentsDefinition :: [Instruction]
+} deriving Show
+
+move :: Size -> Operand -> Operand -> Seq Instruction
+move _ from@(Register _) to = return $ Move from to
+move _ from to@(Register _) = return $ Move from to
+move _ from@(MemoryIndirect (Just (ImmediateLabel {})) (RIP, B8) Nothing) to =
+    return $ LoadAddress from to
+move size from@(MemoryIndirect {}) to@(MemoryIndirect {}) =
+    Sq.fromList [ Move from (Register (RAX, size))
+    , Move (Register (RAX, size)) to]
+move size from to = return $ MoveSize size from to
 
 data Instruction
     = Label String
@@ -10,6 +27,9 @@ data Instruction
     | Move Operand Operand
     | MoveSign Operand Operand
     | MoveZero Operand Operand
+    | MoveSize Size Operand Operand
+    | MoveSignSize Size Operand Operand
+    | MoveZeroSize Size Operand Operand
 
     | Push Operand
     | Pop Operand
@@ -48,22 +68,22 @@ data Instruction
     -- Bitwise AND
     | Test Operand Operand
 
-    | Jump String
-    | JumpZero String
-    | JumpNonZero String
-    | JumpNegative String
-    | JumpNonNegative String
-    | JumpGreater String
-    | JumpGreaterEqual String
-    | JumpLess String
-    | JumpLessEqual String
-    | JumpAbove String
-    | JumpAboveEqual String
-    | JumpBelow String
-    | JumpBelowEqual String
+    | Jump Immediate
+    | JumpZero Immediate
+    | JumpNonZero Immediate
+    | JumpNegative Immediate
+    | JumpNonNegative Immediate
+    | JumpGreater Immediate
+    | JumpGreaterEqual Immediate
+    | JumpLess Immediate
+    | JumpLessEqual Immediate
+    | JumpAbove Immediate
+    | JumpAboveEqual Immediate
+    | JumpBelow Immediate
+    | JumpBelowEqual Immediate
 
     -- Push next instruction's address and jump to it.
-    | Call Operand
+    | Call Immediate
 
     -- Pop the return address and jump back to it.
     | Return
@@ -72,6 +92,17 @@ data Instruction
     | Leave
 
     | AsciiZero String
+    | Int Int
+    | Global String
+
+    -- Macro directives
+    | IfDefined String
+    | EndIf
+    | Define String String
+
+    -- For layout use only, not compiled.
+    | Comment String
+    | EmptyLine
     deriving (Show)
 
 type Register = (PhysicalRegister, Size)
@@ -83,7 +114,7 @@ data Operand
     | MemoryIndirect {
         offset :: Maybe Immediate,
         base :: Register,
-        index :: Maybe (PhysicalRegister, Int)
+        index :: Maybe (Register, Int)
         }
     deriving (Show)
 
@@ -110,10 +141,16 @@ data PhysicalRegister
 
 isCallerSave :: PhysicalRegister -> Bool
 isCallerSave = (`elem` callerSaveRegisters)
-callerSaveRegisters :: [PhysicalRegister]
-callerSaveRegisters = [RAX, RCX, RDX, RDI, RSI, RSP, R8, R9, R10, R11]
+callerSaveRegisters :: S.Set PhysicalRegister
+callerSaveRegisters = S.fromList
+    [RAX, RCX, RDX, RDI, RSI, RSP, R8, R9, R10, R11]
 
 isCalleeSave :: PhysicalRegister -> Bool
 isCalleeSave = (`elem` calleeSaveRegisters)
-calleeSaveRegisters :: [PhysicalRegister]
-calleeSaveRegisters = [RBX, RBP, R12, R13, R14, R15]
+calleeSaveRegisters :: S.Set PhysicalRegister
+calleeSaveRegisters = S.fromList
+    [RBX, RBP, R12, R13, R14, R15]
+
+instance IsString Immediate where
+    fromString :: String -> Immediate
+    fromString = ImmediateLabel

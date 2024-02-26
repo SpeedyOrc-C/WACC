@@ -82,7 +82,7 @@ data Expression
 
     | Dereference Scalar
 
-    | Call String [(Size, Scalar)]
+    | Call Size String [(Size, Scalar)]
     | ReadInt
     | ReadChar
     deriving Show

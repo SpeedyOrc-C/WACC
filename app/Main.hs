@@ -19,6 +19,8 @@ import qualified WACC.Semantics.Structure as Semantics.Structure
 import qualified WACC.Semantics.Utils     as Semantics.Utils
 import qualified WACC.Semantics.Error     as Semantics.Error
 import qualified WACC.IR.Generate as IR.Generate
+import qualified WACC.Backend.X64.Unix.Generate as Unix.Generate
+import qualified WACC.Backend.X64.ATnT as ATnT
 
 syntaxErrorExit :: IO ()
 syntaxErrorExit = exitWith $ ExitFailure 100
@@ -151,26 +153,13 @@ macro = [
 generateCode :: FilePath -> Flags -> Semantics.Structure.Program -> IO ()
 generateCode path flags ast = do
     let name = takeBaseName path
-    let output = case name of
-            "print" -> [
-                "msg: .asciz \"Hello World!\"",
-                "main:",
-                "push %rbp",
-                "lea msg(%rip), %rdi",
-                "call printf",
-                "mov $0, %rdi",
-                "call exit"
-                ]
 
-            "exitBasic2" -> [
-                "main:",
-                "push %rbp",
-                "mov $42, %rdi",
-                "call exit"
-                ]
-
-            _ -> []
     let ir = IR.Generate.generateIR ast
-    IR.Generate.debug ir
+    let asm = Unix.Generate.generateX64 ir
+    let output = ATnT.atnt asm
+
+    -- traverse_ print asm
+
+    writeFile (name ++ ".S") output
 
     exitSuccess
