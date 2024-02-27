@@ -5,24 +5,34 @@ import Data.String
 import qualified Data.Set as S
 import qualified Data.Sequence as Sq
 import Data.Sequence (Seq)
-import WACC.IR.Structure (Size(..))
+import WACC.IR.Structure (Size(..), HasSize (..))
 
 {- A program is made up of a list of instructions. -}
 newtype Program = Program {
     dataSegmentsDefinition :: [Instruction]
 } deriving Show
 
-{- This is a function to generate move instructions 
+{- This is a function to generate move instructions
    between two operands, handling special cases. -}
 move :: Size -> Operand -> Operand -> Seq Instruction
 move _ from@(Register _) to = return $ Move from to
-move _ from to@(Register _) = return $ Move from to
-move _ from@(MemoryIndirect (Just (ImmediateLabel {})) (RIP, B8) Nothing) to =
+move _ from@(MemoryIndirect (Just (ImmediateLabel _)) (RIP, B8) Nothing) to =
     return $ LoadAddress from to
+move _ from to@(Register _) = return $ Move from to
 move size from@(MemoryIndirect {}) to@(MemoryIndirect {}) =
     Sq.fromList [ Move from (Register (RAX, size))
     , Move (Register (RAX, size)) to]
 move size from to = return $ MoveSize size from to
+
+data Condition
+    = Equal | NotEqual
+    | Zero | NotZero
+    | Negative | NotNegative
+    | Greater | GreaterEqual
+    | Less | LessEqual
+    | Above | AboveEqual
+    | Below | BelowEqual
+    deriving (Show)
 
 data Instruction
     = Label String
@@ -58,7 +68,7 @@ data Instruction
     | ShiftRight Int Operand
     | ShiftRightArithmetic Int Operand
 
-    {- RDX:RAX = RAX * Operand -} 
+    {- RDX:RAX = RAX * Operand -}
     | MultiplyFullI Operand
     | MultiplyFullU Operand
 
@@ -68,24 +78,14 @@ data Instruction
 
     {- Operand 2 - Operand 1 -}
     | Compare Operand Operand
+    | CompareMove Condition Operand Operand
+
     {- Bitwise AND -}
     | Test Operand Operand
 
     {- Different kinds of Jump instructions. -}
     | Jump Immediate
-    | JumpZero Immediate
-    | JumpNonZero Immediate
-    | JumpNegative Immediate
-    | JumpNonNegative Immediate
-    | JumpGreater Immediate
-    | JumpGreaterEqual Immediate
-    | JumpLess Immediate
-    | JumpLessEqual Immediate
-    | JumpAbove Immediate
-    | JumpAboveEqual Immediate
-    | JumpBelow Immediate
-    | JumpBelowEqual Immediate
-    | JumpOverflow Immediate
+    | JumpWhen Condition Immediate
 
     {- Push next instruction's address and jump to it. -}
     | Call Immediate
@@ -109,6 +109,7 @@ data Instruction
 
     -- .section .rodata
     | RodataSection
+    | Text
 
     {- For layout use only, not compiled. -}
     | Comment String
@@ -171,3 +172,9 @@ calleeSaveRegisters = S.fromList
 instance IsString Immediate where
     fromString :: String -> Immediate
     fromString = ImmediateLabel
+
+instance HasSize Operand where
+    getSize :: Operand -> Size
+    getSize = \case
+        Register (_, size) -> size
+        _ -> B8

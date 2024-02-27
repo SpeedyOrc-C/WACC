@@ -165,7 +165,7 @@ expression = \case
 indirectExpression ::
     SM.Expression -> State FlattenerState (Scalar, [SingleStatement])
 indirectExpression = \case
-    i@(SM.Identifier {}) -> expression i
+    i@(SM.Identifier t _) -> expression i
 
     SM.ArrayElement t array index -> do
         (index', evaluateIndex) <- expression index
@@ -257,7 +257,7 @@ statement = \case
         modify $ \s -> s { mappingStack = tail $ mappingStack s }
         return b'
 
-    SM.Return e -> do
+    SM.Return t e -> do
         (result, evaluateExpression) <- expression e
         return $ map NE evaluateExpression ++
             [NE $ Return result]
@@ -432,11 +432,11 @@ functions = traverse function
 program :: SM.Program -> State FlattenerState (Program NoExpressionStatement)
 program (SM.Program fs main) = do
     dataSegment <- gets dataSegment
-    let allFunctions 
-            = SM.Function SM.Int "main" [] main 
-                : map 
+    let allFunctions
+            = SM.Function SM.Int "main" [] main
+                : map
                     (\(SM.Function ret name param b) ->
-                        SM.Function ret ("wacc_" ++ name) param b) 
+                        SM.Function ret ("wacc_" ++ name) param b)
                     (S.toList fs)
     functions' <- functions allFunctions
     return $ Program dataSegment functions'
