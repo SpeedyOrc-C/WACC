@@ -346,7 +346,9 @@ expression = \case
                                     (RSP, B8)
                                     Nothing
 
-                    -- location -> operandFromMemoryLocation location
+                    AtParameterStack offset _ ->
+                        MemoryIndirect
+                            (Just (ImmediateInt (offset + 16))) (RBP, B8) Nothing
 
             s -> scalar s
 
@@ -433,6 +435,26 @@ singleStatement = \case
             AtRegister reg ->
                 return $ evaluate ><
                     move size op (MemoryIndirect Nothing reg Nothing)
+            
+            AtStack offset _ -> do
+                tmpStackOffset <- gets tmpStackOffset
+                return $ evaluate ><
+                    move size (MemoryIndirect 
+                            (Just (ImmediateInt (offset - tmpStackOffset))) 
+                            (RSP, B8)
+                            Nothing)
+                        (Register (RAX, B8)) ><
+                    move size op (MemoryIndirect Nothing (RAX, B8) Nothing)
+                    
+            AtParameterStack offset _ ->
+                    -- +8 go beyond the pushed RBP
+                    -- +8 go beyond the return address
+                return $ evaluate ><
+                    move size (MemoryIndirect
+                            (Just (ImmediateInt (offset + 16))) (RBP, B8) Nothing) 
+                        (Register (RAX, B8)) ><
+                    move size op (MemoryIndirect Nothing (RAX, B8) Nothing)
+
 
     IR.PrintString s -> do
         op <- scalar s
