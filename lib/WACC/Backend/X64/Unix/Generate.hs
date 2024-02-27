@@ -501,7 +501,6 @@ instruction = \case
         traverse_ free (S.toList identifiers)
         return Sq.empty
 
-    e -> error $ "Not implemented: " ++ show e
 
 instructions :: [IR.NoControlFlowStatement] -> State GeneratorState (Seq Instruction)
 instructions = fmap asum . traverse instruction
