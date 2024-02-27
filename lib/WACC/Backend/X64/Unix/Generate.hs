@@ -65,6 +65,8 @@ allocate var size = do
     registerPool <- gets registerPool
     memoryTable <- gets memoryTable
     stackPool <- gets stackPool
+    stainedCalleeSaveRegs <- gets stainedCalleeSaveRegs
+    maxStackSize <- gets maxStackSize
 
     if S.size registerPool < S.size registers then do
         -- There are free registers.
@@ -75,7 +77,8 @@ allocate var size = do
 
         modify $ \s -> s {
             registerPool = S.insert freeRegister registerPool,
-            memoryTable = M.insert var location memoryTable
+            memoryTable = M.insert var location memoryTable,
+            stainedCalleeSaveRegs = S.insert freeRegister stainedCalleeSaveRegs
         }
 
         return location
@@ -87,7 +90,8 @@ allocate var size = do
 
         modify $ \s -> s {
             stackPool = stackPool',
-            memoryTable = M.insert var location memoryTable
+            memoryTable = M.insert var location memoryTable,
+            maxStackSize = max maxStackSize (offset + IR.sizeToInt size)
         }
 
         return location
@@ -529,7 +533,10 @@ function (IR.Function name parameters statements) = do
     _ <- assignParameters 1 parameters 0
 
     ss <- instructions statements
-
+    (S.toList -> stainedCalleeSaveRegs) <- gets stainedCalleeSaveRegs
+    maxStackSize <- gets maxStackSize
+    let (pushes, pops) = pushRegisters stainedCalleeSaveRegs
+        (pushStack, popStack) = moveESP maxStackSize
     put oldState
 
     return $
@@ -537,7 +544,9 @@ function (IR.Function name parameters statements) = do
         [ Label ("wacc_" ++ name)
         , Push (Register (RBP, B8))
         , Move (Register (RSP, B8)) (Register (RBP, B8))] ><
-        ss) ><
+        pushes ><
+        pushStack ><
+        ss >< popStack >< pops) ><
         Sq.fromList (if name == "main" then [Leave, Return] else [])
 
 functions :: [IR.Function IR.NoControlFlowStatement] -> State GeneratorState (Seq Instruction)
@@ -579,6 +588,13 @@ print_string:
     leave
     ret
 -}
+
+addString :: String -> String -> Seq Instruction
+addString name str = Sq.fromList
+    [ Label name
+    , Int (length str + 1)
+    , AsciiZero str]
+
 innerPrintString :: Seq Instruction
 innerPrintString = Sq.fromList
     [
@@ -601,11 +617,8 @@ program (IR.Program dataSegment fs) = do
     functions' <- functions fs
 
     dataSegment' <-
-        for (Sq.fromList $ M.toList dataSegment) $ \(name, number) -> do
-            return $ Sq.fromList
-                [ Label ("str." ++ show number)
-                , Int (length name + 1)
-                , AsciiZero name]
+        for (Sq.fromList $ M.toList dataSegment) $ \(name, number) -> 
+            return $ addString ("str." ++ show number) name
 
     return
         $  (macro |> EmptyLine)

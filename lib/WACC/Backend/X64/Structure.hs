@@ -106,6 +106,9 @@ data Instruction
     | EndIf
     | Define String String
 
+    -- .section .rodata
+    | RodataSection
+    
     {- For layout use only, not compiled. -}
     | Comment String
     | EmptyLine

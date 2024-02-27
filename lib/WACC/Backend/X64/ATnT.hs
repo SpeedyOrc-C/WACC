@@ -108,7 +108,7 @@ instance ATnT Instruction where
         Int n -> ".int " ++ show n
         Global l -> ".globl " ++ l
         AsciiZero s -> ".asciz " ++ show s
-
+        RodataSection -> ".section .rodata"
         e -> error $ "ATnT: " ++ show e
 
 {- Convert a sequence of instructions to a single AT&T syntax string. -}
