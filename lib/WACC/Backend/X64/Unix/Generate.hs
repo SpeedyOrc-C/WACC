@@ -484,6 +484,8 @@ singleStatement = \case
                 [ LoadAddress op (Register (parameter 1 B8))
                 , Call "print_string"]
 
+    IR.PrintLineBreak -> snd <$> expression (IR.Call B8 "print_line_break" [])
+
     IR.Return s -> do
         op <- scalar s
         return $ Sq.fromList [Move op (Register (RAX, B8)), Leave, Return]
@@ -599,7 +601,7 @@ program (IR.Program dataSegment fs) = do
     return
         $  (macro |> EmptyLine)
         >< (functions' |> EmptyLine)
-        >< (Internal.printString |> EmptyLine)
+        >< (asum [Internal.printString, Internal.printLineBreak] |> EmptyLine)
         >< asum dataSegment'
 
 initialState :: GeneratorState
