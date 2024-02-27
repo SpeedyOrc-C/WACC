@@ -65,6 +65,7 @@ ident = \case
     Define {} -> ""
     EndIf -> ""
     Global {} -> ""
+    RodataSection -> ""
     _ -> "    "
 
 {- Convert a Size value to its corresponding AT&T operand size suffix. -}
@@ -97,7 +98,7 @@ instance ATnT Instruction where
         EmptyLine -> ""
 
         Not op -> "not " ++ atnt op
-        Add from to -> "add " ++ atnt from ++ ", " ++ atnt to
+        Add from to -> "add "   ++ atnt from ++ ", " ++ atnt to
         Subtract from to -> "sub " ++ atnt from ++ ", " ++ atnt to
 
         Jump l -> "jmp " ++ atnt l

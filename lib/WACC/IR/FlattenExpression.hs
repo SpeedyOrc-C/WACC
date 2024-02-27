@@ -432,7 +432,12 @@ functions = traverse function
 program :: SM.Program -> State FlattenerState (Program NoExpressionStatement)
 program (SM.Program fs main) = do
     dataSegment <- gets dataSegment
-    let allFunctions = SM.Function SM.Int "main" [] main : S.toList fs
+    let allFunctions 
+            = SM.Function SM.Int "main" [] main 
+                : map 
+                    (\(SM.Function ret name param b) ->
+                        SM.Function ret ("wacc_" ++ name) param b) 
+                    (S.toList fs)
     functions' <- functions allFunctions
     return $ Program dataSegment functions'
 
