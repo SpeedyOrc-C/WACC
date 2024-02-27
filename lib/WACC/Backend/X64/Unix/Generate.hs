@@ -523,7 +523,7 @@ function (IR.Function name parameters statements) = do
             | otherwise = do
                 memoryTable <- gets memoryTable
                 modify $ \s -> s {
-                    memoryTable = M.insert ident (AtStack offset size) memoryTable
+                    memoryTable = M.insert ident (AtParameterStack offset size) memoryTable
                 }
                 _ <- assignParameters (i + 1) idents (offset + IR.sizeToInt size)
                 return Sq.Empty
