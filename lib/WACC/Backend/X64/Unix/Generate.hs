@@ -206,25 +206,40 @@ expression = \case
               [ Move a' (Register (RAX, B4))
               , Add b' (Register (RAX, B4))])
     IR.NewPair (fstSize, sndSize) (a, b) -> do
+        registerPool <- gets registerPool
+        let usedRDX = S.member RDX registerPool
+        (_, address) <- expression (IR.Call B8 "_malloc" [(B4, IR.Immediate 16)])
+
+        maybePushRDX <- if usedRDX then push RDX else return Sq.empty
         a' <- scalar a
         b' <- scalar b
-        (operand, address) <- expression (IR.Call B8 "_malloc" [(B4, IR.Immediate 16)])
+        maybePopRDX <- if usedRDX then pop RDX else return Sq.empty
         return(
             Register (RAX, B8)
-            , address >< move B8 (Register (RAX, B8)) (Register (RDX, B8)) >< 
+            ,
+            address >< move B8 (Register (RAX, B8)) (Register (RDX, B8)) >< 
+            maybePushRDX ><
             move fstSize a' (MemoryIndirect Nothing (RDX, B8) Nothing) ><
-            move sndSize b' (MemoryIndirect (Just (ImmediateInt 8)) (RDX, B8) Nothing)
+            move sndSize b' (MemoryIndirect (Just (ImmediateInt 8)) (RDX, B8) Nothing) ><
+            maybePopRDX
             )
 
     IR.NewArray size scalars -> do
+        registerPool <- gets registerPool
+        let usedRDX = S.member RDX registerPool
+        (_, address) <- expression (IR.Call B8 "_malloc" [(B4, IR.Immediate (4 + len * length scalars'))])
+
+        maybePushRDX <- if usedRDX then push RDX else return Sq.empty
         scalars' <- traverse scalar scalars
         let len = length scalars
-        (operand, address) <- expression (IR.Call B8 "_malloc" [(B4, IR.Immediate (4 + IR.sizeToInt size * length scalars'))])
+        maybePopRDX <- if usedRDX then pop RDX else return Sq.empty
         return(
             Register (RAX, B8)
-            , ((Comment (show len ++ " element array") <| address) |> Add (Immediate (ImmediateInt 4)) (Register (RAX, B8)))>< 
+            --Comment (show len ++ " element array") <|
+            , (address|> Add (Immediate (ImmediateInt 4)) (Register (RAX, B8))) >< 
+            maybePushRDX ><
             move B8 (Register (RAX, B8)) (Register (RDX, B8)) ><
-            move size (Immediate (ImmediateInt (length scalars))) (MemoryIndirect
+            move size (Immediate (ImmediateInt len)) (MemoryIndirect
                         (Just (ImmediateInt (-4))) 
                         (RDX, B8)
                         Nothing) ><
@@ -234,7 +249,9 @@ expression = \case
                         (RDX, B8)
                         Nothing) 
                     |(scalar', i) <- zip scalars' [0..]]
-            >< move B8 (Register (RDX, B8)) (Register (RAX, B8)))
+            >< move B8 (Register (RDX, B8)) (Register (RAX, B8))
+            >< maybePopRDX)
+            
 
     IR.Subtract a b -> do
         a' <- scalar a
