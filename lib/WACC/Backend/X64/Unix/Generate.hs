@@ -10,6 +10,7 @@ import           Data.Function
 import           Data.Traversable
 import           Control.Monad.Trans.State.Lazy
 
+import qualified WACC.Backend.X64.Unix.Internal as Internal
 import qualified WACC.IR.Structure as IR
 import           WACC.IR.Structure (Size(..), Identifier)
 import           WACC.Backend.X64.Structure
@@ -223,7 +224,7 @@ expression = \case
         return(
             Register (RAX, B8)
             ,
-            address >< move B8 (Register (RAX, B8)) (Register (RDX, B8)) >< 
+            address >< move B8 (Register (RAX, B8)) (Register (RDX, B8)) ><
             maybePushRDX ><
             move fstSize a' (MemoryIndirect Nothing (RDX, B8) Nothing) ><
             move sndSize b' (MemoryIndirect (Just (ImmediateInt 8)) (RDX, B8) Nothing) ><
@@ -243,22 +244,22 @@ expression = \case
         return(
             Register (RAX, B8)
             --Comment (show len ++ " element array") <|
-            , (address|> Add (Immediate (ImmediateInt 4)) (Register (RAX, B8))) >< 
+            , (address|> Add (Immediate (ImmediateInt 4)) (Register (RAX, B8))) ><
             maybePushRDX ><
             move B8 (Register (RAX, B8)) (Register (RDX, B8)) ><
             move size (Immediate (ImmediateInt len)) (MemoryIndirect
-                        (Just (ImmediateInt (-4))) 
+                        (Just (ImmediateInt (-4)))
                         (RDX, B8)
                         Nothing) ><
             asum
                 [move size scalar' (MemoryIndirect
-                        (Just (ImmediateInt (size' * i))) 
+                        (Just (ImmediateInt (size' * i)))
                         (RDX, B8)
-                        Nothing) 
+                        Nothing)
                     |(scalar', i) <- zip scalars' [0..]]
             >< move B8 (Register (RDX, B8)) (Register (RAX, B8))
             >< maybePopRDX)
-            
+
 
     IR.Subtract a b -> do
         a' <- scalar a
@@ -439,23 +440,23 @@ singleStatement = \case
             AtRegister reg ->
                 return $ evaluate ><
                     move size op (MemoryIndirect Nothing reg Nothing)
-            
+
             AtStack offset _ -> do
                 tmpStackOffset <- gets tmpStackOffset
                 return $ evaluate ><
-                    move size (MemoryIndirect 
-                            (Just (ImmediateInt (offset - tmpStackOffset))) 
+                    move size (MemoryIndirect
+                            (Just (ImmediateInt (offset - tmpStackOffset)))
                             (RSP, B8)
                             Nothing)
                         (Register (RAX, B8)) ><
                     move size op (MemoryIndirect Nothing (RAX, B8) Nothing)
-                    
+
             AtParameterStack offset _ ->
                     -- +8 go beyond the pushed RBP
                     -- +8 go beyond the return address
                 return $ evaluate ><
                     move size (MemoryIndirect
-                            (Just (ImmediateInt (offset + 16))) (RBP, B8) Nothing) 
+                            (Just (ImmediateInt (offset + 16))) (RBP, B8) Nothing)
                         (Register (RAX, B8)) ><
                     move size op (MemoryIndirect Nothing (RAX, B8) Nothing)
 
@@ -573,57 +574,22 @@ macro =
         Global "main",
     EndIf
     ]
-{-
-print_string:
-    push %rbp
-    mov %rsp, %rbp
-
-    mov %rdi, %rax
-
-    mov $1, %edi
-    lea 4(%rax), %rsi
-    mov (%rax), %edx
-    call write
-
-    leave
-    ret
--}
-
-addString :: String -> String -> Seq Instruction
-addString name str = Sq.fromList
-    [ Label name
-    , Int (length str + 1)
-    , AsciiZero str]
-
-innerPrintString :: Seq Instruction
-innerPrintString = Sq.fromList
-    [
-    Label "print_string",
-    Push (Register (RBP, B8)),
-    Move (Register (RSP, B8)) (Register (RBP, B8)),
-    Move (Register (RDI, B8)) (Register (RAX, B8)),
-
-    Move (Immediate $ ImmediateInt 1) (Register (RDI, B4)),
-    LoadAddress (MemoryIndirect (Just (ImmediateInt 4)) (RAX, B8) Nothing) (Register (RSI, B8)),
-    Move (MemoryIndirect Nothing (RAX, B8) Nothing) (Register (RDX, B4)),
-    Call "write",
-
-    Leave,
-    Return
-    ]
 
 program :: IR.Program IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
 program (IR.Program dataSegment fs) = do
     functions' <- functions fs
 
     dataSegment' <-
-        for (Sq.fromList $ M.toList dataSegment) $ \(name, number) -> 
-            return $ addString ("str." ++ show number) name
+        for (Sq.fromList $ M.toList dataSegment) $ \(name, number) ->
+            return $ Sq.fromList
+                [ Label ("str." ++ show number)
+                , Int (length name + 1)
+                , AsciiZero name]
 
     return
         $  (macro |> EmptyLine)
         >< (functions' |> EmptyLine)
-        >< (innerPrintString |> EmptyLine)
+        >< (Internal.printString |> EmptyLine)
         >< asum dataSegment'
 
 initialState :: GeneratorState
