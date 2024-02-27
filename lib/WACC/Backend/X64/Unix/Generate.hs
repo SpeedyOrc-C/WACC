@@ -12,7 +12,7 @@ import           Control.Monad.Trans.State.Lazy
 
 import qualified WACC.Backend.X64.Unix.Internal as Internal
 import qualified WACC.IR.Structure as IR
-import           WACC.IR.Structure (Size(..), Identifier)
+import           WACC.IR.Structure (Size(..), Identifier, sizeToInt)
 import           WACC.Backend.X64.Structure
 import           WACC.Backend.StackPool
 import Data.Functor
@@ -307,15 +307,23 @@ expression = \case
             )
 
     IR.Remainder a b -> do
+        registerPool <- gets registerPool
+        let usedRDX = S.member RDX registerPool
+
+        maybePushRDX <- if usedRDX then push RDX else return Sq.empty
         a' <- scalar a
         b' <- scalar b
+        maybePopRDX <- if usedRDX then pop RDX else return Sq.empty
 
-        return ( Register (RAX, B4), Sq.fromList
-            [ Move a' (Register (RAX, B4))
-            , Move (Immediate $ ImmediateInt 0) (Register (RDX, B4))
-            , DivideI b'
-            , Move (Register (RDX, B4)) (Register (RAX, B4))
-            ])
+        return ( Register (RAX, B4)
+            ,  maybePushRDX
+            >< Sq.fromList
+               [ Move a' (Register (RAX, B4))
+               , Move (Immediate $ ImmediateInt 0) (Register (RDX, B4))
+               , DivideI b'
+               , Move (Register (RDX, B4)) (Register (RAX, B4))]
+            >< maybePopRDX
+            )
 
     IR.Call size name scalarsWithSize@(unzip -> (sizes, scalars)) -> do
         memoryTable <- gets memoryTable
@@ -510,28 +518,30 @@ instruction = \case
 instructions :: [IR.NoControlFlowStatement] -> State GeneratorState (Seq Instruction)
 instructions = fmap asum . traverse instruction
 
+accumulate :: Num a => [a] -> [a]
+accumulate = f 0 where
+    f _ [] = []
+    f n (x:xs) = (n + x) : f (n + x) xs
+
 function :: IR.Function IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
 function (IR.Function name parameters statements) = do
     oldState <- get
 
-    let assignParameters :: Int -> [(Identifier, Size)] -> Int -> State GeneratorState (Seq Instruction)
-        assignParameters _ [] _ = return Sq.empty
-        assignParameters i ((ident, size): idents) offset
-            | i <= 6 = do
-                memoryTable <- gets memoryTable
-                modify $ \s -> s {
-                    memoryTable = M.insert ident (AtRegister (parameter i size)) memoryTable
-                }
-                _ <- assignParameters (i + 1) idents offset
-                return Sq.Empty
-            | otherwise = do
-                memoryTable <- gets memoryTable
-                modify $ \s -> s {
-                    memoryTable = M.insert ident (AtParameterStack offset size) memoryTable
-                }
-                _ <- assignParameters (i + 1) idents (offset + IR.sizeToInt size)
-                return Sq.Empty
-    _ <- assignParameters 1 parameters 0
+    let (registerParams, stackParams) = splitAt 6 parameters
+
+    for_ (zip [1..] registerParams) $ \(i, (ident, size)) -> do
+        memoryTable <- gets memoryTable
+        modify $ \s -> s {
+            memoryTable = M.insert ident (AtRegister (parameter i size)) memoryTable
+        }
+
+    let stackParamOffsets = 0 : accumulate (sizeToInt . snd <$> stackParams)
+
+    for_ (zip stackParamOffsets stackParams) $ \(offset, (ident, size)) -> do
+        memoryTable <- gets memoryTable
+        modify $ \s -> s {
+            memoryTable = M.insert ident (AtParameterStack offset size) memoryTable
+        }
 
     ss <- instructions statements
     (S.toList -> stainedCalleeSaveRegs) <- gets stainedCalleeSaveRegs
