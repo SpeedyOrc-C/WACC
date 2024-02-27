@@ -535,7 +535,7 @@ function (IR.Function name parameters statements) = do
 
     return $
         (Sq.fromList
-        [ Label name
+        [ Label ("wacc_" ++ name)
         , Push (Register (RBP, B8))
         , Move (Register (RSP, B8)) (Register (RBP, B8))] ><
         ss) ><

@@ -142,7 +142,7 @@ expression = \case
         tmp <- newTemporary
         return (Variable tmp,
             evaluate ++
-            [Assign (getSize t) tmp (Call (getSize t) f ((getSize <$> ts) `zip` scalars))])
+            [Assign (getSize t) tmp (Call (getSize t) ("wacc_" ++ f) ((getSize <$> ts) `zip` scalars))])
     where
     unary :: Size -> (Scalar -> Expression) -> SM.Expression
                 -> State FlattenerState (Scalar, [SingleStatement])
