@@ -103,6 +103,7 @@ instance ATnT Instruction where
 
         Jump l -> "jmp " ++ atnt l
         JumpZero l -> "jz " ++ atnt l
+        JumpOverflow l -> "jo " ++ atnt l
 
         Test a b -> "test " ++ atnt a ++ ", " ++ atnt b
 

@@ -85,6 +85,7 @@ data Instruction
     | JumpAboveEqual Immediate
     | JumpBelow Immediate
     | JumpBelowEqual Immediate
+    | JumpOverflow Immediate
 
     {- Push next instruction's address and jump to it. -}
     | Call Immediate
@@ -108,7 +109,7 @@ data Instruction
 
     -- .section .rodata
     | RodataSection
-    
+
     {- For layout use only, not compiled. -}
     | Comment String
     | EmptyLine
