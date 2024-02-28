@@ -554,7 +554,7 @@ expression = \case
         return $ Sq.fromList
             [
                 Move a' (Register (RAX, B1)),
-                And b' (Register (RAX, B1))]
+                Or b' (Register (RAX, B1))]
     IR.ReadInt
         -> return (Sq.singleton $ Call "readi")
     IR.ReadChar
