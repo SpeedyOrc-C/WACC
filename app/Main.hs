@@ -160,6 +160,6 @@ generateCode path flags ast = do
 
     IR.Generate.debug ir
 
-    writeFile (name ++ ".S") output
+    writeFile (name ++ ".s") output
 
     exitSuccess
