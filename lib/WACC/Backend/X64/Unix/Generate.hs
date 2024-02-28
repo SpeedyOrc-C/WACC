@@ -149,6 +149,7 @@ operandFromMemoryLocation = \case
         return $ MemoryIndirect
             (Just (ImmediateInt (offset + 16))) (RBP, B8) Nothing
 
+{- Given an IR.Scalar, this function generates the corresponding 'Operand'. -}
 scalar :: IR.Scalar -> State GeneratorState Operand
 scalar = \case
     IR.Immediate n -> return $
@@ -168,7 +169,10 @@ scalar = \case
             (Just $ ImmediateLabel ("str." ++ show n))
             (RIP, B8) Nothing
 
-usedCallerSaveRegisters :: State GeneratorState ([PhysicalRegister], [PhysicalRegister])
+{- This function determines which caller-save registers
+   are currently being used. -}
+usedCallerSaveRegisters :: 
+            State GeneratorState ([PhysicalRegister], [PhysicalRegister])
 usedCallerSaveRegisters = do
     registerPool <- gets registerPool
     let used = registerPool `S.intersection` callerSaveRegisters
