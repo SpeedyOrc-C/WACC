@@ -748,8 +748,8 @@ program (IR.Program dataSegment fs) = do
     dataSegment' <-
         for (Sq.fromList $ M.toList dataSegment) $ \(name, number) ->
             return $ Sq.fromList
-                [ Label ("str." ++ show number)
-                , Int (length name + 1)
+                [ Int (length name + 1)
+                , Label ("str." ++ show number)
                 , AsciiZero name]
 
     return
