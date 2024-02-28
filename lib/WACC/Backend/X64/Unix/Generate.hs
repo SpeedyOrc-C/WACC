@@ -725,6 +725,10 @@ program (IR.Program dataSegment fs) = do
             , Internal.arrLoad8
             , Internal.arrLoad4
             , Internal.arrLoad1
+            , Internal.errorOutOfBounds
+            , Internal.mallocFunction
+            , Internal.errorNull
+            , Internal.errorOutOfMemory
             ] |> EmptyLine)
         >< asum dataSegment'
 

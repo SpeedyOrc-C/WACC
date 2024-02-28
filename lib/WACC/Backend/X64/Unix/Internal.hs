@@ -291,6 +291,45 @@ errorNull = Sq.fromList
         Call "exit"
     ]
 {-
+.section .rodata
+154	# length of .L._errOutOfBounds_str0
+155		.int 42
+156	.L._errOutOfBounds_str0:
+157		.asciz "fatal error: array index %d out of bounds\n"
+158	.text
+159	_errOutOfBounds:
+160		# external calls must be stack-aligned to 16 bytes, accomplished by masking with fffffffffffffff0
+161		andq $-16, %rsp
+162		leaq .L._errOutOfBounds_str0(%rip), %rdi
+163		# on x86, al represents the number of SIMD registers used as variadic arguments
+164		movb $0, %al
+165		call printf@plt
+166		movq $0, %rdi
+167		call fflush@plt
+168		movb $-1, %dil
+169		call exit@plt
+-}
+
+errorOutOfBounds :: Sq.Seq Instruction
+errorOutOfBounds = Sq.fromList
+    [
+        Int 42,
+        Label ".L._errOutOfBounds_str0",
+        AsciiZero "fatal error: array index %d out of bounds\n",
+        Label "_errOutOfBounds",
+        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
+        LoadAddress
+            (MemoryIndirect (Just ".L._errOutOfBounds_str0") (RIP, B8) Nothing)
+            (Register (RDI, B8)),
+        Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
+        Call "printf",
+        Move (Immediate $ ImmediateInt 0) (Register (RDI, B8)),
+        Call "fflush",
+        Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
+        Call "exit"
+    ]
+
+{-
 _arrLoad8:
 215		# Special calling convention: array ptr passed in R9, index in R10, and return into R9
 216		pushq %rbx
@@ -334,7 +373,7 @@ arrLoad4 = Sq.fromList
         Compare (Register (RBX, B4)) (Register (R10, B4)),
         CompareMove GreaterEqual (Register (R10, B8)) (Register (RSI, B8)),
         JumpWhen GreaterEqual "_errOutOfBounds",
-        MoveSize B4 (MemoryIndirect (Just (ImmediateInt (-4))) (R9, B8) (Just ((R10, B8), 4))) (Register (R9, B8)),
+        MoveSize B4 (MemoryIndirect (Just (ImmediateInt (-4))) (R9, B8) (Just ((R10, B8), 4))) (Register (R9, B4)),
         Pop (Register (RBX, B8)),
         Call "exit"
     ]
@@ -351,7 +390,7 @@ arrLoad1 = Sq.fromList
         Compare (Register (RBX, B4)) (Register (R10, B4)),
         CompareMove GreaterEqual (Register (R10, B8)) (Register (RSI, B8)),
         JumpWhen GreaterEqual "_errOutOfBounds",
-        MoveSize B1 (MemoryIndirect (Just (ImmediateInt (-4))) (R9, B8) (Just ((R10, B8), 1))) (Register (R9, B8)),
+        MoveSize B1 (MemoryIndirect (Just (ImmediateInt (-4))) (R9, B8) (Just ((R10, B8), 1))) (Register (R9, B1)),
         Pop (Register (RBX, B8)),
         Call "exit"
     ]
