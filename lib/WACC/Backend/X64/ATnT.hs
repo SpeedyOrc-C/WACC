@@ -130,6 +130,7 @@ instance ATnT Instruction where
         Subtract from to -> "sub " ++ atnt from ++ ", " ++ atnt to
 
         And from to -> "and " ++ atnt from ++ ", " ++ atnt to
+        Or from to -> "or " ++ atnt from ++ ", " ++ atnt to
 
         Jump l -> "jmp " ++ atnt l
         JumpWhen c l -> "j" ++ conditionSuffix c ++ " " ++ atnt l
