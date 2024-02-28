@@ -262,10 +262,10 @@ instance CheckSemantics Syntax.Statement Statement where
                 Log [SemanticError (expressionRange right) BothSideAnyAssignment]
 
             else if (isLiter right && (leftType <? rightType))
-                    || (leftType <| rightType) then
-                case (leftType, rightType) of
-                    (Any, t) -> Ok (Assign t left' right')
-                    (t, _) -> Ok (Assign t left' right')
+                    || (leftType <| rightType) then do
+
+                let t = unifyAny leftType rightType
+                Ok (Assign t (fixAnyInPair t left') (fixAnyInPair t right'))
 
             else Log [SemanticError (expressionRange right) $
                         IncompatibleAssignment leftType rightType]
@@ -296,7 +296,7 @@ instance CheckSemantics Syntax.Statement Statement where
                 -- Type of return value must match function's definition.
                 Just functionReturnType ->
                     if functionReturnType <| valueType
-                        then Ok (Return value')
+                        then Ok (Return valueType value')
                         else Log [SemanticError (expressionRange value) $
                                     InvalidReturn functionReturnType valueType]
 

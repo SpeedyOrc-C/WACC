@@ -42,7 +42,7 @@ instance HasLiteralStrings Statement where
     getLiteralStrings = \case
         Declare _ _ e -> getLiteralStrings e
         Assign _ _ e -> getLiteralStrings e
-        Return e -> getLiteralStrings e
+        Return _ e -> getLiteralStrings e
         Print String e -> getLiteralStrings e
         PrintLine String e -> getLiteralStrings e
         Scope (Block ss') -> getLiteralStrings ss'

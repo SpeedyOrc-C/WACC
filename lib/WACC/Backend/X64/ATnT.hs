@@ -5,7 +5,7 @@ import WACC.IR.Structure (Size(..))
 import qualified Data.Sequence as Sq
 import Data.Foldable (Foldable(toList))
 
-{- Define a typeclass for types that 
+{- Define a typeclass for types that
    can be converted to AT&T assembly syntax. -}
 class ATnT a where
     atnt :: a -> String
@@ -66,6 +66,7 @@ ident = \case
     EndIf -> ""
     Global {} -> ""
     RodataSection -> ""
+    Text -> ""
     _ -> "    "
 
 {- Convert a Size value to its corresponding AT&T operand size suffix. -}
@@ -76,7 +77,24 @@ sizeSuffix = \case
     B4 -> "l"
     B8 -> "q"
 
-{- Implement ATnT instance for Instruction, 
+conditionSuffix :: Condition -> String
+conditionSuffix = \case
+    Equal -> "e"
+    NotEqual -> "ne"
+    Zero -> "z"
+    NotZero -> "nz"
+    Negative -> "s"
+    NotNegative -> "ns"
+    Greater -> "g"
+    GreaterEqual -> "ge"
+    Less -> "l"
+    LessEqual -> "le"
+    Above -> "a"
+    AboveEqual -> "ae"
+    Below -> "b"
+    BelowEqual -> "be"
+
+{- Implement ATnT instance for Instruction,
    converting instructions to AT&T syntax. -}
 instance ATnT Instruction where
     atnt s = ident s ++ case s of
@@ -86,8 +104,12 @@ instance ATnT Instruction where
         Define l s -> "#define " ++ l ++ " " ++ s
 
         Move from to -> "mov " ++ atnt from ++ ", " ++ atnt to
-        MoveSize size from to -> "mov" ++ sizeSuffix size ++ " " ++ atnt from
-                                 ++ ", " ++ atnt to
+        MoveSize size from to ->
+            "mov" ++ sizeSuffix size ++ " " ++
+            atnt from ++ ", " ++ atnt to
+        CompareMove c from to ->
+            "cmov" ++ conditionSuffix c ++ " " ++
+            atnt from ++ ", " ++ atnt to
 
         LoadAddress from to -> "lea " ++ atnt from ++ ", " ++ atnt to
         Push op -> "push " ++ atnt op
@@ -101,16 +123,20 @@ instance ATnT Instruction where
         Add from to -> "add "   ++ atnt from ++ ", " ++ atnt to
         Subtract from to -> "sub " ++ atnt from ++ ", " ++ atnt to
 
+        And from to -> "and " ++ atnt from ++ ", " ++ atnt to
+
         Jump l -> "jmp " ++ atnt l
-        JumpZero l -> "jz " ++ atnt l
-        JumpOverflow l -> "jo " ++ atnt l
+        JumpWhen c l -> "j" ++ conditionSuffix c ++ " " ++ atnt l
 
         Test a b -> "test " ++ atnt a ++ ", " ++ atnt b
+        Compare a b -> "cmp " ++ atnt a ++ ", " ++ atnt b
 
         Int n -> ".int " ++ show n
         Global l -> ".globl " ++ l
         AsciiZero s -> ".asciz " ++ show s
         RodataSection -> ".section .rodata"
+
+        Text -> ".Text"
         e -> error $ "ATnT: " ++ show e
 
 {- Convert a sequence of instructions to a single AT&T syntax string. -}
