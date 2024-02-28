@@ -545,15 +545,16 @@ expression = \case
         b' <- scalar b
         return $ Sq.fromList
             [
-                And b' a'
-            ] >< move B1 a' (Register (RAX, B1))
+                Move a' (Register (RAX, B1)),
+                And b' (Register (RAX, B1))
+            ]
     IR.Or a b -> do
         a' <- scalar a
         b' <- scalar b
         return $ Sq.fromList
             [
-                Or b' a'
-            ] >< move B1 a' (Register (RAX, B1))
+                Move a' (Register (RAX, B1)),
+                And b' (Register (RAX, B1))]
     IR.ReadInt
         -> return (Sq.singleton $ Call "readi")
     IR.ReadChar
