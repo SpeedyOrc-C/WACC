@@ -191,6 +191,8 @@ pushRegisters pushed =
     ( Sq.fromList [Push (Register (x, B8)) | x <- pushed]
     , Sq.fromList [Pop (Register (x, B8)) | x <- reverse pushed])
 
+{- Given an offset, this function generates a pair of sequences of instructions
+   to adjust the stack pointer (RSP) by that offset. -}
 moveESP :: Int -> (Seq Instruction, Seq Instruction)
 moveESP x
     | x <= 0 = (Sq.empty, Sq.empty)
@@ -202,6 +204,7 @@ moveESP x
             (Immediate $ ImmediateInt x)
             (Register (RSP, B8))))
 
+{- Pushes the given physical register onto the stack. -}
 push :: PhysicalRegister -> State GeneratorState (Seq Instruction)
 push op = do
     modify $ \s -> s {
@@ -211,6 +214,7 @@ push op = do
     }
     return $ Sq.singleton $ Push (Register (op, B8))
 
+{- Pops the given physical register from the stack. -}
 pop :: PhysicalRegister -> State GeneratorState (Seq Instruction)
 pop op = do
     modify $ \s -> s {
