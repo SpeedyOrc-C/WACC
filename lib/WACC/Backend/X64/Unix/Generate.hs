@@ -582,24 +582,24 @@ singleStatement = \case
                 return $ evaluate ><
                     move size (Register (RAX, size)) (MemoryIndirect Nothing reg Nothing)
 
-            AtStack offset _ -> do
+            AtStack offset _ -> useTemporary RDX $ do
                 tmpStackOffset <- gets tmpStackOffset
                 return $ evaluate ><
                     move size (MemoryIndirect
                             (Just (ImmediateInt (offset - tmpStackOffset)))
                             (RSP, B8)
                             Nothing)
-                        (Register (RAX, B8)) ><
-                    move size (Register (RAX, size)) (MemoryIndirect Nothing (RAX, B8) Nothing)
+                        (Register (RDX, B8)) ><
+                    move size (Register (RAX, size)) (MemoryIndirect Nothing (RDX, B8) Nothing)
 
-            AtParameterStack offset _ ->
+            AtParameterStack offset _ -> useTemporary RDX $
                 -- +8 go beyond the pushed RBP
                 -- +8 go beyond the return address
                 return $ evaluate ><
                     move size (MemoryIndirect
                             (Just (ImmediateInt (offset + 16))) (RBP, B8) Nothing)
-                        (Register (RAX, B8)) ><
-                    move size (Register (RAX, size)) (MemoryIndirect Nothing (RAX, B8) Nothing)
+                        (Register (RDX, B8)) ><
+                    move size (Register (RAX, size)) (MemoryIndirect Nothing (RDX, B8) Nothing)
 
     IR.PrintString s -> expression (IR.Call B8 "print_string" [(B8, s)])
 
