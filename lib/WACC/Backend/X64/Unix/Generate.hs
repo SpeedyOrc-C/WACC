@@ -279,8 +279,7 @@ expression = \case
         return $ Sq.fromList
             [ Move a' (Register (RAX, B4))
             , Move (Immediate $ ImmediateInt 0) (Register (RDX, B4))
-            , DivideI b'
-            , Move (Register (RDX, B4)) (Register (RAX, B4))]
+            , DivideI b']
 
     IR.Remainder s1 s2 -> useTemporary RDX . useTemporary RSI $ do
         op1 <- scalar s1
