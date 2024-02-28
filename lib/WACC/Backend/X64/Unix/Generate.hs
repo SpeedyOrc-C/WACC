@@ -104,6 +104,9 @@ allocate var size = do
 
         return location
 
+{- This function frees the resources associated with the given identifier.
+   It removes the identifier's entry from the memory table and releases
+   the corresponding memory (either register or stack). -}
 free :: Identifier -> State GeneratorState ()
 free name = do
     memoryTable <- gets memoryTable
