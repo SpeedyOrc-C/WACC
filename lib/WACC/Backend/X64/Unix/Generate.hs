@@ -16,6 +16,7 @@ import           WACC.IR.Structure (Size(..), Identifier, sizeToInt)
 import           WACC.Backend.X64.Structure
 import           WACC.Backend.StackPool
 import Data.Functor
+import Debug.Trace (traceShowId, traceShow, trace)
 
 {- This indicates the location of the data. Stored in registers,
    stored in the stack or stored in the parameter stack. -}
@@ -58,7 +59,9 @@ data GeneratorState = GeneratorState {
     stackPool :: [StackSegment Identifier],
     stainedCalleeSaveRegs :: S.Set PhysicalRegister,
     maxStackSize :: Int,
-    tmpStackOffset :: Int
+    tmpStackOffset :: Int,
+    pushedRDX :: Bool,
+    tmpPushedRegs :: [PhysicalRegister]
 } deriving (Show)
 
 {- This function is responsible for allocating memory for a variable.
@@ -76,8 +79,7 @@ allocate var size = do
     if S.size registerPool < S.size registers then do
         -- There are free registers.
         let freeRegisters = registers S.\\ registerPool
-        let freeRegister = minimumBy (compare `on` rankRegister) $ S.toList 
-                            freeRegisters
+        let freeRegister = minimumBy (compare `on` rankRegister) $ S.toList freeRegisters
 
         let location = AtRegister (freeRegister, size)
 
@@ -91,8 +93,7 @@ allocate var size = do
 
     else do
         -- All registers are in use, allocate on the stack.
-        let (offset, stackPool') = allocateStack (IR.sizeToInt size) var 
-                                    stackPool
+        let (offset, stackPool') = allocateStack (IR.sizeToInt size) var stackPool
         let location = AtStack offset size
 
         modify $ \s -> s {
@@ -126,12 +127,18 @@ free name = do
 
 operandFromMemoryLocation :: MemoryLocation -> State GeneratorState Operand
 operandFromMemoryLocation = \case
-    AtRegister register ->
-        return $ Register register
+    AtRegister register@(reg, _) -> do
+        tmpPushedRegs <- gets tmpPushedRegs
+        return $ case elemIndex reg tmpPushedRegs of
+            Nothing -> Register register
+            Just offset -> MemoryIndirect
+                (Just (ImmediateInt (offset * 8))) (RSP, B8) Nothing
+
     AtStack offset _ -> do
         tmpStackOffset <- gets tmpStackOffset
         return $ MemoryIndirect
             (Just (ImmediateInt (offset - tmpStackOffset))) (RSP, B8) Nothing
+
     AtParameterStack offset _ ->
         -- +8 go beyond the pushed RBP
         -- +8 go beyond the return address
@@ -153,11 +160,11 @@ scalar = \case
         operandFromMemoryLocation $ memoryTable M.! identifier
 
     IR.String n ->
-        return $ MemoryIndirect (Just $ ImmediateLabel ("str." ++ show n)) 
-                                (RIP, B8) Nothing
+        return $ MemoryIndirect
+            (Just $ ImmediateLabel ("str." ++ show n))
+            (RIP, B8) Nothing
 
-usedCallerSaveRegisters :: State GeneratorState ([PhysicalRegister], 
-                            [PhysicalRegister])
+usedCallerSaveRegisters :: State GeneratorState ([PhysicalRegister], [PhysicalRegister])
 usedCallerSaveRegisters = do
     registerPool <- gets registerPool
     let used = registerPool `S.intersection` callerSaveRegisters
@@ -186,156 +193,228 @@ moveESP x
 
 push :: PhysicalRegister -> State GeneratorState (Seq Instruction)
 push op = do
-    modify $ \s -> s { tmpStackOffset = tmpStackOffset s - 8 }
+    modify $ \s -> s {
+        tmpStackOffset = tmpStackOffset s - 8,
+        pushedRDX = op == RDX,
+        tmpPushedRegs = op : tmpPushedRegs s
+    }
     return $ Sq.singleton $ Push (Register (op, B8))
 
 pop :: PhysicalRegister -> State GeneratorState (Seq Instruction)
 pop op = do
-    modify $ \s -> s { tmpStackOffset = tmpStackOffset s + 8 }
+    modify $ \s -> s {
+        tmpStackOffset = tmpStackOffset s + 8,
+        pushedRDX = (op /= RDX) && pushedRDX s,
+        tmpPushedRegs = drop 1 (tmpPushedRegs s)
+    }
     return $ Sq.singleton $ Pop (Register (op, B8))
 
-expression :: IR.Expression -> State GeneratorState (Operand, Seq Instruction)
+useManyTemporary :: [PhysicalRegister] -> State GeneratorState (Seq Instruction)
+    -> State GeneratorState (Seq Instruction)
+useManyTemporary regs = foldl (.) id (map useTemporary regs)
+
+useTemporary :: PhysicalRegister -> State GeneratorState (Seq Instruction)
+    -> State GeneratorState (Seq Instruction)
+useTemporary reg runner = do
+    registerPool <- gets registerPool
+    let used = reg `S.member` registerPool
+
+    if not used then
+        runner
+    else do
+        pushInstr <- push reg
+        result <- runner
+        popInstr <- pop reg
+
+        return $ pushInstr >< result >< popInstr
+
+malloc :: Int -> State GeneratorState (Seq Instruction)
+malloc size = expression (IR.Call B8 "malloc" [(B4, IR.Immediate size)])
+
+expression :: IR.Expression -> State GeneratorState (Seq Instruction)
 expression = \case
     IR.Scalar s -> do
         op <- scalar s
-        return (op, Sq.empty)
+        return $ Sq.fromList [Move op (Register (RAX, IR.getSize op))]
 
-    IR.Not a -> do
-        a' <- scalar a
-        return (Register (RAX, B4), Sq.fromList
-            [ Move a' (Register (RAX, B4))
-            , Not (Register (RAX, B4))])
+    IR.Not s -> do
+        op <- scalar s
+        return $ Sq.fromList
+            [ Move op (Register (RAX, B4))
+            , Not (Register (RAX, B4))]
 
-    IR.Negate a -> do
-        a' <- scalar a
-        return (Register (RAX, B4), Sq.fromList
-            [ Move a' (Register (RAX, B4))
-            , Negate (Register (RAX, B4))])
+    IR.Negate s -> do
+        op <- scalar s
+        return $ Sq.fromList
+            [ Move op (Register (RAX, B4))
+            , Negate (Register (RAX, B4))]
 
-    IR.Add a b -> do
+    IR.Add s1 s2 -> do
+        op1 <- scalar s1
+        op2 <- scalar s2
+        return $ Sq.fromList
+            [ Move op1 (Register (RAX, B4))
+            , Add op2 (Register (RAX, B4))]
+
+    IR.Subtract s1 s2 -> do
+        op1 <- scalar s1
+        op2 <- scalar s2
+
+        return $ Sq.fromList
+            [ Move op1 (Register (RAX, B4))
+            , Subtract op2 (Register (RAX, B4))]
+
+    IR.Multiply s1 s2 -> do
+        op1 <- scalar s1
+        op2 <- scalar s2
+
+        return $ Sq.fromList
+            [ Move op1 (Register (RAX, B4))
+            , Multiply op2 (Register (RAX, B4))]
+
+    IR.Divide a b -> useTemporary RDX $ do
         a' <- scalar a
         b' <- scalar b
-        return
-            ( Register (RAX, B4)
-            , Sq.fromList
-              [ Move a' (Register (RAX, B4))
-              , Add b' (Register (RAX, B4))])
+
+        return $ Sq.fromList
+            [ Move a' (Register (RAX, B4))
+            , Move (Immediate $ ImmediateInt 0) (Register (RDX, B4))
+            , DivideI b'
+            , Move (Register (RDX, B4)) (Register (RAX, B4))]
+
+    IR.Remainder s1 s2 -> useTemporary RDX . useTemporary RSI $ do
+        op1 <- scalar s1
+        op2 <- scalar s2
+
+        return $ Sq.fromList
+            [ Move op1 (Register (RAX, B4))
+            , Move (Immediate $ ImmediateInt 0) (Register (RDX, B4))
+            , DivideI op2
+            , Move (Register (RDX, B4)) (Register (RAX, B4))]
+
+    IR.GreaterEqual B4 s1 s2 -> do
+        op1 <- scalar s1
+        op2 <- scalar s2
+
+        return $ Sq.fromList
+            [ Move op1 (Register (RAX, B4))
+            , Compare op2 (Register (RAX, B4))
+            , Move (Immediate $ ImmediateInt 0) (Register (RAX, B1))
+            , CompareMove GreaterEqual (Immediate $ ImmediateInt 1) (Register (RAX, B1))
+            ]
+
+    IR.Greater B4 s1 s2 -> do
+        op1 <- scalar s1
+        op2 <- scalar s2
+
+        return $ Sq.fromList
+            [ Move op1 (Register (RAX, B4))
+            , Compare op2 (Register (RAX, B4))
+            , Move (Immediate $ ImmediateInt 0) (Register (RAX, B1))
+            , CompareMove Greater (Immediate $ ImmediateInt 1) (Register (RAX, B1))
+            ]
+
+    IR.LessEqual B4 s1 s2 -> do
+        op1 <- scalar s1
+        op2 <- scalar s2
+
+        return $ Sq.fromList
+            [ Move op1 (Register (RAX, B4))
+            , Compare op2 (Register (RAX, B4))
+            , Move (Immediate $ ImmediateInt 0) (Register (RAX, B1))
+            , CompareMove LessEqual (Immediate $ ImmediateInt 1) (Register (RAX, B1))
+            ]
+
+    IR.Less B4 s1 s2 -> do
+        op1 <- scalar s1
+        op2 <- scalar s2
+
+        return $ Sq.fromList
+            [ Move op1 (Register (RAX, B4))
+            , Compare op2 (Register (RAX, B4))
+            , Move (Immediate $ ImmediateInt 0) (Register (RAX, B1))
+            , CompareMove Less (Immediate $ ImmediateInt 1) (Register (RAX, B1))
+            ]
+
+    IR.Equal B4 s1 s2 -> do
+        op1 <- scalar s1
+        op2 <- scalar s2
+
+        return $ Sq.fromList
+            [ Move op1 (Register (RAX, B4))
+            , Compare op2 (Register (RAX, B4))
+            , Move (Immediate $ ImmediateInt 0) (Register (RAX, B1))
+            , CompareMove Equal (Immediate $ ImmediateInt 1) (Register (RAX, B1))
+            ]
+
+    IR.NotEqual B4 s1 s2 -> do
+        op1 <- scalar s1
+        op2 <- scalar s2
+
+        return $ Sq.fromList
+            [ Move op1 (Register (RAX, B4))
+            , Compare op2 (Register (RAX, B4))
+            , Move (Immediate $ ImmediateInt 0) (Register (RAX, B1))
+            , CompareMove NotEqual (Immediate $ ImmediateInt 1) (Register (RAX, B1))
+            ]
+
+    IR.Dereference s -> do
+        op <- scalar s
+        return $ Sq.fromList
+            [ Move op (Register (RAX, B8))
+            , Move (MemoryIndirect Nothing (RAX, B8) Nothing) (Register (RAX, B8))]
+
+    IR.SeekPairFirst s -> do
+        op <- scalar s
+        return $ return $
+            Move op (Register (RAX, B8))
+
+    IR.SeekPairSecond s -> do
+        op <- scalar s
+        return $ Sq.fromList
+            [ Move op (Register (RAX, B8))
+            , Add (Immediate $ ImmediateInt 8) (Register (RAX, B8))]
+
     IR.NewPair (fstSize, sndSize) (a, b) -> do
-        registerPool <- gets registerPool
-        let usedRDX = S.member RDX registerPool
-        (_, address) <- expression (IR.Call B8 "_malloc" 
-                                    [(B4, IR.Immediate 16)])
+        evaluateAddress <- malloc 16
 
-        maybePushRDX <- if usedRDX then push RDX else return Sq.empty
-        a' <- scalar a
-        b' <- scalar b
-        maybePopRDX <- if usedRDX then pop RDX else return Sq.empty
-        return(
-            Register (RAX, B8)
-            ,
-            address >< move B8 (Register (RAX, B8)) (Register (RDX, B8)) ><
-            maybePushRDX ><
-            move fstSize a' (MemoryIndirect Nothing (RDX, B8) Nothing) ><
-            move sndSize b' (MemoryIndirect (Just (ImmediateInt 8)) (RDX, B8) 
-                                            Nothing) ><
-            move B8 (Register (RDX, B8)) (Register (RAX, B8)) ><
-            maybePopRDX
-            )
+        initialise <- useTemporary RDX $ do
+            opA <- scalar a
+            opB <- scalar b
 
-    IR.NewArray size@(IR.sizeToInt -> size') scalars -> do
-        registerPool <- gets registerPool
-        let usedRDX = S.member RDX registerPool
-        let len = length scalars
-        (_, address) <- expression (IR.Call B8 "_malloc" 
-                                    [(B4, IR.Immediate (4 + size'*len))])
+            return $
+                return (Move (Register (RAX, B8)) (Register (RDX, B8))) ><
+                move fstSize opA (MemoryIndirect Nothing (RDX, B8) Nothing) ><
+                move sndSize opB (MemoryIndirect (Just (ImmediateInt 8)) (RDX, B8) Nothing) ><
+                return (Move (Register (RDX, B8)) (Register (RAX, B8)))
 
-        maybePushRDX <- if usedRDX then push RDX else return Sq.empty
-        scalars' <- traverse scalar scalars
-        maybePopRDX <- if usedRDX then pop RDX else return Sq.empty
-        return(
-            Register (RAX, B8)
-            --Comment (show len ++ " element array") <|
-            , (address|> Add (Immediate (ImmediateInt 4)) 
-                                        (Register (RAX, B8))) ><
-            maybePushRDX ><
-            move B8 (Register (RAX, B8)) (Register (RDX, B8)) ><
-            move size (Immediate (ImmediateInt len)) (MemoryIndirect
-                        (Just (ImmediateInt (-4)))
-                        (RDX, B8)
-                        Nothing) ><
-            asum
-                [move size scalar' (MemoryIndirect
-                        (Just (ImmediateInt (size' * i)))
-                        (RDX, B8)
-                        Nothing)
-                    |(scalar', i) <- zip scalars' [0..]]
-            >< move B8 (Register (RDX, B8)) (Register (RAX, B8))
-            >< maybePopRDX)
+        return $ evaluateAddress >< initialise
 
+    IR.NewArray size@(IR.sizeToInt -> bytes) xs -> do
+        evaluateAddress <- malloc (4 + bytes * length xs)
 
-    IR.Subtract a b -> do
-        a' <- scalar a
-        b' <- scalar b
-        return
-            ( Register (RAX, B4)
-            , Sq.fromList
-              [ Move a' (Register (RAX, B4))
-              , Subtract b' (Register (RAX, B4))])
+        initialise <- useTemporary RDX $ do
+            elements <- traverse scalar xs
 
-    IR.Multiply a b -> do
-        registerPool <- gets registerPool
-        let usedRDX = S.member RDX registerPool
+            return $
+                move B8 (Register (RAX, B8)) (Register (RDX, B8)) ><
 
-        maybePushRDX <- if usedRDX then push RDX else return Sq.empty
-        a' <- scalar a
-        b' <- scalar b
-        maybePopRDX <- if usedRDX then pop RDX else return Sq.empty
+                move size
+                    (Immediate (ImmediateInt (length xs)))
+                    (MemoryIndirect (Just (ImmediateInt (-4))) (RDX, B8) Nothing) ><
 
-        return ( Register (RAX, B4)
-            ,  maybePushRDX
-            >< Sq.fromList
-               [ Move a' (Register (RAX, B4))
-               , Multiply b' (Register (RAX, B4))]
-            >< maybePopRDX
-            )
+                asum (zip elements [0..] <&> \(element, index) ->
+                    move size element $ MemoryIndirect
+                        (Just (ImmediateInt (index * bytes)))
+                        (RDX, B8) Nothing
+                ) ><
 
-    IR.Divide a b -> do
-        registerPool <- gets registerPool
-        let usedRDX = S.member RDX registerPool
+                move B8 (Register (RDX, B8)) (Register (RAX, B8))
 
-        maybePushRDX <- if usedRDX then push RDX else return Sq.empty
-        a' <- scalar a
-        b' <- scalar b
-        maybePopRDX <- if usedRDX then pop RDX else return Sq.empty
-
-        return ( Register (RAX, B4)
-            ,  maybePushRDX
-            >< Sq.fromList
-               [ Move a' (Register (RAX, B4))
-               , Move (Immediate $ ImmediateInt 0) (Register (RDX, B4))
-               , DivideI b'
-               , Move (Register (RDX, B4)) (Register (RAX, B4))]
-            >< maybePopRDX
-            )
-
-    IR.Remainder a b -> do
-        registerPool <- gets registerPool
-        let usedRDX = S.member RDX registerPool
-
-        maybePushRDX <- if usedRDX then push RDX else return Sq.empty
-        a' <- scalar a
-        b' <- scalar b
-        maybePopRDX <- if usedRDX then pop RDX else return Sq.empty
-
-        return ( Register (RAX, B4)
-            ,  maybePushRDX
-            >< Sq.fromList
-               [ Move a' (Register (RAX, B4))
-               , Move (Immediate $ ImmediateInt 0) (Register (RDX, B4))
-               , DivideI b'
-               , Move (Register (RDX, B4)) (Register (RAX, B4))]
-            >< maybePopRDX
-            )
+        return $
+            evaluateAddress ><
+            return (Add (Immediate (ImmediateInt 4)) (Register (RAX, B8))) ><
+            initialise
 
     IR.Call size name scalarsWithSize@(unzip -> (sizes, scalars)) -> do
         memoryTable <- gets memoryTable
@@ -373,8 +452,7 @@ expression = \case
 
                     AtParameterStack offset _ ->
                         MemoryIndirect
-                            (Just (ImmediateInt (offset + 16))) (RBP, B8) 
-                                                                Nothing
+                            (Just (ImmediateInt (offset + 16))) (RBP, B8) Nothing
 
             s -> scalar s
 
@@ -405,17 +483,54 @@ expression = \case
                     (paramReg, paramStack) = splitAt 6 (zip sizes scalars')
                     paramList = zip [1..6] paramReg
 
-        return
-            (Register (RAX, size),
+        return $
             pushes ><
             minuses ><
             (assignInstructions |>
             Call (ImmediateLabel name)) ><
             adds ><
             pops
-            )
 
-    _ -> undefined
+    IR.SeekArrayElement size arr index -> do
+        registerPool <- gets registerPool
+        useManyTemporary( [R9, R10] ++ toList registerPool)$ do
+            arr' <- scalar arr
+            index' <- scalar index
+            return $ Sq.fromList
+                [Move arr' (Register (R9, B8)),
+                    Move index' (Register (R10, B4)),
+                    Call (ImmediateLabel ("_arrLoad" ++ show (IR.sizeToInt size))),
+                    Move (Register (R9, size)) (Register (RAX, size))]
+
+    IR.Length scalar'
+        -> undefined
+    
+    IR.Order scalar'
+        -> undefined
+    
+    IR.Character scalar'
+        -> undefined
+    IR.And _ _
+        -> undefined
+    IR.Or _ _
+        -> undefined
+    IR.ReadInt
+        -> undefined
+    IR.ReadChar
+        -> undefined
+    IR.GreaterEqual size _ _
+        -> undefined
+    IR.Greater size _ _
+        -> undefined
+    IR.Less size a b
+        -> undefined
+    IR.LessEqual size a b
+        -> undefined
+    IR.Equal size a b
+        -> undefined
+    IR.NotEqual size a b
+        -> undefined
+    
 
 singleStatement :: IR.SingleStatement -> State GeneratorState (Seq Instruction)
 singleStatement = \case
@@ -423,44 +538,29 @@ singleStatement = \case
         op <- scalar s
         return $ Sq.fromList [Move op (Register (parameter 1 B4)), Call "exit"]
 
-    IR.Assign size to from@(IR.Scalar (IR.String {})) -> do
-        memoryTable <- gets memoryTable
-        (op, evaluate) <- expression from
-
-        case memoryTable M.!? to of
-            Just location -> do
-                to' <- operandFromMemoryLocation location
-                return $ evaluate ><
-                    move B8 op to'
-            Nothing -> do
-                location <- allocate to size
-                to' <- operandFromMemoryLocation location
-                return $ evaluate ><
-                    move B8 op to'
-
     IR.Assign size to from -> do
         memoryTable <- gets memoryTable
-        (op, evaluate) <- expression from
+        evaluate <- expression from
 
         case memoryTable M.!? to of
+
             Just location -> do
                 to' <- operandFromMemoryLocation location
-                return $ evaluate ><
-                    move size op to'
+                return $ evaluate >< move size (Register (RAX, size)) to'
+
             Nothing -> do
                 location <- allocate to size
                 to' <- operandFromMemoryLocation location
-                return $ evaluate ><
-                    move size op to'
+                return $ evaluate >< move size (Register (RAX, size)) to'
 
     IR.AssignIndirect size to from -> do
         memoryTable <- gets memoryTable
-        (op, evaluate) <- expression from
+        evaluate <- expression from
 
         case memoryTable M.! to of
             AtRegister reg ->
                 return $ evaluate ><
-                    move size op (MemoryIndirect Nothing reg Nothing)
+                    move size (Register (RAX, size)) (MemoryIndirect Nothing reg Nothing)
 
             AtStack offset _ -> do
                 tmpStackOffset <- gets tmpStackOffset
@@ -470,44 +570,37 @@ singleStatement = \case
                             (RSP, B8)
                             Nothing)
                         (Register (RAX, B8)) ><
-                    move size op (MemoryIndirect Nothing (RAX, B8) Nothing)
+                    move size (Register (RAX, size)) (MemoryIndirect Nothing (RAX, B8) Nothing)
 
             AtParameterStack offset _ ->
-                    -- +8 go beyond the pushed RBP
-                    -- +8 go beyond the return address
+                -- +8 go beyond the pushed RBP
+                -- +8 go beyond the return address
                 return $ evaluate ><
                     move size (MemoryIndirect
-                            (Just (ImmediateInt (offset + 16))) (RBP, B8) 
-                                                                Nothing)
+                            (Just (ImmediateInt (offset + 16))) (RBP, B8) Nothing)
                         (Register (RAX, B8)) ><
-                    move size op (MemoryIndirect Nothing (RAX, B8) Nothing)
+                    move size (Register (RAX, size)) (MemoryIndirect Nothing (RAX, B8) Nothing)
 
+    IR.PrintString s -> expression (IR.Call B8 "print_string" [(B8, s)])
 
-    IR.PrintString s -> do
-        op <- scalar s
-        registerPool <- gets registerPool
-        return $
-            if RDI `elem` S.elems registerPool then
-                Sq.fromList
-                [ Push (Register (RDI, B8))
-                , LoadAddress op (Register (parameter 1 B8))
-                , Call "print_string"
-                , Pop (Register (RDI, B8))]
-            else
-                Sq.fromList
-                [ LoadAddress op (Register (parameter 1 B8))
-                , Call "print_string"]
+    IR.PrintInt s -> expression (IR.Call B8 "print_int" [(B4, s)])
 
-    IR.PrintLineBreak -> snd <$> expression (IR.Call B8 "print_line_break" [])
+    IR.PrintBool s -> expression (IR.Call B8 "print_bool" [(B1, s)])
+
+    IR.PrintLineBreak -> expression (IR.Call B8 "print_line_break" [])
+
+    IR.PrintAddress s -> expression (IR.Call B8 "print_pointer" [(B8, s)])
 
     IR.Return s -> do
         op <- scalar s
         return $ Sq.fromList [Move op (Register (RAX, B8)), Leave, Return]
 
-    e -> error $ "Not implemented: " ++ show e
+    IR.Free scalar ->
+        undefined
+    IR.PrintChar _ ->
+        undefined
 
-instruction :: IR.NoControlFlowStatement -> 
-                State GeneratorState (Seq Instruction)
+instruction :: IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
 instruction = \case
     IR.NCF statement -> singleStatement statement
 
@@ -521,8 +614,8 @@ instruction = \case
         op <- scalar s
         return $ Sq.fromList
             [ Move op (Register (RAX, B1))
-            , Test (Immediate $ ImmediateLabel name) 
-                   (Immediate $ ImmediateInt 1)]
+            , Compare (Immediate $ ImmediateInt 0) (Register (RAX, B1))
+            , JumpWhen Equal (ImmediateLabel name)]
 
     IR.FreeVariable identifier -> do
         free identifier
@@ -533,8 +626,7 @@ instruction = \case
         return Sq.empty
 
 
-instructions :: [IR.NoControlFlowStatement] -> 
-                State GeneratorState (Seq Instruction)
+instructions :: [IR.NoControlFlowStatement] -> State GeneratorState (Seq Instruction)
 instructions = fmap asum . traverse instruction
 
 accumulate :: Num a => [a] -> [a]
@@ -542,8 +634,7 @@ accumulate = f 0 where
     f _ [] = []
     f n (x:xs) = (n + x) : f (n + x) xs
 
-function :: IR.Function IR.NoControlFlowStatement -> 
-            State GeneratorState (Seq Instruction)
+function :: IR.Function IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
 function (IR.Function name parameters statements) = do
     oldState <- get
 
@@ -552,8 +643,7 @@ function (IR.Function name parameters statements) = do
     for_ (zip [1..] registerParams) $ \(i, (ident, size)) -> do
         memoryTable <- gets memoryTable
         modify $ \s -> s {
-            memoryTable = M.insert ident (AtRegister (parameter i size)) 
-                                                            memoryTable
+            memoryTable = M.insert ident (AtRegister (parameter i size)) memoryTable
         }
 
     let stackParamOffsets = 0 : accumulate (sizeToInt . snd <$> stackParams)
@@ -561,8 +651,7 @@ function (IR.Function name parameters statements) = do
     for_ (zip stackParamOffsets stackParams) $ \(offset, (ident, size)) -> do
         memoryTable <- gets memoryTable
         modify $ \s -> s {
-            memoryTable = M.insert ident (AtParameterStack offset size) 
-                                                            memoryTable
+            memoryTable = M.insert ident (AtParameterStack offset size) memoryTable
         }
 
     ss <- instructions statements
@@ -580,10 +669,13 @@ function (IR.Function name parameters statements) = do
         pushes ><
         pushStack ><
         ss >< popStack >< pops) ><
-        Sq.fromList (if name == "main" then [Leave, Return] else [])
+        Sq.fromList (if name == "main" then 
+                        [Move (Immediate $ ImmediateInt 0) (Register (RAX, B8)),
+                        Leave, 
+                        Return] 
+                    else [])
 
-functions :: [IR.Function IR.NoControlFlowStatement] -> State GeneratorState 
-                                                            (Seq Instruction)
+functions :: [IR.Function IR.NoControlFlowStatement] -> State GeneratorState (Seq Instruction)
 functions = fmap asum . traverse function
 
 macro :: Seq Instruction
@@ -595,6 +687,7 @@ macro =
         Define "write"  "_write",
         Define "printf" "_printf",
         Define "exit"   "_exit",
+        Define "malloc" "_malloc",
         Global "_main",
         Define "main" "_main",
     EndIf,
@@ -604,12 +697,12 @@ macro =
         Define "write" "write@PLT",
         Define "printf" "printf@PLT",
         Define "exit" "exit@PLT",
+        Define "malloc" "malloc@PLT",
         Global "main",
     EndIf
     ]
 
-program :: IR.Program IR.NoControlFlowStatement -> 
-            State GeneratorState (Seq Instruction)
+program :: IR.Program IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
 program (IR.Program dataSegment fs) = do
     functions' <- functions fs
 
@@ -623,7 +716,13 @@ program (IR.Program dataSegment fs) = do
     return
         $  (macro |> EmptyLine)
         >< (functions' |> EmptyLine)
-        >< (asum [Internal.printString, Internal.printLineBreak] |> EmptyLine)
+        >< (asum
+            [ Internal.printString
+            , Internal.printInt
+            , Internal.printBool
+            , Internal.printLineBreak
+            , Internal.printPointer
+            ] |> EmptyLine)
         >< asum dataSegment'
 
 initialState :: GeneratorState
@@ -633,7 +732,9 @@ initialState = GeneratorState {
     stackPool = [],
     stainedCalleeSaveRegs = S.empty,
     maxStackSize = 0,
-    tmpStackOffset = 0
+    tmpStackOffset = 0,
+    pushedRDX = False,
+    tmpPushedRegs = []
 }
 
 generateX64 :: IR.Program IR.NoControlFlowStatement -> Seq Instruction

@@ -24,7 +24,7 @@ data Statement
     | Assign Type Expression Expression
     | Read Type Expression
     | Free Expression
-    | Return Expression
+    | Return Type Expression
     | Exit Expression
     | Print Type Expression
     | PrintLine Type Expression
@@ -32,6 +32,18 @@ data Statement
     | While Expression Block
     | Scope Block
     deriving (Show, Eq)
+
+unifyAny :: Type -> Type -> Type
+unifyAny Any t = t
+unifyAny t Any = t
+unifyAny t1 t2
+    | t1 == t2 = t1
+    | otherwise = error "Cannot unify different types."
+
+fixAnyInPair :: Type -> Expression -> Expression
+fixAnyInPair t (PairFirst _ e) = PairFirst t e
+fixAnyInPair t (PairSecond _ e) = PairSecond t e
+fixAnyInPair _ e = e
 
 data Type
     = Any
