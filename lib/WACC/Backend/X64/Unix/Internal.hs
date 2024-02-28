@@ -28,7 +28,8 @@ printString = Sq.fromList
     Move (Register (RDI, B8)) (Register (RAX, B8)),
 
     Move (Immediate $ ImmediateInt 1) (Register (RDI, B4)),
-    LoadAddress (MemoryIndirect (Just (ImmediateInt 4)) (RAX, B8) Nothing) (Register (RSI, B8)),
+    LoadAddress (MemoryIndirect (Just (ImmediateInt 4)) (RAX, B8) Nothing) 
+                (Register (RSI, B8)),
     Move (MemoryIndirect Nothing (RAX, B8) Nothing) (Register (RDX, B4)),
     Call "write",
 
@@ -60,7 +61,8 @@ printLineBreak = Sq.fromList
     Move (Register (RSP, B8)) (Register (RBP, B8)),
 
     Move (Immediate $ ImmediateInt 1) (Register (RDI, B4)),
-    LoadAddress (MemoryIndirect (Just "line_break") (RIP, B8) Nothing) (Register (RSI, B8)),
+    LoadAddress (MemoryIndirect (Just "line_break") (RIP, B8) Nothing) 
+                (Register (RSI, B8)),
     Move (Immediate $ ImmediateInt 2) (Register (RDX, B4)),
     Call "write",
 
