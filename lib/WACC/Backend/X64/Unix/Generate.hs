@@ -407,7 +407,7 @@ expression = \case
             return $
                 move B8 (Register (RAX, B8)) (Register (RDX, B8)) ><
 
-                move size
+                move B4
                     (Immediate (ImmediateInt (length xs)))
                     (MemoryIndirect (Just (ImmediateInt (-4))) (RDX, B8) Nothing) ><
 
