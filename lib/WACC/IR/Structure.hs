@@ -43,6 +43,9 @@ data SingleStatement
     | Return Scalar
     | Exit Scalar
     | Free Scalar
+    -- Stupid array has a length before the elements,
+    -- but the address of the array is the first element.
+    | FreeArray Scalar
 
     | PrintBool Scalar
     | PrintInt Scalar

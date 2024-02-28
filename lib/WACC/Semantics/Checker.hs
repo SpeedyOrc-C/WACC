@@ -283,7 +283,7 @@ instance CheckSemantics Syntax.Statement Statement where
             (addressType, address') <- check state address
 
             if isArray addressType || isPair addressType
-                then Ok (Free address')
+                then Ok (Free addressType address')
                 else Log [SemanticError range $ InvalidFree addressType]
 
         -- Return a value when it is in a function context.

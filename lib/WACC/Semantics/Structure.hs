@@ -23,7 +23,7 @@ data Statement
     = Declare Type String Expression
     | Assign Type Expression Expression
     | Read Type Expression
-    | Free Expression
+    | Free Type Expression
     | Return Type Expression
     | Exit Expression
     | Print Type Expression

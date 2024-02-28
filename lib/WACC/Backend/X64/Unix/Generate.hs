@@ -623,8 +623,10 @@ singleStatement = \case
         op <- scalar s
         return $ Sq.fromList [Move op (Register (RAX, B8)), Leave, Return]
 
-    IR.Free scalar ->
-        undefined
+    IR.Free s -> undefined
+
+    IR.FreeArray s -> undefined
+
     IR.PrintChar _ ->
         undefined
 

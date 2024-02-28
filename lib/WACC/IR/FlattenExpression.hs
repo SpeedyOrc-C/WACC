@@ -259,7 +259,7 @@ statement = \case
         modify $ \s -> s { mappingStack = tail $ mappingStack s }
         return b'
 
-    SM.Return t e -> do
+    SM.Return _ e -> do
         (result, evaluateExpression) <- expression e
         return $ map NE evaluateExpression ++
             [NE $ Return result]
@@ -289,7 +289,12 @@ statement = \case
         return $ map NE evaluateExpression ++
             [NE $ AssignIndirect (getSize SM.Int) identifier ReadInt]
 
-    SM.Free e -> do
+    SM.Free SM.Array {} e -> do
+        (scalar, evaluateExpression) <- indirectExpression e
+        return $ map NE evaluateExpression ++
+            [NE $ FreeArray scalar]
+
+    SM.Free _ e -> do
         (scalar, evaluateExpression) <- indirectExpression e
         return $ map NE evaluateExpression ++
             [NE $ Free scalar]
@@ -381,6 +386,7 @@ instance HasReference SingleStatement where
         Return e -> reference e
         Exit e -> reference e
         Free e -> reference e
+        FreeArray e -> reference e
 
         PrintBool e -> reference e
         PrintInt e -> reference e
