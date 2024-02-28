@@ -183,6 +183,9 @@ usedCallerSaveRegisters = do
 
     return (usedParamRegs, usedNonParamRegs)
 
+{- Given a list of physical registers to be pushed onto the stack,
+   this function generates a pair of sequences of instructions to push
+   and pop the registers onto and from the stack, respectively. -}
 pushRegisters :: [PhysicalRegister] -> (Seq Instruction, Seq Instruction)
 pushRegisters pushed =
     ( Sq.fromList [Push (Register (x, B8)) | x <- pushed]
