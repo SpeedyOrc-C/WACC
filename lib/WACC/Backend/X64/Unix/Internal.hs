@@ -356,9 +356,9 @@ arrLoad8 = Sq.fromList
         Compare (Register (RBX, B4)) (Register (R10, B4)),
         CompareMove GreaterEqual (Register (R10, B8)) (Register (RSI, B8)),
         JumpWhen GreaterEqual "_errOutOfBounds",
-        Move (MemoryIndirect (Just (ImmediateInt (-4))) (R9, B8) (Just ((R10, B8), 8))) (Register (R9, B8)),
+        Move (MemoryIndirect Nothing (R9, B8) (Just ((R10, B8), 8))) (Register (R9, B8)),
         Pop (Register (RBX, B8)),
-        Call "exit"
+        Return
     ]
 
 arrLoad4 :: Sq.Seq Instruction
@@ -373,9 +373,9 @@ arrLoad4 = Sq.fromList
         Compare (Register (RBX, B4)) (Register (R10, B4)),
         CompareMove GreaterEqual (Register (R10, B8)) (Register (RSI, B8)),
         JumpWhen GreaterEqual "_errOutOfBounds",
-        MoveSize B4 (MemoryIndirect (Just (ImmediateInt (-4))) (R9, B8) (Just ((R10, B8), 4))) (Register (R9, B4)),
+        MoveSize B4 (MemoryIndirect Nothing (R9, B8) (Just ((R10, B8), 4))) (Register (R9, B4)),
         Pop (Register (RBX, B8)),
-        Call "exit"
+        Return
     ]
 
 arrLoad1 :: Sq.Seq Instruction
@@ -390,15 +390,18 @@ arrLoad1 = Sq.fromList
         Compare (Register (RBX, B4)) (Register (R10, B4)),
         CompareMove GreaterEqual (Register (R10, B8)) (Register (RSI, B8)),
         JumpWhen GreaterEqual "_errOutOfBounds",
-        MoveSize B1 (MemoryIndirect (Just (ImmediateInt (-4))) (R9, B8) (Just ((R10, B8), 1))) (Register (R9, B1)),
+        MoveSize B1 (MemoryIndirect Nothing (R9, B8) (Just ((R10, B8), 1))) (Register (R9, B1)),
         Pop (Register (RBX, B8)),
-        Call "exit"
+        Return
     ]
 
 
 printLineBreak :: Sq.Seq Instruction
 printLineBreak = Sq.fromList
     [
+    Int 0,
+    Label ".L._println_str0", 
+    AsciiZero "s",
     Label "line_break", AsciiZero "\n",
 
     Label "print_line_break",
