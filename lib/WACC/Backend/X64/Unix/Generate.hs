@@ -498,7 +498,35 @@ expression = \case
                     Call (ImmediateLabel ("_arrLoad" ++ show (IR.sizeToInt size))),
                     Move (Register (R9, size)) (Register (RAX, size))]
 
-    s -> error $ "Not implemented: " ++ show s
+    IR.Length scalar'
+        -> undefined
+    
+    IR.Order scalar'
+        -> undefined
+    
+    IR.Character scalar'
+        -> undefined
+    IR.And _ _
+        -> undefined
+    IR.Or _ _
+        -> undefined
+    IR.ReadInt
+        -> undefined
+    IR.ReadChar
+        -> undefined
+    IR.GreaterEqual size _ _
+        -> undefined
+    IR.Greater size _ _
+        -> undefined
+    IR.Less size a b
+        -> undefined
+    IR.LessEqual size a b
+        -> undefined
+    IR.Equal size a b
+        -> undefined
+    IR.NotEqual size a b
+        -> undefined
+    
 
 singleStatement :: IR.SingleStatement -> State GeneratorState (Seq Instruction)
 singleStatement = \case
@@ -563,7 +591,10 @@ singleStatement = \case
         op <- scalar s
         return $ Sq.fromList [Move op (Register (RAX, B8)), Leave, Return]
 
-    e -> error $ "Not implemented: " ++ show e
+    IR.Free scalar ->
+        undefined
+    IR.PrintChar _ ->
+        undefined
 
 instruction :: IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
 instruction = \case
