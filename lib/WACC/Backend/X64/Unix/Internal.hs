@@ -4,21 +4,6 @@ import qualified Data.Sequence as Sq
 import WACC.Backend.X64.Structure
 import WACC.IR.Structure (Size(..))
 
-{-
-print_string:
-    push %rbp
-    mov %rsp, %rbp
-
-    mov %rdi, %rax
-
-    mov $1, %edi
-    lea 4(%rax), %rsi
-    mov (%rax), %edx
-    call write
-
-    leave
-    ret
--}
 printString :: Sq.Seq Instruction
 printString = Sq.fromList
     [
@@ -64,6 +49,23 @@ printInt = Sq.fromList
     LoadAddress (MemoryIndirect (Just "format_int") (RIP, B8) Nothing) (Register (RDI, B8)),
     And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
     Call "printf",
+
+    Move (Immediate $ ImmediateInt 0) (Register (RDI, B8)),
+    Call "fflush",
+
+    Leave,
+    Return
+    ]
+
+printChar :: Sq.Seq Instruction
+printChar = Sq.fromList [
+    Label "print_char",
+    Push (Register (RBP, B8)),
+    Move (Register (RSP, B8)) (Register (RBP, B8)),
+
+    MoveZeroSizeExtend B1 B4 (Register (RDI, B1)) (Register (RDI, B4)),
+    Move (Immediate $ ImmediateInt 1) (Register (RSI, B4)),
+    Call "putchar",
 
     Move (Immediate $ ImmediateInt 0) (Register (RDI, B8)),
     Call "fflush",
@@ -400,7 +402,7 @@ printLineBreak :: Sq.Seq Instruction
 printLineBreak = Sq.fromList
     [
     Int 0,
-    Label ".L._println_str0", 
+    Label ".L._println_str0",
     AsciiZero "s",
     Label "line_break", AsciiZero "\n",
 

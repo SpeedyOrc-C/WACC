@@ -627,8 +627,7 @@ singleStatement = \case
 
     IR.FreeArray s -> undefined
 
-    IR.PrintChar _ ->
-        undefined
+    IR.PrintChar s -> expression (IR.Call B8 "print_char" [(B1, s)])
 
 instruction :: IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
 instruction = \case
@@ -720,12 +719,12 @@ macro =
     Sq.fromList
     [
     IfDefined "__APPLE__",
-        Define "fflush" "_fflush",
-        Define "write"  "_write",
-        Define "printf" "_printf",
-        Define "exit"   "_exit",
-        Define "malloc" "_malloc",
-        Define "puts"   "_puts",
+        Define "fflush"  "_fflush",
+        Define "write"   "_write",
+        Define "printf"  "_printf",
+        Define "exit"    "_exit",
+        Define "malloc"  "_malloc",
+        Define "putchar" "_putchar",
         Global "_main",
         Define "main" "_main",
     EndIf,
@@ -736,7 +735,7 @@ macro =
         Define "printf" "printf@PLT",
         Define "exit" "exit@PLT",
         Define "malloc" "malloc@PLT",
-        Define "puts" "puts@PLT",
+        Define "putchar" "putchar@PLT",
         Global "main",
     EndIf
     ]
@@ -759,6 +758,7 @@ program (IR.Program dataSegment fs) = do
             [ Internal.printString
             , Internal.printInt
             , Internal.printBool
+            , Internal.printChar
             , Internal.printLineBreak
             , Internal.printPointer
             , Internal.arrLoad8
