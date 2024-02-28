@@ -104,6 +104,9 @@ allocate var size = do
 
         return location
 
+{- This function frees the resources associated with the given identifier.
+   It removes the identifier's entry from the memory table and releases
+   the corresponding memory (either register or stack). -}
 free :: Identifier -> State GeneratorState ()
 free name = do
     memoryTable <- gets memoryTable
@@ -279,8 +282,7 @@ expression = \case
         return $ Sq.fromList
             [ Move a' (Register (RAX, B4))
             , Move (Immediate $ ImmediateInt 0) (Register (RDX, B4))
-            , DivideI b'
-            , Move (Register (RDX, B4)) (Register (RAX, B4))]
+            , DivideI b']
 
     IR.Remainder s1 s2 -> useTemporary RDX . useTemporary RSI $ do
         op1 <- scalar s1
