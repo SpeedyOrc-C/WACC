@@ -64,6 +64,10 @@ data GeneratorState = GeneratorState {
     tmpPushedRegs :: [PhysicalRegister]
 } deriving (Show)
 
+{- This function is responsible for allocating memory for a variable.
+   It first checks if there are any free registers available. If so, 
+   it allocates the variable to one of the available registers.
+   If all registers are in use, it allocates memory on the stack. -}
 allocate :: Identifier -> Size -> State GeneratorState MemoryLocation
 allocate var size = do
     registerPool <- gets registerPool
