@@ -557,7 +557,7 @@ expression = \case
     IR.ReadInt
         -> return (Sq.singleton $ Call "readi")
     IR.ReadChar
-        -> undefined
+        -> return (Sq.singleton $ Call "readChar")
     
 
 singleStatement :: IR.SingleStatement -> State GeneratorState (Seq Instruction)
