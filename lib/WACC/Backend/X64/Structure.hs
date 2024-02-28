@@ -44,6 +44,9 @@ data Instruction
     | MoveSignSize Size Operand Operand
     | MoveZeroSize Size Operand Operand
 
+    | MoveZeroSizeExtend Size Size Operand Operand
+    | MoveSignSizeExtend Size Size Operand Operand
+
     | Push Operand
     | Pop Operand
 

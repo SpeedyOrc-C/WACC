@@ -107,6 +107,12 @@ instance ATnT Instruction where
         MoveSize size from to ->
             "mov" ++ sizeSuffix size ++ " " ++
             atnt from ++ ", " ++ atnt to
+        MoveZeroSizeExtend size size' from to ->
+            "movz" ++ sizeSuffix size ++ sizeSuffix size' ++ " " ++
+            atnt from ++ ", " ++ atnt to
+        MoveSignSizeExtend size size' from to ->
+            "movs" ++ sizeSuffix size ++ sizeSuffix size' ++ " " ++
+            atnt from ++ ", " ++ atnt to
         CompareMove c from to ->
             "cmov" ++ conditionSuffix c ++ " " ++
             atnt from ++ ", " ++ atnt to

@@ -137,6 +137,7 @@ macro = [
     "    #define printf  _printf",
     "    #define exit    _exit",
     "    #define puts    _puts",
+    "    #define scanf   _scanf",
     "",
     "    .globl _main",
     "    #define main _main",
@@ -148,6 +149,7 @@ macro = [
     "    #define printf  printf@PLT",
     "    #define exit    exit@PLT",
     "    #define puts    puts@PLT",
+    "    #define scanf   scanf@PLT",
     "",
     "    .globl main",
     "#endif"]

@@ -433,3 +433,117 @@ printLineBreak = Sq.fromList
     Leave,
     Return
     ]
+
+readChar :: Sq.Seq Instruction
+readChar
+    = Sq.fromList
+        [Int 3,
+        Label ".L._readc_str0",
+        AsciiZero " %c",
+        Label "readChar",
+        Push (Register (RBP, B8)),
+        Move (Register (RSP, B8)) (Register (RBP, B8)),
+        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
+        Subtract (Immediate $ ImmediateInt 16) (Register (RSP, B8)),
+        Move (Register (RDI, B1)) (MemoryIndirect Nothing (RSP, B8) Nothing),
+        LoadAddress (MemoryIndirect Nothing (RSP, B8) Nothing) (Register (RSI, B8)),
+
+        LoadAddress
+            (MemoryIndirect (Just ".L._readc_str0") (RIP, B8) Nothing)
+            (Register (RDI, B8)),
+
+        Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
+        Call "scanf",
+        MoveSignSizeExtend B1 B8 
+            (MemoryIndirect Nothing (RSP, B8) Nothing)
+            (Register (RAX, B8)),
+
+        Add (Immediate $ ImmediateInt 16) (Register (RSP, B8)),
+        Leave,
+        Return
+        ]
+
+readInt :: Sq.Seq Instruction
+readInt
+    = Sq.fromList
+        [Int 2,
+        Label ".L._readi_str0",
+        AsciiZero "%d",
+        Label "readInt",
+        Push (Register (RBP, B8)),
+        Move (Register (RSP, B8)) (Register (RBP, B8)),
+        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
+        Subtract (Immediate $ ImmediateInt 16) (Register (RSP, B8)),
+        Move (Register (RDI, B1)) (MemoryIndirect Nothing (RSP, B8) Nothing),
+        LoadAddress (MemoryIndirect Nothing (RSP, B8) Nothing) (Register (RSI, B8)),
+
+        LoadAddress
+            (MemoryIndirect (Just ".L._readi_str0") (RIP, B8) Nothing)
+            (Register (RDI, B8)),
+
+        Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
+        Call "scanf",
+        MoveSignSizeExtend B4 B8 
+            (MemoryIndirect Nothing (RSP, B8) Nothing)
+            (Register (RAX, B8)),
+
+        Add (Immediate $ ImmediateInt 16) (Register (RSP, B8)),
+        Leave,
+        Return
+        ]
+
+{-
+.section .rodata
+43	# length of .L._readc_str0
+44		.int 3
+45	.L._readc_str0:
+46		.asciz " %c"
+47	.text
+48	_readc:
+49		pushq %rbp
+50		movq %rsp, %rbp
+51		# external calls must be stack-aligned to 16 bytes, accomplished by masking with fffffffffffffff0
+52		andq $-16, %rsp
+53		# RDI contains the "original" value of the destination of the read
+54		# allocate space on the stack to store the read: preserve alignment!
+55		# the passed default argument should be stored in case of EOF
+56		subq $16, %rsp
+57		movb %dil, (%rsp)
+58		leaq (%rsp), %rsi
+59		leaq .L._readc_str0(%rip), %rdi
+60		# on x86, al represents the number of SIMD registers used as variadic arguments
+61		movb $0, %al
+62		call scanf@plt
+63		movsbq (%rsp), %rax
+64		addq $16, %rsp
+65		movq %rbp, %rsp
+66		popq %rbp
+67		ret
+68	
+69	.section .rodata
+70	# length of .L._readi_str0
+71		.int 2
+72	.L._readi_str0:
+73		.asciz "%d"
+74	.text
+75	_readi:
+76		pushq %rbp
+77		movq %rsp, %rbp
+78		# external calls must be stack-aligned to 16 bytes, accomplished by masking with fffffffffffffff0
+79		andq $-16, %rsp
+80		# RDI contains the "original" value of the destination of the read
+81		# allocate space on the stack to store the read: preserve alignment!
+82		# the passed default argument should be stored in case of EOF
+83		subq $16, %rsp
+84		movl %edi, (%rsp)
+85		leaq (%rsp), %rsi
+86		leaq .L._readi_str0(%rip), %rdi
+87		# on x86, al represents the number of SIMD registers used as variadic arguments
+88		movb $0, %al
+89		call scanf@plt
+90		movslq (%rsp), %rax
+91		addq $16, %rsp
+92		movq %rbp, %rsp
+93		popq %rbp
+94		ret
+-}
