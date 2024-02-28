@@ -718,6 +718,9 @@ program (IR.Program dataSegment fs) = do
             , Internal.printBool
             , Internal.printLineBreak
             , Internal.printPointer
+            , Internal.arrLoad8
+            , Internal.arrLoad4
+            , Internal.arrLoad1
             ] |> EmptyLine)
         >< asum dataSegment'
 
