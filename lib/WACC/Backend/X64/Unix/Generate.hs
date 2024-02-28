@@ -128,6 +128,7 @@ free name = do
 
         _ -> return ()
 
+{- Given a 'MemoryLocation', this function generates an 'Operand'. -}
 operandFromMemoryLocation :: MemoryLocation -> State GeneratorState Operand
 operandFromMemoryLocation = \case
     AtRegister register@(reg, _) -> do
@@ -148,6 +149,7 @@ operandFromMemoryLocation = \case
         return $ MemoryIndirect
             (Just (ImmediateInt (offset + 16))) (RBP, B8) Nothing
 
+{- Given an IR.Scalar, this function generates the corresponding 'Operand'. -}
 scalar :: IR.Scalar -> State GeneratorState Operand
 scalar = \case
     IR.Immediate n -> return $
@@ -167,7 +169,10 @@ scalar = \case
             (Just $ ImmediateLabel ("str." ++ show n))
             (RIP, B8) Nothing
 
-usedCallerSaveRegisters :: State GeneratorState ([PhysicalRegister], [PhysicalRegister])
+{- This function determines which caller-save registers
+   are currently being used. -}
+usedCallerSaveRegisters :: 
+            State GeneratorState ([PhysicalRegister], [PhysicalRegister])
 usedCallerSaveRegisters = do
     registerPool <- gets registerPool
     let used = registerPool `S.intersection` callerSaveRegisters
@@ -178,11 +183,16 @@ usedCallerSaveRegisters = do
 
     return (usedParamRegs, usedNonParamRegs)
 
+{- Given a list of physical registers to be pushed onto the stack,
+   this function generates a pair of sequences of instructions to push
+   and pop the registers onto and from the stack, respectively. -}
 pushRegisters :: [PhysicalRegister] -> (Seq Instruction, Seq Instruction)
 pushRegisters pushed =
     ( Sq.fromList [Push (Register (x, B8)) | x <- pushed]
     , Sq.fromList [Pop (Register (x, B8)) | x <- reverse pushed])
 
+{- Given an offset, this function generates a pair of sequences of instructions
+   to adjust the stack pointer (RSP) by that offset. -}
 moveESP :: Int -> (Seq Instruction, Seq Instruction)
 moveESP x
     | x <= 0 = (Sq.empty, Sq.empty)
@@ -194,6 +204,7 @@ moveESP x
             (Immediate $ ImmediateInt x)
             (Register (RSP, B8))))
 
+{- Pushes the given physical register onto the stack. -}
 push :: PhysicalRegister -> State GeneratorState (Seq Instruction)
 push op = do
     modify $ \s -> s {
@@ -203,6 +214,7 @@ push op = do
     }
     return $ Sq.singleton $ Push (Register (op, B8))
 
+{- Pops the given physical register from the stack. -}
 pop :: PhysicalRegister -> State GeneratorState (Seq Instruction)
 pop op = do
     modify $ \s -> s {
@@ -578,24 +590,24 @@ singleStatement = \case
                 return $ evaluate ><
                     move size (Register (RAX, size)) (MemoryIndirect Nothing reg Nothing)
 
-            AtStack offset _ -> do
+            AtStack offset _ -> useTemporary RDX $ do
                 tmpStackOffset <- gets tmpStackOffset
                 return $ evaluate ><
                     move size (MemoryIndirect
                             (Just (ImmediateInt (offset - tmpStackOffset)))
                             (RSP, B8)
                             Nothing)
-                        (Register (RAX, B8)) ><
-                    move size (Register (RAX, size)) (MemoryIndirect Nothing (RAX, B8) Nothing)
+                        (Register (RDX, B8)) ><
+                    move size (Register (RAX, size)) (MemoryIndirect Nothing (RDX, B8) Nothing)
 
-            AtParameterStack offset _ ->
+            AtParameterStack offset _ -> useTemporary RDX $
                 -- +8 go beyond the pushed RBP
                 -- +8 go beyond the return address
                 return $ evaluate ><
                     move size (MemoryIndirect
                             (Just (ImmediateInt (offset + 16))) (RBP, B8) Nothing)
-                        (Register (RAX, B8)) ><
-                    move size (Register (RAX, size)) (MemoryIndirect Nothing (RAX, B8) Nothing)
+                        (Register (RDX, B8)) ><
+                    move size (Register (RAX, size)) (MemoryIndirect Nothing (RDX, B8) Nothing)
 
     IR.PrintString s -> expression (IR.Call B8 "print_string" [(B8, s)])
 
