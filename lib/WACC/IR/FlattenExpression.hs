@@ -85,7 +85,7 @@ expression = \case
         (result, evaluate) <- indirectExpression e
         tmp <- newTemporary
         return (Variable tmp,
-            evaluate ++ [Assign (getSize t) tmp (Dereference result)])
+            evaluate ++ [Assign (getSize t) tmp (Dereference (getSize t) result)])
 
     SM.LiteralPairNull ->
         return (Immediate 0, [])
@@ -102,13 +102,13 @@ expression = \case
         (pair, evaluatePair) <- indirectExpression e
         tmp <- newTemporary
         return (Variable tmp,
-            evaluatePair ++ [Assign (getSize t) tmp (Dereference pair)])
+            evaluatePair ++ [Assign (getSize t) tmp (Dereference (getSize t) pair)])
 
     e@(SM.PairSecond t _) -> do
         (pair, evaluatePair) <- indirectExpression e
         tmp <- newTemporary
         return (Variable tmp,
-            evaluatePair ++ [Assign (getSize t) tmp (Dereference pair)])
+            evaluatePair ++ [Assign (getSize t) tmp (Dereference (getSize t) pair)])
 
     SM.Not       e -> unary B1 Not       e
     SM.Negate    e -> unary B4 Negate    e
@@ -191,22 +191,22 @@ indirectExpression = \case
             evaluatePair ++
             [Assign B8 tmp (SeekPairSecond pair')])
 
-    SM.PairFirst _ pair -> do
+    SM.PairFirst t pair -> do
         (address, evaluatePair) <- indirectExpression pair
         value <- newTemporary
         tmp <- newTemporary
         return (Variable value,
             evaluatePair ++
-            [ Assign B8 value (Dereference address)
+            [ Assign B8 value (Dereference (getSize t) address)
             , Assign B8 tmp (SeekPairFirst (Variable value))])
 
-    SM.PairSecond _ pair -> do
+    SM.PairSecond t pair -> do
         (address, evaluatePair) <- indirectExpression pair
         value <- newTemporary
         tmp <- newTemporary
         return (Variable tmp,
             evaluatePair ++
-            [ Assign B8 value (Dereference address)
+            [ Assign B8 value (Dereference (getSize t) address)
             , Assign B8 tmp (SeekPairSecond (Variable value))])
 
     _ -> error "Semantic check has failed."
@@ -371,7 +371,7 @@ instance HasReference Expression where
         SeekPairFirst p -> reference p
         SeekPairSecond p -> reference p
 
-        Dereference s -> reference s
+        Dereference _ s -> reference s
 
         Call _ _ args -> reference $ snd <$> args
         ReadInt -> S.empty

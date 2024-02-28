@@ -92,7 +92,7 @@ data Expression
     | SeekPairFirst Scalar
     | SeekPairSecond Scalar
 
-    | Dereference Scalar
+    | Dereference Size Scalar
 
     | Call Size String [(Size, Scalar)]
     | ReadInt
