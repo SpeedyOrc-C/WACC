@@ -305,6 +305,7 @@ statement = \case
         SM.Int -> PrintInt
         SM.Char -> PrintChar
         SM.String -> PrintString
+        SM.Array SM.Char -> PrintString
         SM.Array {} -> PrintAddress
         SM.Pair {} -> PrintAddress
         _ -> error "Semantic check has failed."
