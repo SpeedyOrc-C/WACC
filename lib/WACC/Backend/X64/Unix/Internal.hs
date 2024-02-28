@@ -28,9 +28,9 @@ printString = Sq.fromList
     Move (Register (RDI, B8)) (Register (RAX, B8)),
 
     Move (Immediate $ ImmediateInt 1) (Register (RDI, B4)),
-    LoadAddress (MemoryIndirect (Just (ImmediateInt 4)) (RAX, B8) Nothing) 
+    LoadAddress (MemoryIndirect Nothing (RAX, B8) Nothing)
                 (Register (RSI, B8)),
-    Move (MemoryIndirect Nothing (RAX, B8) Nothing) (Register (RDX, B4)),
+    Move (MemoryIndirect (Just (ImmediateInt (-4))) (RAX, B8) Nothing) (Register (RDX, B4)),
     Call "write",
 
     Leave,
@@ -396,41 +396,23 @@ arrLoad1 = Sq.fromList
     ]
 
 
-{-
-.section .rodata
-61	# length of .L._println_str0
-62		.int 0
-63	.L._println_str0:
-64		.asciz ""
-65	.text
-66	_println:
-67		pushq %rbp
-68		movq %rsp, %rbp
-69		# external calls must be stack-aligned to 16 bytes, accomplished by masking with fffffffffffffff0
-70		andq $-16, %rsp
-71		leaq .L._println_str0(%rip), %rdi
-72		call puts@plt
-73		movq $0, %rdi
-74		call fflush@plt
-75		movq %rbp, %rsp
-76		popq %rbp
-77		ret
--}
 printLineBreak :: Sq.Seq Instruction
 printLineBreak = Sq.fromList
     [
     Int 0,
     Label ".L._println_str0", 
     AsciiZero "s",
+    Label "line_break", AsciiZero "\n",
+
     Label "print_line_break",
     Push (Register (RBP, B8)),
     Move (Register (RSP, B8)) (Register (RBP, B8)),
-    And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
-    LoadAddress (MemoryIndirect (Just ".L._println_str0") (RIP, B8) Nothing) 
-                (Register (RDI, B8)),
-    Call "puts",
-    Move (Immediate $ ImmediateInt 0) (Register (RDI, B8)),
-    Call "fflush",
+
+    Move (Immediate $ ImmediateInt 1) (Register (RDI, B4)),
+    LoadAddress (MemoryIndirect (Just "line_break") (RIP, B8) Nothing) (Register (RSI, B8)),
+    Move (Immediate $ ImmediateInt 1) (Register (RDX, B4)),
+    Call "write",
+
     Leave,
     Return
     ]
@@ -455,7 +437,7 @@ readChar
 
         Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
         Call "scanf",
-        MoveSignSizeExtend B1 B8 
+        MoveSignSizeExtend B1 B8
             (MemoryIndirect Nothing (RSP, B8) Nothing)
             (Register (RAX, B8)),
 
@@ -484,7 +466,7 @@ readInt
 
         Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
         Call "scanf",
-        MoveSignSizeExtend B4 B8 
+        MoveSignSizeExtend B4 B8
             (MemoryIndirect Nothing (RSP, B8) Nothing)
             (Register (RAX, B8)),
 
@@ -520,7 +502,7 @@ readInt
 65		movq %rbp, %rsp
 66		popq %rbp
 67		ret
-68	
+68
 69	.section .rodata
 70	# length of .L._readi_str0
 71		.int 2
