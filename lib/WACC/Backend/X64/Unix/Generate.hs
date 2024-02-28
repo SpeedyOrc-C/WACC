@@ -665,7 +665,11 @@ function (IR.Function name parameters statements) = do
         pushes ><
         pushStack ><
         ss >< popStack >< pops) ><
-        Sq.fromList (if name == "main" then [Leave, Return] else [])
+        Sq.fromList (if name == "main" then 
+                        [Move (Immediate $ ImmediateInt 0) (Register (RAX, B8)),
+                        Leave, 
+                        Return] 
+                    else [])
 
 functions :: [IR.Function IR.NoControlFlowStatement] -> State GeneratorState (Seq Instruction)
 functions = fmap asum . traverse function
