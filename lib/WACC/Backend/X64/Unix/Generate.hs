@@ -128,6 +128,7 @@ free name = do
 
         _ -> return ()
 
+{- Given a 'MemoryLocation', this function generates an 'Operand'. -}
 operandFromMemoryLocation :: MemoryLocation -> State GeneratorState Operand
 operandFromMemoryLocation = \case
     AtRegister register@(reg, _) -> do
