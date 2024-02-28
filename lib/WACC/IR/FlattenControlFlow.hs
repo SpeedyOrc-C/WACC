@@ -4,6 +4,7 @@ import Control.Monad.Trans.State.Lazy
 import Data.Functor.Identity
 
 import WACC.IR.Structure
+import Debug.Trace (traceShowId)
 
 {- Define the state used by the flattener, containing the label counter. -}
 newtype FlattenerState = FlattenerState { labelCounter :: Int }
@@ -21,7 +22,7 @@ newLabel :: State FlattenerState String
 newLabel = state $ \s ->
     (show (labelCounter s), s {labelCounter = labelCounter s + 1})
 
-{- Convert a no-expression statement to a list of 
+{- Convert a no-expression statement to a list of
    no-control-flow statements. -}
 noExpressionStatement :: NoExpressionStatement -> State FlattenerState
                         [NoControlFlowStatement]
@@ -47,33 +48,35 @@ noExpressionStatement = \case
         body' <- noExpressionStatements body
         doneLabel <- ("done." ++) <$> newLabel
 
-        return $
+        return  $
+            [Goto doneLabel] ++
             [Label whileLabel] ++
-            map NCF evaluateCondition ++
-            [GotoIfNot condition doneLabel] ++
             body' ++
-            [Goto whileLabel, Label doneLabel, WhileReference refs]
+            [Label doneLabel] ++
+            map NCF evaluateCondition ++
+            [GotoIf condition whileLabel] ++
+            [WhileReference refs]
 
-{- Convert a list of no-expression statements to a list of no-control-flow    
+{- Convert a list of no-expression statements to a list of no-control-flow
    statements. -}
-noExpressionStatements :: [NoExpressionStatement] -> State FlattenerState 
+noExpressionStatements :: [NoExpressionStatement] -> State FlattenerState
                         [NoControlFlowStatement]
-noExpressionStatements = (concat <$>) <$> traverse noExpressionStatement
+noExpressionStatements xs = concat <$> traverse noExpressionStatement xs
 
-{- Convert a function of no-expression statements to a function of 
+{- Convert a function of no-expression statements to a function of
    no-control-flow statements. -}
-functionNoExpressionStatement :: Function NoExpressionStatement -> State 
+functionNoExpressionStatement :: Function NoExpressionStatement -> State
                                 FlattenerState (Function NoControlFlowStatement)
 functionNoExpressionStatement (Function name params statements) =
     Function name params <$> noExpressionStatements statements
 
-functionsNoExpressionStatement :: [Function NoExpressionStatement] -> State 
+functionsNoExpressionStatement :: [Function NoExpressionStatement] -> State
                                 FlattenerState [Function NoControlFlowStatement]
 functionsNoExpressionStatement = traverse functionNoExpressionStatement
 
-{- Convert a program of no-expression statements to a program of 
+{- Convert a program of no-expression statements to a program of
    no-control-flow statements. -}
-programNoExpressionStatement :: Program NoExpressionStatement -> State 
+programNoExpressionStatement :: Program NoExpressionStatement -> State
                                 FlattenerState (Program NoControlFlowStatement)
 programNoExpressionStatement (Program dataSegment functions) =
     Program dataSegment <$> functionsNoExpressionStatement functions

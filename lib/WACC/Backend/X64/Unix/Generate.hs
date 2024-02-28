@@ -65,7 +65,7 @@ data GeneratorState = GeneratorState {
 } deriving (Show)
 
 {- This function is responsible for allocating memory for a variable.
-   It first checks if there are any free registers available. If so, 
+   It first checks if there are any free registers available. If so,
    it allocates the variable to one of the available registers.
    If all registers are in use, it allocates memory on the stack. -}
 allocate :: Identifier -> Size -> State GeneratorState MemoryLocation
@@ -171,7 +171,7 @@ scalar = \case
 
 {- This function determines which caller-save registers
    are currently being used. -}
-usedCallerSaveRegisters :: 
+usedCallerSaveRegisters ::
             State GeneratorState ([PhysicalRegister], [PhysicalRegister])
 usedCallerSaveRegisters = do
     registerPool <- gets registerPool
@@ -327,7 +327,7 @@ expression = \case
             , Compare op2 (Register (RAX, size))
             , Move (Immediate $ ImmediateInt 0) (Register (RAX, B4))
             , Move (Immediate $ ImmediateInt 1) (Register (RDX, B4))
-            , CompareMove GreaterEqual (Register (RDX, B4)) (Register (RAX, B4))
+            , CompareMove Greater (Register (RDX, B4)) (Register (RAX, B4))
             ]
 
     IR.LessEqual size s1 s2 ->useTemporary RDX $ do
@@ -527,20 +527,20 @@ expression = \case
         return $ Sq.fromList
             [
                 Move addr' (Register (RDX, B8)),
-                Move (MemoryIndirect (Just $ ImmediateInt (-4)) 
+                Move (MemoryIndirect (Just $ ImmediateInt (-4))
                         (RDX, B8)
                         Nothing) (Register (RAX, B4))
             ]
 
-    
+
     IR.Order scalar' -> do
         scalar'' <- scalar scalar'
         return $ Sq.singleton (Move scalar'' (Register (RAX, B4)))
-    
+
     IR.Character scalar' -> do
         scalar'' <- scalar scalar'
         return $ Sq.singleton (Move scalar'' (Register (RAX, B4)))
-    IR.And a b -> do 
+    IR.And a b -> do
         a' <- scalar a
         b' <- scalar b
         return $ Sq.fromList
@@ -558,7 +558,7 @@ expression = \case
         -> return (Sq.singleton $ Call "readi")
     IR.ReadChar
         -> return (Sq.singleton $ Call "readChar")
-    
+
 
 singleStatement :: IR.SingleStatement -> State GeneratorState (Seq Instruction)
 singleStatement = \case
@@ -645,6 +645,13 @@ instruction = \case
             , Compare (Immediate $ ImmediateInt 0) (Register (RAX, B1))
             , JumpWhen Equal (ImmediateLabel name)]
 
+    IR.GotoIf s name -> do
+        op <- scalar s
+        return $ Sq.fromList
+            [ Move op (Register (RAX, B1))
+            , Compare (Immediate $ ImmediateInt 0) (Register (RAX, B1))
+            , JumpWhen NotEqual (ImmediateLabel name)]
+
     IR.FreeVariable identifier -> do
         free identifier
         return Sq.empty
@@ -697,10 +704,10 @@ function (IR.Function name parameters statements) = do
         pushes ><
         pushStack ><
         ss >< popStack >< pops) ><
-        Sq.fromList (if name == "main" then 
+        Sq.fromList (if name == "main" then
                         [Move (Immediate $ ImmediateInt 0) (Register (RAX, B8)),
-                        Leave, 
-                        Return] 
+                        Leave,
+                        Return]
                     else [])
 
 functions :: [IR.Function IR.NoControlFlowStatement] -> State GeneratorState (Seq Instruction)
@@ -716,6 +723,7 @@ macro =
         Define "printf" "_printf",
         Define "exit"   "_exit",
         Define "malloc" "_malloc",
+        Define "puts"   "_puts",
         Global "_main",
         Define "main" "_main",
     EndIf,
@@ -726,6 +734,7 @@ macro =
         Define "printf" "printf@PLT",
         Define "exit" "exit@PLT",
         Define "malloc" "malloc@PLT",
+        Define "puts" "puts@PLT",
         Global "main",
     EndIf
     ]

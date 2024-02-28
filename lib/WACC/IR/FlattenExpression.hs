@@ -49,7 +49,7 @@ newParameter name = do
     modify nextVariable
     return $ Parameter name number
 
-expressions :: [SM.Expression] -> State FlattenerState ([Scalar], 
+expressions :: [SM.Expression] -> State FlattenerState ([Scalar],
                 [SingleStatement])
 expressions xs = do
     (unzip -> (scalars, concat -> evaluate)) <- traverse expression xs
@@ -143,7 +143,7 @@ expression = \case
         tmp <- newTemporary
         return (Variable tmp,
             evaluate ++
-            [Assign (getSize t) tmp (Call (getSize t) ("wacc_" ++ f) 
+            [Assign (getSize t) tmp (Call (getSize t) ("wacc_" ++ f)
             ((getSize <$> ts) `zip` scalars))])
     where
     unary :: Size -> (Scalar -> Expression) -> SM.Expression
@@ -428,7 +428,7 @@ function (SM.Function _ functionName params@(unzip -> (names, types)) b) = do
         (identifiers `zip` map getSize types)
         b'
 
-functions :: [SM.Function] -> State FlattenerState 
+functions :: [SM.Function] -> State FlattenerState
                 [Function NoExpressionStatement]
 functions = traverse function
 
@@ -444,7 +444,7 @@ program (SM.Program fs main) = do
     functions' <- functions allFunctions
     return $ Program dataSegment functions'
 
-flattenExpression :: (String `M.Map` Int, SM.Program) -> 
+flattenExpression :: (String `M.Map` Int, SM.Program) ->
                         Program NoExpressionStatement
 flattenExpression (dataSegment, p) = runIdentity $ evalStateT
     (program p) (initialState dataSegment)

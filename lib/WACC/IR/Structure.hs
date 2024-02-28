@@ -18,8 +18,8 @@ data NoExpressionStatement
 
     {- Cannot free the "free variables" inside the while loop
      as they might be referenced again.
-     References might only be freed after the loop. -} 
-    | While (Scalar, [SingleStatement]) [NoExpressionStatement] 
+     References might only be freed after the loop. -}
+    | While (Scalar, [SingleStatement]) [NoExpressionStatement]
             (Set Identifier)
     deriving Show
 
@@ -28,6 +28,7 @@ data NoControlFlowStatement
     = NCF SingleStatement
     | Label String
     | Goto String
+    | GotoIf Scalar String
     | GotoIfNot Scalar String
 
     {- These directives are for compiler only and not compiled. -}
@@ -102,7 +103,7 @@ data Scalar
     | String Int
     deriving Show
 
-{- Identifiers can be normal variable names, parameter names, 
+{- Identifiers can be normal variable names, parameter names,
    or temporary names within the program. -}
 data Identifier
     = Identifier String Int

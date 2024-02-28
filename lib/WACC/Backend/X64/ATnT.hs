@@ -143,6 +143,8 @@ instance ATnT Instruction where
         RodataSection -> ".section .rodata"
 
         Text -> ".Text"
+
+        Comment c -> "// " ++ c
         e -> error $ "ATnT: " ++ show e
 
 {- Convert a sequence of instructions to a single AT&T syntax string. -}

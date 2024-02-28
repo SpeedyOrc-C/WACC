@@ -6,6 +6,7 @@ import System.Environment ( getArgs )
 import System.FilePath
 import System.Exit ( ExitCode(ExitFailure), exitSuccess, exitWith )
 
+import Control.Monad ( when )
 import Data.Foldable ( for_, traverse_ )
 import Data.Function ((&))
 
@@ -32,12 +33,14 @@ splitFlags :: [String] -> ([String], [String])
 splitFlags args = (filter ((== "--") . take 2) args, filter ((/= "--") . take 2) args)
 
 data Flags = Flags {
-    noTextDecoration :: Bool
+    noTextDecoration :: Bool,
+    showIR :: Bool
 } deriving Show
 
 flagsFromArgs :: [String] -> Flags
 flagsFromArgs args = Flags {
-    noTextDecoration = "--no-text-deco" `elem` args
+    noTextDecoration = "--no-text-deco" `elem` args,
+    showIR = "--show-ir" `elem` args
 }
 
 preventTextDecoration :: Bool -> (a -> a) -> a -> a
@@ -130,30 +133,6 @@ semanticCheck path flags program sourceCode =
 
         semanticErrorExit
 
-macro = [
-    "#ifdef __APPLE__",
-    "    #define fflush   _fflush",
-    "    #define write   _write",
-    "    #define printf  _printf",
-    "    #define exit    _exit",
-    "    #define puts    _puts",
-    "    #define scanf   _scanf",
-    "",
-    "    .globl _main",
-    "    #define main _main",
-    "#endif",
-    "",
-    "#ifdef __linux__",
-    "    #define flush   fflush@PLT",
-    "    #define write   write@PLT",
-    "    #define printf  printf@PLT",
-    "    #define exit    exit@PLT",
-    "    #define puts    puts@PLT",
-    "    #define scanf   scanf@PLT",
-    "",
-    "    .globl main",
-    "#endif"]
-
 generateCode :: FilePath -> Flags -> Semantics.Structure.Program -> IO ()
 generateCode path flags ast = do
     let name = takeBaseName path
@@ -161,6 +140,8 @@ generateCode path flags ast = do
     let ir = IR.Generate.generateIR ast
     let asm = Unix.Generate.generateX64 ir
     let output = ATnT.atnt asm
+
+    when (showIR flags) $ IR.Generate.debug ir
 
     writeFile (name ++ ".s") output
 

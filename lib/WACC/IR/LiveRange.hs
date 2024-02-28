@@ -4,10 +4,6 @@ import qualified Data.Set as S
 import           Control.Arrow
 
 import WACC.IR.Structure
-    ( Identifier,
-      NoControlFlowStatement(Goto, NCF, GotoIfNot, FreeVariable, Label),
-      Function(Function),
-      Program(..) )
 import WACC.IR.FlattenExpression (reference)
 
 {- Set of identifiers that have been freed. -}
@@ -21,7 +17,7 @@ initialFreeingVariableState = FreeingVariableState {
     freed = S.empty
 }
 
-{- Function to insert free variable directives into a list of no-control-flow 
+{- Function to insert free variable directives into a list of no-control-flow
    statements. -}
 putFreeVariableDirective :: [NoControlFlowStatement] -> [NoControlFlowStatement]
 putFreeVariableDirective =
@@ -30,7 +26,7 @@ putFreeVariableDirective =
     >>> snd
     >>> reverse
 
-{- Function to perform the freeing variable analysis on a list of 
+{- Function to perform the freeing variable analysis on a list of
    no-control-flow statements. -}
 free :: FreeingVariableState -> [NoControlFlowStatement]
         -> (FreeingVariableState, [NoControlFlowStatement])
@@ -59,10 +55,22 @@ free state = \case
           statement : statements
         )
 
+    statement@(GotoIf variable _) : ss ->
+        let
+        toBeFreed = reference variable S.\\ freed state
+        state' = state {freed = freed state `S.union` toBeFreed}
+        (state'', statements) = free state' ss
+        in
+        ( state''
+        , [FreeVariable var | var <- S.toList toBeFreed] ++
+          statement : statements
+        )
+
     s@(Label {}) : ss -> second (s :) (free state ss)
     s@(Goto {}) : ss -> second (s :) (free state ss)
 
-    _:ss -> free state ss
+    WhileReference {}:ss -> free state ss
+    FreeVariable {}:ss -> free state ss
 
 {- Function to perform live range analysis on a program. -}
 analyseLiveRange ::
