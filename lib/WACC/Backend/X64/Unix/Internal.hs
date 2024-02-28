@@ -75,6 +75,32 @@ printChar = Sq.fromList [
     ]
 
 {-
+seek_array_element4:
+    push %rbp
+    mov %rsp, %rbp
+
+    movslq %esi, %rsi
+    lea (%rdi, %rsi, 4), %rax
+
+    leave
+    ret
+-}
+
+seekArrayElement4 :: Sq.Seq Instruction
+seekArrayElement4 = Sq.fromList
+    [
+    Label "seek_array_element4",
+    Push (Register (RBP, B8)),
+    Move (Register (RSP, B8)) (Register (RBP, B8)),
+
+    MoveSignSizeExtend B4 B8 (Register (RSI, B4)) (Register (RSI, B8)),
+    LoadAddress (MemoryIndirect Nothing (RDI, B8) (Just ((RSI, B8), 4))) (Register (RAX, B8)),
+
+    Leave,
+    Return
+    ]
+
+{-
 bool_true: .asciz "true"
 bool_false: .asciz "false"
 print_bool:

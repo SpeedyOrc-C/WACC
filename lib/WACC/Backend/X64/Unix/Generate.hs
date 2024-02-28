@@ -378,11 +378,13 @@ expression = \case
             , CompareMove NotEqual (Register (RDX, B4)) (Register (RAX, B4))
             ]
 
-    IR.Dereference s -> do
+    IR.Dereference size s -> do
         op <- scalar s
         return $ Sq.fromList
             [ Move op (Register (RAX, B8))
-            , Move (MemoryIndirect Nothing (RAX, B8) Nothing) (Register (RAX, B8))]
+            , Move (MemoryIndirect Nothing (RAX, B8) Nothing)
+                    (Register (RAX, size))
+            ]
 
     IR.SeekPairFirst s -> do
         op <- scalar s
@@ -511,16 +513,19 @@ expression = \case
             adds ><
             pops
 
-    IR.SeekArrayElement size arr index -> do
-        registerPool <- gets registerPool
-        useManyTemporary( [R9, R10] ++ toList registerPool)$ do
-            arr' <- scalar arr
-            index' <- scalar index
-            return $ Sq.fromList
-                [Move arr' (Register (R9, B8)),
-                    Move index' (Register (R10, B4)),
-                    Call (ImmediateLabel ("_arrLoad" ++ show (IR.sizeToInt size))),
-                    Move (Register (R9, size)) (Register (RAX, size))]
+    -- IR.SeekArrayElement size arr index -> do
+    --     registerPool <- gets registerPool
+    --     useManyTemporary( [R9, R10] ++ toList registerPool)$ do
+    --         arr' <- scalar arr
+    --         index' <- scalar index
+    --         return $ Sq.fromList
+    --             [Move arr' (Register (R9, B8)),
+    --                 Move index' (Register (R10, B4)),
+    --                 Call (ImmediateLabel ("_arrLoad" ++ show (IR.sizeToInt size))),
+    --                 Move (Register (R9, size)) (Register (RAX, size))]
+
+    IR.SeekArrayElement _ a i -> expression $
+        IR.Call B8 "seek_array_element4" [(B8, a), (B4, i)]
 
     IR.Length addr -> useTemporary RDX $ do
         addr' <- scalar addr
@@ -531,7 +536,6 @@ expression = \case
                         (RDX, B8)
                         Nothing) (Register (RAX, B4))
             ]
-
 
     IR.Order scalar' -> do
         scalar'' <- scalar scalar'
@@ -765,6 +769,7 @@ program (IR.Program dataSegment fs) = do
             , Internal.arrLoad8
             , Internal.arrLoad4
             , Internal.arrLoad1
+            , Internal.seekArrayElement4
             , Internal.errorOutOfBounds
             , Internal.mallocFunction
             , Internal.errorNull
