@@ -255,8 +255,8 @@ expression = \case
     IR.Not s -> do
         op <- scalar s
         return $ Sq.fromList
-            [ Move op (Register (RAX, B4))
-            , Not (Register (RAX, B4))]
+            [ Move op (Register (RAX, B1))
+            , Not (Register (RAX, B1))]
 
     IR.Negate s -> do
         op <- scalar s
