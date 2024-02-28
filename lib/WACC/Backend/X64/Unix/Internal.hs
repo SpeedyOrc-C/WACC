@@ -357,22 +357,40 @@ arrLoad1 = Sq.fromList
     ]
 
 
-
+{-
+.section .rodata
+61	# length of .L._println_str0
+62		.int 0
+63	.L._println_str0:
+64		.asciz ""
+65	.text
+66	_println:
+67		pushq %rbp
+68		movq %rsp, %rbp
+69		# external calls must be stack-aligned to 16 bytes, accomplished by masking with fffffffffffffff0
+70		andq $-16, %rsp
+71		leaq .L._println_str0(%rip), %rdi
+72		call puts@plt
+73		movq $0, %rdi
+74		call fflush@plt
+75		movq %rbp, %rsp
+76		popq %rbp
+77		ret
+-}
 printLineBreak :: Sq.Seq Instruction
 printLineBreak = Sq.fromList
     [
-    Label "line_break", AsciiZero "\n",
+    Label ".L._println_str0", AsciiZero "",
 
     Label "print_line_break",
     Push (Register (RBP, B8)),
     Move (Register (RSP, B8)) (Register (RBP, B8)),
-
-    Move (Immediate $ ImmediateInt 1) (Register (RDI, B4)),
-    LoadAddress (MemoryIndirect (Just "line_break") (RIP, B8) Nothing) 
-                (Register (RSI, B8)),
-    Move (Immediate $ ImmediateInt 2) (Register (RDX, B4)),
-    Call "write",
-
+    And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
+    LoadAddress (MemoryIndirect (Just ".L._println_str0") (RIP, B8) Nothing) 
+                (Register (RDI, B8)),
+    Call "puts",
+    Move (Immediate $ ImmediateInt 0) (Register (RDI, B8)),
+    Call "fflush",
     Leave,
     Return
     ]
