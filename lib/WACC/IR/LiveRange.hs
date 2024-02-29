@@ -1,85 +1,61 @@
 module WACC.IR.LiveRange where
 
 import qualified Data.Set as S
+import           Control.Monad.Trans.State.Lazy
 import           Control.Arrow
 
 import WACC.IR.Structure
 import WACC.IR.FlattenExpression (reference)
 
-{- Set of identifiers that have been freed. -}
-newtype FreeingVariableState = FreeingVariableState {
-    freed :: S.Set Identifier
-}
+newtype FreeingVariableState = FreeingVariableState
+    { freed :: S.Set Identifier }
 
-{- Initially the freed set is empty. -}
 initialFreeingVariableState :: FreeingVariableState
-initialFreeingVariableState = FreeingVariableState {
-    freed = S.empty
-}
+initialFreeingVariableState = FreeingVariableState
+    { freed = S.empty }
 
-{- Function to insert free variable directives into a list of no-control-flow
-   statements. -}
+noControlFlowStatement :: NoControlFlowStatement
+    -> State FreeingVariableState [NoControlFlowStatement]
+noControlFlowStatement = \case
+    NCF statement -> do
+        s <- get
+        let toBeFreed = reference statement S.\\ freed s
+        put s {freed = freed s `S.union` toBeFreed}
+        return $ (FreeVariable <$> S.toList toBeFreed) ++ [NCF statement]
+
+    GotoIfNot variable label -> do
+        s <- get
+        let toBeFreed = reference variable S.\\ freed s
+        put s {freed = freed s `S.union` toBeFreed}
+        return $ (FreeVariable <$> S.toList toBeFreed) ++ [GotoIfNot variable label]
+
+    GotoIf variable label -> do
+        s <- get
+        let toBeFreed = reference variable S.\\ freed s
+        put s {freed = freed s `S.union` toBeFreed}
+        return $ (FreeVariable <$> S.toList toBeFreed) ++ [GotoIf variable label]
+
+
+    WhileReference refs -> do
+        s <- get
+        let toBeFreed = refs S.\\ freed s
+        put s {freed = freed s `S.union` toBeFreed}
+        return [WhileReference toBeFreed]
+
+    Label label -> return [Label label]
+    Goto label -> return [Goto label]
+    FreeVariable {} -> return []
+
+statements :: [NoControlFlowStatement]
+    -> State FreeingVariableState [NoControlFlowStatement]
+statements xs = concat <$> traverse noControlFlowStatement xs
+
+analyse :: [NoControlFlowStatement] -> [NoControlFlowStatement]
+analyse xs = evalState (statements xs) initialFreeingVariableState
+
 putFreeVariableDirective :: [NoControlFlowStatement] -> [NoControlFlowStatement]
-putFreeVariableDirective =
-        reverse
-    >>> free initialFreeingVariableState
-    >>> snd
-    >>> reverse
+putFreeVariableDirective = reverse >>> analyse >>> reverse
 
-{- Function to perform the freeing variable analysis on a list of
-   no-control-flow statements. -}
-free :: FreeingVariableState -> [NoControlFlowStatement]
-        -> (FreeingVariableState, [NoControlFlowStatement])
-free state = \case
-    [] -> (state, [])
-
-    statement@(NCF s) : ss ->
-        let
-        toBeFreed = reference s S.\\ freed state
-        state' = state {freed = freed state `S.union` toBeFreed}
-        (state'', statements) = free state' ss
-        in
-        ( state''
-        , [FreeVariable var | var <- S.toList toBeFreed] ++
-          statement : statements
-        )
-
-    statement@(GotoIfNot variable _) : ss ->
-        let
-        toBeFreed = reference variable S.\\ freed state
-        state' = state {freed = freed state `S.union` toBeFreed}
-        (state'', statements) = free state' ss
-        in
-        ( state''
-        , [FreeVariable var | var <- S.toList toBeFreed] ++
-          statement : statements
-        )
-
-    statement@(GotoIf variable _) : ss ->
-        let
-        toBeFreed = reference variable S.\\ freed state
-        state' = state {freed = freed state `S.union` toBeFreed}
-        (state'', statements) = free state' ss
-        in
-        ( state''
-        , [FreeVariable var | var <- S.toList toBeFreed] ++
-          statement : statements
-        )
-
-    s@(Label {}) : ss -> second (s :) (free state ss)
-    s@(Goto {}) : ss -> second (s :) (free state ss)
-
-    (WhileReference refs):ss ->
-        let
-        toBeFreed = refs S.\\ freed state
-        state' = state {freed = freed state `S.union` toBeFreed}
-        (state'', statements) = free state' ss
-        in
-        ( state'', WhileReference toBeFreed : statements )
-
-    FreeVariable {}:ss -> free state ss
-
-{- Function to perform live range analysis on a program. -}
 analyseLiveRange ::
     Program NoControlFlowStatement -> Program NoControlFlowStatement
 analyseLiveRange (Program dataSegment functions) =
