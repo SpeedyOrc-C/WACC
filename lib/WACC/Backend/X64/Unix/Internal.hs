@@ -76,6 +76,53 @@ printChar = Sq.fromList [
     ]
 
 {-
+.section .rodata
+77	# length of .L._printc_str0
+78		.int 2
+79	.L._printc_str0:
+80		.asciz "%c"
+81	.text
+82	_printc:
+83		pushq %rbp
+84		movq %rsp, %rbp
+85		# external calls must be stack-aligned to 16 bytes, accomplished by masking with fffffffffffffff0
+86		andq $-16, %rsp
+87		movb %dil, %sil
+88		leaq .L._printc_str0(%rip), %rdi
+89		# on x86, al represents the number of SIMD registers used as variadic arguments
+90		movb $0, %al
+91		call printf@plt
+92		movq $0, %rdi
+93		call fflush@plt
+94		movq %rbp, %rsp
+95		popq %rbp
+96		ret
+-}
+
+printChar' :: Sq.Seq Instruction
+printChar' = Sq.fromList [
+    Int 2,
+    Label ".L._printc_str0",
+    AsciiZero "%c",
+    Label "_printc",
+        
+    And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
+    Move (Register (RDI, B1)) (Register (RSI, B1)),
+
+    Push (Register (RBP, B8)),
+    Move (Register (RSP, B8)) (Register (RBP, B8)),
+    LoadAddress (MemoryIndirect (Just ".L._printc_str0") (RIP, B8) Nothing) (Register (RDI, B8)),
+
+    MoveZeroSizeExtend B1 B4 (Register (RDI, B1)) (Register (RDI, B4)),
+    Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
+    Call "printf",
+    Move (Immediate $ ImmediateInt 0) (Register (RDI, B8)),
+    Call "fflush",
+    Leave,
+    Return
+    ]
+
+{-
 seek_array_element4:
     push %rbp
     mov %rsp, %rbp

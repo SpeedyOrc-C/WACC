@@ -620,7 +620,7 @@ singleStatement = \case
 
     IR.FreeArray s -> undefined
 
-    IR.PrintChar s -> expression (IR.Call B8 "print_char" [(B1, s)])
+    IR.PrintChar s -> expression (IR.Call B8 "_printc" [(B1, s)])
 
 instruction :: IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
 instruction = \case
@@ -752,6 +752,7 @@ program (IR.Program dataSegment fs) = do
             , Internal.printInt
             , Internal.printBool
             , Internal.printChar
+            , Internal.printChar'
             , Internal.printLineBreak
             , Internal.printPointer
             , Internal.arrLoad8
