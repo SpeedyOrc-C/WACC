@@ -544,8 +544,8 @@ expression = \case
                 Or b' (Register (RAX, B1))]
     IR.ReadInt
         -> return (Sq.singleton $ Call "readInt")
-    IR.ReadChar chr ->
-            expression (IR.Call B1 "readChar" [(B1, chr)])
+
+    IR.ReadChar -> expression (IR.Call B1 "getchar" [])
 
 
 singleStatement :: IR.SingleStatement -> State GeneratorState (Seq Instruction)
@@ -713,6 +713,7 @@ macro =
         Define "exit"    "_exit",
         Define "malloc"  "_malloc",
         Define "putchar" "_putchar",
+        Define "getchar" "_getchar",
         Global "_main",
         Define "main" "_main",
     EndIf,
@@ -724,6 +725,7 @@ macro =
         Define "exit" "exit@PLT",
         Define "malloc" "malloc@PLT",
         Define "putchar" "putchar@PLT",
+        Define "getchar" "getchar@PLT",
         Global "main",
     EndIf
     ]
@@ -760,7 +762,6 @@ program (IR.Program dataSegment fs) = do
             , Internal.errorNull
             , Internal.errorOutOfMemory
             , Internal.errorOverFlow
-            , Internal.readChar
             , Internal.readInt
             ] |> EmptyLine)
         >< asum dataSegment'

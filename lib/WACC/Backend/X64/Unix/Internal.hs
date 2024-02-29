@@ -98,7 +98,7 @@ printChar = Sq.fromList [
 64		movq %rbp, %rsp
 65		popq %rbp
 66		ret
-67	
+67
 -}
 printString' :: Sq.Seq Instruction
 printString' = Sq.fromList [
@@ -108,7 +108,7 @@ printString' = Sq.fromList [
     Label "_prints",
     Push (Register (RBP, B8)),
     Move (Register (RSP, B8)) (Register (RBP, B8)),
-    
+
     And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
     Move (Register (RDI, B8)) (Register (RDX, B8)),
     Move (MemoryIndirect (Just $ ImmediateInt (-4)) (RDI, B8) Nothing)(Register (RSI, B4)),
@@ -154,7 +154,7 @@ printChar' = Sq.fromList [
     Label "_printc",
     Push (Register (RBP, B8)),
     Move (Register (RSP, B8)) (Register (RBP, B8)),
-    
+
     And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
     Move (Register (RDI, B1)) (Register (RSI, B1)),
 
@@ -555,35 +555,6 @@ printLineBreak = Sq.fromList
     Leave,
     Return
     ]
-
-readChar :: Sq.Seq Instruction
-readChar
-    = Sq.fromList
-        [Int 3,
-        Label ".L._readc_str0",
-        AsciiZero " %c",
-        Label "readChar",
-        Push (Register (RBP, B8)),
-        Move (Register (RSP, B8)) (Register (RBP, B8)),
-        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
-        Subtract (Immediate $ ImmediateInt 16) (Register (RSP, B8)),
-        Move (Register (RDI, B1)) (MemoryIndirect Nothing (RSP, B8) Nothing),
-        LoadAddress (MemoryIndirect Nothing (RSP, B8) Nothing) (Register (RSI, B8)),
-
-        LoadAddress
-            (MemoryIndirect (Just ".L._readc_str0") (RIP, B8) Nothing)
-            (Register (RDI, B8)),
-
-        Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
-        Call "scanf",
-        MoveSignSizeExtend B1 B8
-            (MemoryIndirect Nothing (RSP, B8) Nothing)
-            (Register (RAX, B8)),
-
-        Add (Immediate $ ImmediateInt 16) (Register (RSP, B8)),
-        Leave,
-        Return
-        ]
 
 readInt :: Sq.Seq Instruction
 readInt
