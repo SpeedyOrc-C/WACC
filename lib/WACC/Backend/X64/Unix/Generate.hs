@@ -250,7 +250,8 @@ expression :: IR.Expression -> State GeneratorState (Seq Instruction)
 expression = \case
     IR.Scalar s -> do
         op <- scalar s
-        return $ Sq.fromList [Move op (Register (RAX, IR.getSize op))]
+        let size = IR.getSize op
+        return $ move size op (Register (RAX, IR.getSize op))
 
     IR.Not s -> do
         op <- scalar s
