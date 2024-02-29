@@ -169,13 +169,23 @@ indirectExpression ::
 indirectExpression = \case
     i@(SM.Identifier _ _) -> expression i
 
-    SM.ArrayElement t array index -> do
+    SM.ArrayElement t array@(SM.Identifier {}) index -> do
         (index', evaluateIndex) <- expression index
         (array', evaluateElementAddress) <- indirectExpression array
         tmp <- newTemporary
         return (Variable tmp,
             evaluateIndex ++ evaluateElementAddress ++
             [Assign B8 tmp (SeekArrayElement (getSize t) array' index')])
+
+    SM.ArrayElement _ array index -> do
+        (index', evaluateIndex) <- expression index
+        (array', evaluateElementAddress) <- indirectExpression array
+        value <- newTemporary
+        tmp <- newTemporary
+        return (Variable tmp,
+            evaluateIndex ++ evaluateElementAddress ++
+            [ Assign B8 value (Dereference B8 array')
+            , Assign B8 tmp (SeekArrayElement B8 (Variable value) index')])
 
     SM.PairFirst _ pair@(SM.Identifier {}) -> do
         (pair', evaluatePair) <- indirectExpression pair
@@ -197,7 +207,7 @@ indirectExpression = \case
         tmp <- newTemporary
         return (Variable value,
             evaluatePair ++
-            [ Assign B8 value (Dereference (getSize t) address)
+            [ Assign B8 value (Dereference B8 address)
             , Assign B8 tmp (SeekPairFirst (Variable value))])
 
     SM.PairSecond t pair -> do
@@ -206,7 +216,7 @@ indirectExpression = \case
         tmp <- newTemporary
         return (Variable tmp,
             evaluatePair ++
-            [ Assign B8 value (Dereference (getSize t) address)
+            [ Assign B8 value (Dereference B8 address)
             , Assign B8 tmp (SeekPairSecond (Variable value))])
 
     _ -> error "Semantic check has failed."
