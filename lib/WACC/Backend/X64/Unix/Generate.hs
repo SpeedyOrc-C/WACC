@@ -61,7 +61,8 @@ data GeneratorState = GeneratorState {
     stainedCalleeSaveRegs :: S.Set PhysicalRegister,
     maxStackSize :: Int,
     tmpStackOffset :: Int,
-    tmpPushedRegs :: [PhysicalRegister]
+    tmpPushedRegs :: [PhysicalRegister],
+    functionName :: String
 } deriving (Show)
 
 {- This function is responsible for allocating memory for a variable.
@@ -612,6 +613,11 @@ singleStatement = \case
     IR.Return size s -> do
         op <- scalar s
         return $ Sq.fromList [Move op (Register (RAX, size)), Leave, Return]
+        name <- gets functionName
+
+        return $ Sq.fromList
+            [ Move op (Register (RAX, size))
+            , Jump . ImmediateLabel $ name ++ ".return"]
 
     IR.Free s -> undefined
 
@@ -665,6 +671,8 @@ function :: IR.Function IR.NoControlFlowStatement -> State GeneratorState (Seq I
 function (IR.Function name parameters statements) = do
     oldState <- get
 
+    modify $ \s -> s { functionName = name }
+
     let (registerParams, stackParams) = splitAt 6 parameters
 
     for_ (zip [1..] registerParams) $ \(i, (ident, size)) -> do
@@ -690,6 +698,10 @@ function (IR.Function name parameters statements) = do
         (pushStack, popStack) = moveESP maxStackSize
     put oldState
 
+    -- Main program returns 0 by default, but other functions do not.
+    let mainDefaultReturn = if name /= "main" then Sq.empty else Sq.singleton
+            (Move (Immediate $ ImmediateInt 0) (Register (RAX, B8)))
+
     return $
         Sq.fromList
             [ Label name
@@ -698,14 +710,11 @@ function (IR.Function name parameters statements) = do
         pushes ><
         pushStack ><
         statements' ><
+        Sq.singleton (Label $ name ++ ".return") ><
         popStack ><
         pops ><
-        Sq.fromList (
-            if name == "main" then
-                [ Move (Immediate $ ImmediateInt 0) (Register (RAX, B8))
-                , Leave
-                , Return ]
-            else [])
+        mainDefaultReturn ><
+        Sq.fromList [Leave, Return]
 
 functions :: [IR.Function IR.NoControlFlowStatement] -> State GeneratorState (Seq Instruction)
 functions = fmap asum . traverse function
@@ -782,7 +791,8 @@ initialState = GeneratorState {
     stainedCalleeSaveRegs = S.empty,
     maxStackSize = 0,
     tmpStackOffset = 0,
-    tmpPushedRegs = []
+    tmpPushedRegs = [],
+    functionName = undefined
 }
 
 generateX64 :: IR.Program IR.NoControlFlowStatement -> Seq Instruction
