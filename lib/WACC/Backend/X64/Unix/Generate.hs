@@ -61,7 +61,6 @@ data GeneratorState = GeneratorState {
     stainedCalleeSaveRegs :: S.Set PhysicalRegister,
     maxStackSize :: Int,
     tmpStackOffset :: Int,
-    pushedRDX :: Bool,
     tmpPushedRegs :: [PhysicalRegister]
 } deriving (Show)
 
@@ -210,7 +209,6 @@ push :: PhysicalRegister -> State GeneratorState (Seq Instruction)
 push op = do
     modify $ \s -> s {
         tmpStackOffset = tmpStackOffset s - 8,
-        pushedRDX = op == RDX,
         tmpPushedRegs = op : tmpPushedRegs s
     }
     return $ Sq.singleton $ Push (Register (op, B8))
@@ -220,7 +218,6 @@ pop :: PhysicalRegister -> State GeneratorState (Seq Instruction)
 pop op = do
     modify $ \s -> s {
         tmpStackOffset = tmpStackOffset s + 8,
-        pushedRDX = (op /= RDX) && pushedRDX s,
         tmpPushedRegs = drop 1 (tmpPushedRegs s)
     }
     return $ Sq.singleton $ Pop (Register (op, B8))
@@ -785,7 +782,6 @@ initialState = GeneratorState {
     stainedCalleeSaveRegs = S.empty,
     maxStackSize = 0,
     tmpStackOffset = 0,
-    pushedRDX = False,
     tmpPushedRegs = []
 }
 
