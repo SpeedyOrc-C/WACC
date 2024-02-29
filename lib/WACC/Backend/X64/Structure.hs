@@ -17,12 +17,18 @@ newtype Program = Program {
 move :: Size -> Operand -> Operand -> Seq Instruction
 move _ from@(Register _) to = return $ Move from to
 move _ from@(MemoryIndirect (Just (ImmediateLabel _)) (RIP, B8) Nothing) to =
-    return $ LoadAddress from to
+    loadAddress from to
 move _ from to@(Register _) = return $ Move from to
 move size from@(MemoryIndirect {}) to@(MemoryIndirect {}) =
     Sq.fromList [ Move from (Register (RAX, size))
     , Move (Register (RAX, size)) to]
 move size from to = return $ MoveSize size from to
+
+loadAddress :: Operand -> Operand -> Seq Instruction
+loadAddress from to@(MemoryIndirect {})
+    = Sq.fromList [ LoadAddress from (Register (RAX, B8))
+    , Move (Register (RAX, B8)) to]
+loadAddress from to = Sq.singleton $ LoadAddress from to
 
 data Condition
     = Equal | NotEqual
