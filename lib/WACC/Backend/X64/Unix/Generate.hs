@@ -581,7 +581,10 @@ singleStatement = \case
             [ Move op (Register (RAX, size))
             , Jump . ImmediateLabel $ name ++ ".return"]
 
-    IR.Free s -> useTemporary RDX $ do
+    IR.Free s -> useTemporary RDX $ 
+        expression (IR.Call B8 "free" [(B8, s)])
+
+    IR.FreeArray s -> useTemporary RDX $ do
         op <- scalar s
         call <- expression (IR.Call B8 "free" [])
         return $
@@ -590,8 +593,6 @@ singleStatement = \case
             Subtract (Immediate $ ImmediateInt 4) (Register (RDX, B8)),
             Move (Register (RDX, B8)) (Register (RDI, B8))]
             >< call 
-
-    IR.FreeArray s -> undefined
 
     IR.PrintChar s -> expression (IR.Call B8 "_printc" [(B1, s)])
 
@@ -714,6 +715,7 @@ macro =
         Define "malloc"  "_malloc",
         Define "putchar" "_putchar",
         Define "getchar" "_getchar",
+        Define "free" "_free",
         Global "_main",
         Define "main" "_main",
     EndIf,
@@ -724,6 +726,7 @@ macro =
         Define "printf" "printf@PLT",
         Define "scanf" "scanf@PLT",
         Define "exit" "exit@PLT",
+        Define "free" "free@PLT",
         Define "malloc" "malloc@PLT",
         Define "putchar" "putchar@PLT",
         Define "getchar" "getchar@PLT",
