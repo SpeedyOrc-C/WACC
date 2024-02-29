@@ -239,7 +239,9 @@ statement = \case
     SM.If condition thenClause elseClause -> do
         (condition', evaluateCondition) <- expression condition
         thenClause' <- block thenClause
+        modify $ \s -> s { mappingStack = tail $ mappingStack s }
         elseClause' <- block elseClause
+        modify $ \s -> s { mappingStack = tail $ mappingStack s }
         return $ map NE evaluateCondition ++
             [If condition' thenClause' elseClause']
 
@@ -248,6 +250,7 @@ statement = \case
         body' <- block body
         possibleFreeVariables <- gets $
             S.fromList . map snd . concatMap M.toList . mappingStack
+        modify $ \s -> s { mappingStack = tail $ mappingStack s }
         return [While preWhile body'
                 ((reference condition' `S.union`
                   reference evaluateCondition `S.union`
