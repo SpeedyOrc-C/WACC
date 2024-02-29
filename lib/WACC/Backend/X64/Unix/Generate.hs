@@ -17,6 +17,7 @@ import           WACC.Backend.X64.Structure
 import           WACC.Backend.StackPool
 import Data.Functor
 import Debug.Trace (traceShowId, traceShow, trace)
+import qualified GHC.Real as Internal
 
 {- This indicates the location of the data. Stored in registers,
    stored in the stack or stored in the parameter stack. -}
@@ -763,6 +764,7 @@ program (IR.Program dataSegment fs) = do
             , Internal.errorOutOfMemory
             , Internal.readChar
             , Internal.readInt
+            , Internal.overflowError
             ] |> EmptyLine)
         >< asum dataSegment'
 
