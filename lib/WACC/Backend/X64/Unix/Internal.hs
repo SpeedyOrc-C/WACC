@@ -281,7 +281,7 @@ printLineBreak = Sq.fromList [
 
     Move (Immediate $ ImmediateInt 1) (Register (RDI, B4)),
     LoadAddress (MemoryIndirect (Just "line_break") (RIP, B8) Nothing) (Register (RSI, B8)),
-    Move (Immediate $ ImmediateInt 2) (Register (RDX, B4)),
+    Move (Immediate $ ImmediateInt 1) (Register (RDX, B4)),
     Call "write",
 
     Leave,
