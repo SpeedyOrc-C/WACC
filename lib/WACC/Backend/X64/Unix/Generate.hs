@@ -764,6 +764,8 @@ program (IR.Program dataSegment fs) = do
             , Internal.mallocFunction
             , Internal.errorNull
             , Internal.errorOutOfMemory
+            , Internal.readChar
+            , Internal.readInt
             ] |> EmptyLine)
         >< asum dataSegment'
 

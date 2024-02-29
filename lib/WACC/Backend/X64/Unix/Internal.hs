@@ -39,6 +39,7 @@ print_int:
 printInt :: Sq.Seq Instruction
 printInt = Sq.fromList
     [
+    Int 2,
     Label "format_int", AsciiZero "%d",
 
     Label "print_int",
