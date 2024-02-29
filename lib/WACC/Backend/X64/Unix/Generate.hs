@@ -602,7 +602,7 @@ singleStatement = \case
                         (Register (RDX, B8)) ><
                     move size (Register (RAX, size)) (MemoryIndirect Nothing (RDX, B8) Nothing)
 
-    IR.PrintString s -> expression (IR.Call B8 "print_string" [(B8, s)])
+    IR.PrintString s -> expression (IR.Call B8 "_prints" [(B8, s)])
 
     IR.PrintInt s -> expression (IR.Call B8 "print_int" [(B4, s)])
 
@@ -749,6 +749,7 @@ program (IR.Program dataSegment fs) = do
         >< (functions' |> EmptyLine)
         >< (asum
             [ Internal.printString
+            , Internal.printString'
             , Internal.printInt
             , Internal.printBool
             , Internal.printChar
