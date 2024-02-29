@@ -2,7 +2,7 @@ module WACC.Backend.X64.Unix.Internal where
 
 import qualified Data.Sequence as Sq
 import WACC.Backend.X64.Structure
-import WACC.IR.Structure (Size(..))
+import WACC.IR.Structure (Size(..), SingleStatement (AssignIndirect))
 
 printString :: Sq.Seq Instruction
 printString = Sq.fromList
@@ -186,7 +186,10 @@ seekArrayElement size = Sq.fromList
     Label $ "seek_array_element" ++ show size,
     Push (Register (RBP, B8)),
     Move (Register (RSP, B8)) (Register (RBP, B8)),
-
+    Compare (Immediate $ ImmediateInt 0) (Register (RSI, B4)),
+    JumpWhen Less "_errOutOfBounds",
+    Compare (MemoryIndirect (Just $ ImmediateInt (-4)) (RDI,B8) Nothing) (Register (RSI, B4)),
+    JumpWhen GreaterEqual "_errOutOfBounds",
     MoveSignSizeExtend B4 B8 (Register (RSI, B4)) (Register (RSI, B8)),
     LoadAddress (MemoryIndirect Nothing (RDI, B8) (Just ((RSI, B8), size))) (Register (RAX, B8)),
 
