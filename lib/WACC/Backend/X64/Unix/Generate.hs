@@ -560,7 +560,7 @@ singleStatement = \case
 
     IR.PrintBool s -> expression (IR.Call B8 "print_bool" [(B1, s)])
 
-    IR.PrintLineBreak -> expression (IR.Call B4 "putchar" [(B4, IR.Immediate (ord '\n'))])
+    IR.PrintLineBreak -> expression (IR.Call B8 "print_line_break" [])
 
     IR.PrintAddress s -> expression (IR.Call B8 "print_pointer" [(B8, s)])
 
@@ -730,6 +730,7 @@ program (IR.Program dataSegment fs) = do
         >< (functions' |> EmptyLine)
         >< (asum
             [ Internal.printString'
+            , Internal.printLineBreak
             , Internal.printString
             , Internal.printInt
             , Internal.printBool
