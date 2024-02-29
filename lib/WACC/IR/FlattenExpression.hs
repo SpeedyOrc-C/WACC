@@ -177,7 +177,7 @@ indirectExpression = \case
             evaluateIndex ++ evaluateElementAddress ++
             [Assign B8 tmp (SeekArrayElement (getSize t) array' index')])
 
-    SM.ArrayElement _ array index -> do
+    SM.ArrayElement t array index -> do
         (index', evaluateIndex) <- expression index
         (array', evaluateElementAddress) <- indirectExpression array
         value <- newTemporary
@@ -185,7 +185,7 @@ indirectExpression = \case
         return (Variable tmp,
             evaluateIndex ++ evaluateElementAddress ++
             [ Assign B8 value (Dereference B8 array')
-            , Assign B8 tmp (SeekArrayElement B8 (Variable value) index')])
+            , Assign B8 tmp (SeekArrayElement (getSize t) (Variable value) index')])
 
     SM.PairFirst _ pair@(SM.Identifier {}) -> do
         (pair', evaluatePair) <- indirectExpression pair
@@ -239,7 +239,7 @@ statement = \case
         return $ map NE evaluation ++
             [NE $ Assign (getSize t) identifier (Scalar result)]
 
-    (SM.Assign t leftValue rightValue) -> do
+    SM.Assign t leftValue rightValue -> do
         (result, evaluateRight) <- expression rightValue
         (scalar, evaluateLeft) <- indirectExpression leftValue
         let Variable identifier = scalar
