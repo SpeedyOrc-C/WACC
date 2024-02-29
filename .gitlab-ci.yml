@@ -13,3 +13,4 @@ test:
   script:
     - cabal update
     - cabal test --test-show-details=always
+    - ./compare_output.sh
