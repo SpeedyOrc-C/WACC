@@ -279,9 +279,10 @@ statement = \case
         return $ map NE evaluateExpression ++
             map NE [printByType t result, PrintLineBreak]
 
-    SM.Read _ (SM.Identifier t name) -> do
+    SM.Read _ ident@(SM.Identifier t name) -> do
         var <- gets $ lookUp name . mappingStack
-        return [NE $ Assign (getSize t) var (readByType t)]
+        (ident', _) <- expression ident
+        return [NE $ Assign (getSize t) var (readByType ident' t)]
 
     SM.Read _ e -> do
         (scalar, evaluateExpression) <- indirectExpression e
@@ -310,9 +311,9 @@ statement = \case
         SM.Pair {} -> PrintAddress
         _ -> error "Semantic check has failed."
 
-    readByType = \case
+    readByType x= \case
         SM.Int -> ReadInt
-        SM.Char -> ReadChar
+        SM.Char -> ReadChar x
         _ -> error "Semantic check has failed."
 
 statements :: [SM.Statement] -> State FlattenerState [NoExpressionStatement]
@@ -375,7 +376,7 @@ instance HasReference Expression where
 
         Call _ _ args -> reference $ snd <$> args
         ReadInt -> S.empty
-        ReadChar -> S.empty
+        ReadChar _ -> S.empty
 
 instance HasReference SingleStatement where
     reference :: SingleStatement -> S.Set Identifier

@@ -549,8 +549,8 @@ expression = \case
                 Or b' (Register (RAX, B1))]
     IR.ReadInt
         -> return (Sq.singleton $ Call "readInt")
-    IR.ReadChar
-        -> return (Sq.singleton $ Call "readChar")
+    IR.ReadChar chr ->
+            expression (IR.Call B1 "readChar" [(B1, chr)])
 
 
 singleStatement :: IR.SingleStatement -> State GeneratorState (Seq Instruction)

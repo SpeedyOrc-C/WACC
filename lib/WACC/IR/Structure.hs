@@ -95,7 +95,7 @@ data Expression
 
     | Call Size String [(Size, Scalar)]
     | ReadInt
-    | ReadChar
+    | ReadChar Scalar
     deriving Show
 
 {- A scalar is an immediate value, a variable or a string. -}
