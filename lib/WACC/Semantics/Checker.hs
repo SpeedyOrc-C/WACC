@@ -239,12 +239,11 @@ Pair (t1, t2) ?> Pair (t1', t2') = Pair (t1 ?> t1', t2 ?> t2')
 x ?> _ = x
 
 alignAny :: Type -> Expression -> Expression
-alignAny t (LiteralArray t' exps)
+alignAny (Array t) (LiteralArray t' exps)
     = LiteralArray (t ?> t') exps
 alignAny (Pair (t1', t2')) (LiteralPair (t1, t2) exp')
     = LiteralPair (t1 ?> t1', t2 ?> t2') exp'
 alignAny _ y = y
-
 
 
 instance CheckSemantics Syntax.Statement Statement where
@@ -260,9 +259,9 @@ instance CheckSemantics Syntax.Statement Statement where
                     -- the name of the identifier must not appear in the inner most layer
                     -- of the stack of variable tables
                     then case lookUpInnermost state name of
-                        Nothing -> 
-                            Ok (Declare (declaredType ?> computedType) 
-                            name 
+                        Nothing ->
+                            Ok (Declare (declaredType ?> computedType)
+                            name
                             (alignAny declaredType newValue))
                         Just ((previousPos, _), _) -> Log [SemanticError range $
                             RedefinedIdentifier name previousPos]
