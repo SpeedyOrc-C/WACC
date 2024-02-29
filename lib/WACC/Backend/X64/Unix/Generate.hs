@@ -3,11 +3,14 @@ module WACC.Backend.X64.Unix.Generate where
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Sequence as Sq
-import Data.Sequence((|>), (<|), (><), Seq((:|>)))
+import           Data.Char
 import           Data.List
+import           Data.Functor
 import           Data.Foldable
+import           Data.Sequence ((|>), (<|), (><), Seq)
 import           Data.Function
 import           Data.Traversable
+import           Control.Monad
 import           Control.Monad.Trans.State.Lazy
 
 import qualified WACC.Backend.X64.Unix.Internal as Internal
@@ -15,9 +18,7 @@ import qualified WACC.IR.Structure as IR
 import           WACC.IR.Structure (Size(..), Identifier, sizeToInt)
 import           WACC.Backend.X64.Structure
 import           WACC.Backend.StackPool
-import Data.Functor
 import Debug.Trace (traceShowId, traceShow, trace)
-import Data.Char
 
 {- This indicates the location of the data. Stored in registers,
    stored in the stack or stored in the parameter stack. -}
@@ -86,9 +87,14 @@ allocate var size = do
 
         modify $ \s -> s {
             registerPool = S.insert freeRegister registerPool,
-            memoryTable = M.insert var location memoryTable,
-            stainedCalleeSaveRegs = S.insert freeRegister stainedCalleeSaveRegs
+            memoryTable = M.insert var location memoryTable
         }
+
+        when (freeRegister `elem` calleeSaveRegisters) $
+            modify $ \s -> s {
+                stainedCalleeSaveRegs =
+                    S.insert freeRegister stainedCalleeSaveRegs
+            }
 
         return location
 
@@ -612,7 +618,6 @@ singleStatement = \case
 
     IR.Return size s -> do
         op <- scalar s
-        return $ Sq.fromList [Move op (Register (RAX, size)), Leave, Return]
         name <- gets functionName
 
         return $ Sq.fromList
