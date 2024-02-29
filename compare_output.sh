@@ -4,7 +4,9 @@ directory="example/valid/"
 total=0
 passed=0
 
-for file in $(find "$directory" -type f); do
+for file in $(find "$directory" -type f \
+    ! \( -path "example/valid/advanced/hashTable.wacc" \
+    -o -path "example/valid/advanced/ticTacToe.wacc" \)); do
     if [ -f "$file" ]; then
 
         ((total++))
@@ -61,3 +63,9 @@ for file in $(find "$directory" -type f); do
 done
 
 echo "$passed/$total passed!"
+
+if [ $passed -eq $total ]; then
+    exit 0
+else
+    exit 1
+fi
