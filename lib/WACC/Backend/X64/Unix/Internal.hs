@@ -342,6 +342,7 @@ printPointer =
         LoadAddress (MemoryIndirect (Just ".nil.string") (RIP, B8) Nothing)
                 (Register (RDI, B8)),
         Call "_prints",
+        Leave,
         Return
     ]
 {-
