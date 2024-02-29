@@ -526,7 +526,7 @@ expression = \case
 
     IR.Character scalar' -> do
         scalar'' <- scalar scalar'
-        return $ Sq.singleton (MoveSignSizeExtend B4 B1 scalar'' (Register (RAX, B1)))
+        return $ Sq.singleton (Move scalar'' (Register (RAX, B4)))
     IR.And a b -> do
         a' <- scalar a
         b' <- scalar b
