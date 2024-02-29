@@ -69,7 +69,14 @@ free state = \case
     s@(Label {}) : ss -> second (s :) (free state ss)
     s@(Goto {}) : ss -> second (s :) (free state ss)
 
-    WhileReference {}:ss -> free state ss
+    (WhileReference refs):ss ->
+        let
+        toBeFreed = refs S.\\ freed state
+        state' = state {freed = freed state `S.union` toBeFreed}
+        (state'', statements) = free state' ss
+        in
+        ( state'', WhileReference toBeFreed : statements )
+
     FreeVariable {}:ss -> free state ss
 
 {- Function to perform live range analysis on a program. -}
