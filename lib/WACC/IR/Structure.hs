@@ -146,7 +146,9 @@ instance HasSize SM.Type where
         SM.String -> B8
         SM.Array {} -> B8
         SM.Pair {} -> B8
-        SM.Any -> error "Size is unknown for type Any."
+        -- will happen when left hand side is type of Any 
+        -- and right hand side being []
+        SM.Any -> B1
 
 {- Convert the size to a corresponding number. -}
 sizeToInt :: Size -> Int
