@@ -96,6 +96,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
             case pairType of
                 -- the indentifer must be of pair type to allow using fst
                 Pair (leftType, _) -> Ok (leftType, PairFirst leftType pair')
+                Any -> Ok (Any, PairFirst Any pair')
                 _ -> Log [SemanticError (expressionRange pair) $
                             InvalidPair pairType]
         -- get the second element of a pair
@@ -105,6 +106,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
             case pairType of
                 -- the indentifer must be of pair type to allow using snd
                 Pair (_, rightType) -> Ok (rightType, PairSecond rightType pair')
+                Any -> Ok (Any, PairSecond Any pair')
                 _ -> Log [SemanticError (expressionRange pair) $
                             InvalidPair pairType]
 
