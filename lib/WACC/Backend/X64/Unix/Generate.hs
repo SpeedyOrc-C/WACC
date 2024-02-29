@@ -514,17 +514,6 @@ expression = \case
             adds ><
             pops
 
-    -- IR.SeekArrayElement size arr index -> do
-    --     registerPool <- gets registerPool
-    --     useManyTemporary( [R9, R10] ++ toList registerPool)$ do
-    --         arr' <- scalar arr
-    --         index' <- scalar index
-    --         return $ Sq.fromList
-    --             [Move arr' (Register (R9, B8)),
-    --                 Move index' (Register (R10, B4)),
-    --                 Call (ImmediateLabel ("_arrLoad" ++ show (IR.sizeToInt size))),
-    --                 Move (Register (R9, size)) (Register (RAX, size))]
-
     IR.SeekArrayElement _ a i -> expression $
         IR.Call B8 "seek_array_element4" [(B8, a), (B4, i)]
 
@@ -753,7 +742,7 @@ program (IR.Program dataSegment fs) = do
     dataSegment' <-
         for (Sq.fromList $ M.toList dataSegment) $ \(name, number) ->
             return $ Sq.fromList
-                [ Int (length name + 1)
+                [ Int (length name)
                 , Label ("str." ++ show number)
                 , AsciiZero name]
 
