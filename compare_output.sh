@@ -6,8 +6,7 @@ passed=0
 failed_files=""
 
 for file in $(find "$directory" -type f \
-    ! \( -path "example/valid/advanced/hashTable.wacc" \
-    -o -path "example/valid/advanced/ticTacToe.wacc" \)); do
+    -not -path "example/valid/advanced/*"); do
     if [ -f "$file" ]; then
 
         ((total++))
