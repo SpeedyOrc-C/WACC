@@ -482,9 +482,11 @@ expression = \case
                         Nothing) (Register (RAX, B4))
             ]
 
-    IR.Order scalar' -> do
+    IR.Order scalar' -> useTemporary RDX $ do
         scalar'' <- scalar scalar'
-        return $ Sq.singleton (Move scalar'' (Register (RAX, B4)))
+        return $ Sq.fromList 
+            [Move scalar'' (Register (RDX, B1)),
+            MoveSignSizeExtend B1 B4 (Register (RDX, B1)) (Register (RAX, B4))]
 
     IR.Character scalar' -> do
         scalar'' <- scalar scalar'
