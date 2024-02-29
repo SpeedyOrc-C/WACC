@@ -232,19 +232,6 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 else
                     Log [SemanticError range $ InvalidEquality leftType rightType]
 
-(?>) :: Type -> Type -> Type
-x ?> Any = x
-Any ?> x = x
-Pair (t1, t2) ?> Pair (t1', t2') = Pair (t1 ?> t1', t2 ?> t2')
-x ?> _ = x
-
-alignAny :: Type -> Expression -> Expression
-alignAny (Array t) (LiteralArray t' exps)
-    = LiteralArray (t ?> t') exps
-alignAny (Pair (t1', t2')) (LiteralPair (t1, t2) exp')
-    = LiteralPair (t1 ?> t1', t2 ?> t2') exp'
-alignAny _ y = y
-
 
 instance CheckSemantics Syntax.Statement Statement where
     check state = \case
@@ -281,8 +268,8 @@ instance CheckSemantics Syntax.Statement Statement where
             else if (isLiter right && (leftType <? rightType))
                     || (leftType <| rightType) then do
 
-                let t = unifyAny leftType rightType
-                Ok (Assign t (fixAnyInPair t left') (fixAnyInPair t right'))
+                let t = leftType ?> rightType
+                Ok (Assign t (alignAny t left') (alignAny t right'))
 
             else Log [SemanticError (expressionRange right) $
                         IncompatibleAssignment leftType rightType]

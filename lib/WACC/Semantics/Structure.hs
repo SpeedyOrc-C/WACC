@@ -33,17 +33,23 @@ data Statement
     | Scope Block
     deriving (Show, Eq)
 
-unifyAny :: Type -> Type -> Type
-unifyAny Any t = t
-unifyAny t Any = t
-unifyAny t1 t2
-    | t1 == t2 = t1
-    | otherwise = error "Cannot unify different types."
+(?>) :: Type -> Type -> Type
+x ?> Any = x
+Any ?> x = x
+Pair (t1, t2) ?> Pair (t1', t2') = Pair (t1 ?> t1', t2 ?> t2')
+x ?> _ = x
+t1 ?> t2
+    | t1 == t2  = t1
+    | otherwise = error ("Cannot unify different types." ++ show t1 ++ show t2)
 
-fixAnyInPair :: Type -> Expression -> Expression
-fixAnyInPair t (PairFirst _ e) = PairFirst t e
-fixAnyInPair t (PairSecond _ e) = PairSecond t e
-fixAnyInPair _ e = e
+alignAny :: Type -> Expression -> Expression
+alignAny (Array t) (LiteralArray t' exps)
+    = LiteralArray (t ?> t') exps
+alignAny (Pair (t1', t2')) (LiteralPair (t1, t2) exp')
+    = LiteralPair (t1 ?> t1', t2 ?> t2') exp'
+alignAny t (PairFirst _ e) = PairFirst t e
+alignAny t (PairSecond _ e) = PairSecond t e
+alignAny _ y = y
 
 data Type
     = Any

@@ -479,7 +479,7 @@ expression = \case
 
     IR.Order scalar' -> do
         scalar'' <- scalar scalar'
-        return $ Sq.singleton (MoveSignSizeExtend B1 B4 scalar'' (Register (RAX, B4)))
+        return $ Sq.singleton (Move scalar'' (Register (RAX, B4)))
 
     IR.Character scalar' -> do
         scalar'' <- scalar scalar'
@@ -574,7 +574,15 @@ singleStatement = \case
             [ Move op (Register (RAX, size))
             , Jump . ImmediateLabel $ name ++ ".return"]
 
-    IR.Free s -> undefined
+    IR.Free s -> useTemporary RDX $ do
+        op <- scalar s
+        call <- expression (IR.Call B8 "free" [])
+        return $
+            Sq.fromList
+            [Move op (Register (RDX, B8)), 
+            Subtract (Immediate $ ImmediateInt 4) (Register (RDX, B8)),
+            Move (Register (RDX, B8)) (Register (RDI, B8))]
+            >< call 
 
     IR.FreeArray s -> undefined
 
