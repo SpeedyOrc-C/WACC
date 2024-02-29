@@ -17,7 +17,6 @@ import           WACC.Backend.X64.Structure
 import           WACC.Backend.StackPool
 import Data.Functor
 import Debug.Trace (traceShowId, traceShow, trace)
-import qualified GHC.Real as Internal
 import Data.Char
 
 {- This indicates the location of the data. Stored in registers,
@@ -673,8 +672,10 @@ function (IR.Function name parameters statements) = do
 
     for_ (zip [1..] registerParams) $ \(i, (ident, size)) -> do
         memoryTable <- gets memoryTable
+        let reg@(physicalReg, _) = parameter i size
         modify $ \s -> s {
-            memoryTable = M.insert ident (AtRegister (parameter i size)) memoryTable
+            memoryTable = M.insert ident (AtRegister reg) memoryTable,
+            registerPool = S.insert physicalReg (registerPool s)
         }
 
     let stackParamOffsets = 0 : accumulate (sizeToInt . snd <$> stackParams)
@@ -685,7 +686,7 @@ function (IR.Function name parameters statements) = do
             memoryTable = M.insert ident (AtParameterStack offset size) memoryTable
         }
 
-    ss <- instructions statements
+    statements' <- instructions statements
     (S.toList -> stainedCalleeSaveRegs) <- gets stainedCalleeSaveRegs
     maxStackSize <- gets maxStackSize
     let (pushes, pops) = pushRegisters stainedCalleeSaveRegs
@@ -693,18 +694,21 @@ function (IR.Function name parameters statements) = do
     put oldState
 
     return $
-        (Sq.fromList
-        [ Label name
-        , Push (Register (RBP, B8))
-        , Move (Register (RSP, B8)) (Register (RBP, B8))] ><
+        Sq.fromList
+            [ Label name
+            , Push (Register (RBP, B8))
+            , Move (Register (RSP, B8)) (Register (RBP, B8))] ><
         pushes ><
         pushStack ><
-        ss >< popStack >< pops) ><
-        Sq.fromList (if name == "main" then
-                        [Move (Immediate $ ImmediateInt 0) (Register (RAX, B8)),
-                        Leave,
-                        Return]
-                    else [])
+        statements' ><
+        popStack ><
+        pops ><
+        Sq.fromList (
+            if name == "main" then
+                [ Move (Immediate $ ImmediateInt 0) (Register (RAX, B8))
+                , Leave
+                , Return ]
+            else [])
 
 functions :: [IR.Function IR.NoControlFlowStatement] -> State GeneratorState (Seq Instruction)
 functions = fmap asum . traverse function
