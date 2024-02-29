@@ -762,9 +762,9 @@ program (IR.Program dataSegment fs) = do
             , Internal.mallocFunction
             , Internal.errorNull
             , Internal.errorOutOfMemory
+            , Internal.errorOverFlow
             , Internal.readChar
             , Internal.readInt
-            , Internal.overflowError
             ] |> EmptyLine)
         >< asum dataSegment'
 
