@@ -1,44 +1,63 @@
 #!/bin/bash
 
-directory="example/valid/IO/print"
+directory="example/valid/"
+total=0
+passed=0
 
 for file in $(find "$directory" -type f); do
     if [ -f "$file" ]; then
 
-        echo "Checking $file\n"
+        ((total++))
+        echo -e "Checking $file\n"
 
         filename=$(basename "$file")
         exec_name="${filename%.*}"
         file_content=$(cat $file)
-        expected_output=$(echo "$file_content" | sed -n '/Output:/,/Program:/p' | sed '/Output:/d; /Program:/d' | sed -n '/Exit:/q;p' | sed 's/^# //g' | sed 's/^#//g')
+        input=$(echo "$file_content" \
+            | sed -n '/Input:/,/Output:/p' \
+            | sed '/Output:/d' \
+            | sed 's/^# Input: //g')
+        expected_output=$(echo "$file_content" \
+            | sed -n '/Output:/,/begin/p' \
+            | sed '/begin/d' \
+            | sed -n '/Output:/,/Program:/p' \
+            | sed '/Output:/d; /Program:/d' \
+            | sed -n '/Exit:/q;p' \
+            | sed 's/^# //g' \
+            | sed 's/^#//g')
 
-        echo "Compiling...\n"
+        echo -e "Compiling...\n"
         if cabal run wacc25 -- "$file" --no-text-deco; then
-            echo "\nCompilation of $filename succeeded!"
-            echo "\nExecuting..."
-            
-            if gcc -o "$exec_name" -z noexecstack "$exec_name.S"; then
-                echo "\nExecution succeeded!"
-                output=$(./"$exec_name")
+            echo -e "\nCompilation of $filename succeeded!"
+            echo -e "\nExecuting..."
+            if [ -n "$input" ]; then
+                echo -e "Program input is: $input"
+            fi
 
-                echo "The expected output is: $expected_output"
-                echo "The actual output is: $output"
+            if gcc -o "$exec_name" -z noexecstack "$exec_name.s"; then
+                output=$(./"$exec_name" <<< $input)
+                echo -e "\nExecution succeeded!\n"
+
+                echo -e "The expected output is:\n$expected_output"
+                echo -e "The actual output is:\n$output"
                 if [ "$expected_output" = "$output" ]; then
                     echo "The output is correct!"
+                    ((passed++))
                 else
                     echo "The output is wrong!"
                 fi
                 rm $exec_name
             else
-                echo "\nExecution failed!"
+                echo -e "\nExecution failed!"
             fi
+
+            rm "$exec_name.s"
         else
-            echo "\nCompilation of $filename failed!"
+            echo -e "\nCompilation of $filename failed!"
         fi
 
-        echo "\n\n"
-
+        echo -e "\n\n"
     fi
 done
 
-rm *.S
+echo "$passed/$total passed!"
