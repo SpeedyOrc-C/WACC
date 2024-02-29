@@ -180,19 +180,26 @@ seek_array_element4:
     ret
 -}
 
-seekArrayElement4 :: Sq.Seq Instruction
-seekArrayElement4 = Sq.fromList
+seekArrayElement :: Int -> Sq.Seq Instruction
+seekArrayElement size = Sq.fromList
     [
-    Label "seek_array_element4",
+    Label $ "seek_array_element" ++ show size,
     Push (Register (RBP, B8)),
     Move (Register (RSP, B8)) (Register (RBP, B8)),
 
     MoveSignSizeExtend B4 B8 (Register (RSI, B4)) (Register (RSI, B8)),
-    LoadAddress (MemoryIndirect Nothing (RDI, B8) (Just ((RSI, B8), 4))) (Register (RAX, B8)),
+    LoadAddress (MemoryIndirect Nothing (RDI, B8) (Just ((RSI, B8), size))) (Register (RAX, B8)),
 
     Leave,
     Return
     ]
+
+seekArrayElement1 :: Sq.Seq Instruction
+seekArrayElement1 = seekArrayElement 1
+seekArrayElement4 :: Sq.Seq Instruction
+seekArrayElement4 = seekArrayElement 4
+seekArrayElement8 :: Sq.Seq Instruction
+seekArrayElement8 = seekArrayElement 8
 
 {-
 bool_true: .asciz "true"
@@ -466,72 +473,6 @@ errorOutOfBounds = Sq.fromList
         Call "fflush",
         Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
         Call "exit"
-    ]
-
-{-
-_arrLoad8:
-215		# Special calling convention: array ptr passed in R9, index in R10, and return into R9
-216		pushq %rbx
-217		cmpl $0, %r10d
-218		cmovl %r10, %rsi
-219		jl _errOutOfBounds
-220		movl -4(%r9), %ebx
-221		cmpl %ebx, %r10d
-222		cmovge %r10, %rsi
-223		jge _errOutOfBounds
-224		movq (%r9,%r10,8), %r9
-225		popq %rbx
-226		ret
--}
-arrLoad8 :: Sq.Seq Instruction
-arrLoad8 = Sq.fromList
-    [
-        Label "_arrLoad8",
-        Push (Register (RBX, B8)),
-        Compare (Immediate $ ImmediateInt 0) (Register (R10, B4)),
-        CompareMove Less (Register (R10, B8)) (Register (RSI, B8)),
-        JumpWhen Less "_errOutOfBounds",
-        Move (MemoryIndirect (Just (ImmediateInt (-4))) (R9, B8) Nothing) (Register (RBX, B4)),
-        Compare (Register (RBX, B4)) (Register (R10, B4)),
-        CompareMove GreaterEqual (Register (R10, B8)) (Register (RSI, B8)),
-        JumpWhen GreaterEqual "_errOutOfBounds",
-        Move (MemoryIndirect Nothing (R9, B8) (Just ((R10, B8), 8))) (Register (R9, B8)),
-        Pop (Register (RBX, B8)),
-        Return
-    ]
-
-arrLoad4 :: Sq.Seq Instruction
-arrLoad4 = Sq.fromList
-    [
-        Label "_arrLoad4",
-        Push (Register (RBX, B8)),
-        Compare (Immediate $ ImmediateInt 0) (Register (R10, B4)),
-        CompareMove Less (Register (R10, B8)) (Register (RSI, B8)),
-        JumpWhen Less "_errOutOfBounds",
-        Move (MemoryIndirect (Just (ImmediateInt (-4))) (R9, B8) Nothing) (Register (RBX, B4)),
-        Compare (Register (RBX, B4)) (Register (R10, B4)),
-        CompareMove GreaterEqual (Register (R10, B8)) (Register (RSI, B8)),
-        JumpWhen GreaterEqual "_errOutOfBounds",
-        MoveSize B4 (MemoryIndirect Nothing (R9, B8) (Just ((R10, B8), 4))) (Register (R9, B4)),
-        Pop (Register (RBX, B8)),
-        Return
-    ]
-
-arrLoad1 :: Sq.Seq Instruction
-arrLoad1 = Sq.fromList
-    [
-        Label "_arrLoad1",
-        Push (Register (RBX, B8)),
-        Compare (Immediate $ ImmediateInt 0) (Register (R10, B4)),
-        CompareMove Less (Register (R10, B8)) (Register (RSI, B8)),
-        JumpWhen Less "_errOutOfBounds",
-        Move (MemoryIndirect (Just (ImmediateInt (-4))) (R9, B8) Nothing) (Register (RBX, B4)),
-        Compare (Register (RBX, B4)) (Register (R10, B4)),
-        CompareMove GreaterEqual (Register (R10, B8)) (Register (RSI, B8)),
-        JumpWhen GreaterEqual "_errOutOfBounds",
-        MoveSize B1 (MemoryIndirect Nothing (R9, B8) (Just ((R10, B8), 1))) (Register (R9, B1)),
-        Pop (Register (RBX, B8)),
-        Return
     ]
 
 readInt :: Sq.Seq Instruction

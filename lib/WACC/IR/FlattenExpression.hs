@@ -167,7 +167,7 @@ expression = \case
 indirectExpression ::
     SM.Expression -> State FlattenerState (Scalar, [SingleStatement])
 indirectExpression = \case
-    i@(SM.Identifier t _) -> expression i
+    i@(SM.Identifier _ _) -> expression i
 
     SM.ArrayElement t array index -> do
         (index', evaluateIndex) <- expression index
@@ -414,8 +414,6 @@ instance HasReference NoExpressionStatement where
 function :: SM.Function -> State FlattenerState (Function NoExpressionStatement)
 function (SM.Function _ functionName params@(unzip -> (names, types)) b) = do
     oldState <- get
-
-    firstParameterNo <- gets variableCounter
 
     (map fst -> identifiers) <- forM params $ \(name, t) -> do
         identifier <- newParameter name

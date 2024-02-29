@@ -508,8 +508,13 @@ expression = \case
             adds ><
             pops
 
-    IR.SeekArrayElement _ a i -> expression $
+    IR.SeekArrayElement B1 a i -> expression $
+        IR.Call B8 "seek_array_element1" [(B8, a), (B4, i)]
+    IR.SeekArrayElement B4 a i -> expression $
         IR.Call B8 "seek_array_element4" [(B8, a), (B4, i)]
+    IR.SeekArrayElement B8 a i -> expression $
+        IR.Call B8 "seek_array_element8" [(B8, a), (B4, i)]
+    IR.SeekArrayElement {} -> error "Other sizes are not supported."
 
     IR.Length addr -> useTemporary RDX $ do
         addr' <- scalar addr
@@ -620,7 +625,8 @@ singleStatement = \case
 
 instruction :: IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
 instruction = \case
-    IR.NCF statement -> singleStatement statement
+    IR.NCF statement ->
+        (Comment (show statement) <|) <$> singleStatement statement
 
     IR.Label name ->
         return $ Sq.singleton $ Label name
@@ -755,10 +761,9 @@ program (IR.Program dataSegment fs) = do
             , Internal.printChar
             , Internal.printChar'
             , Internal.printPointer
-            , Internal.arrLoad8
-            , Internal.arrLoad4
-            , Internal.arrLoad1
+            , Internal.seekArrayElement1
             , Internal.seekArrayElement4
+            , Internal.seekArrayElement8
             , Internal.errorOutOfBounds
             , Internal.mallocFunction
             , Internal.errorNull
