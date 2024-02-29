@@ -105,15 +105,14 @@ printChar' = Sq.fromList [
     Label ".L._printc_str0",
     AsciiZero "%c",
     Label "_printc",
-        
+    Push (Register (RBP, B8)),
+    Move (Register (RSP, B8)) (Register (RBP, B8)),
+    
     And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
     Move (Register (RDI, B1)) (Register (RSI, B1)),
 
-    Push (Register (RBP, B8)),
-    Move (Register (RSP, B8)) (Register (RBP, B8)),
     LoadAddress (MemoryIndirect (Just ".L._printc_str0") (RIP, B8) Nothing) (Register (RDI, B8)),
 
-    MoveZeroSizeExtend B1 B4 (Register (RDI, B1)) (Register (RDI, B4)),
     Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
     Call "printf",
     Move (Immediate $ ImmediateInt 0) (Register (RDI, B8)),

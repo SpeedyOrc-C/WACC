@@ -129,7 +129,7 @@ instance ATnT Instruction where
         Not op -> "not " ++ atnt op
         Add from to -> "add "   ++ atnt from ++ ", " ++ atnt to
         Subtract from to -> "sub " ++ atnt from ++ ", " ++ atnt to
-        DivideI a-> "idiv " ++ atnt a
+        DivideI a-> "idivl " ++ atnt a
         Multiply a b -> "imull " ++ atnt a ++ "," ++ atnt b
 
         And from to -> "and " ++ atnt from ++ ", " ++ atnt to
