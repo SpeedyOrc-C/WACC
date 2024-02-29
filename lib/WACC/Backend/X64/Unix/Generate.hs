@@ -63,7 +63,7 @@ data GeneratorState = GeneratorState {
     stainedCalleeSaveRegs :: S.Set PhysicalRegister,
     maxStackSize :: Int,
     tmpStackOffset :: Int,
-    tmpPushedRegs :: [PhysicalRegister],
+    tmpPushedRegs :: [Maybe PhysicalRegister],
     functionName :: String
 } deriving (Show)
 
@@ -141,7 +141,7 @@ operandFromMemoryLocation :: MemoryLocation -> State GeneratorState Operand
 operandFromMemoryLocation = \case
     AtRegister register@(reg, _) -> do
         tmpPushedRegs <- gets tmpPushedRegs
-        return $ case elemIndex reg tmpPushedRegs of
+        return $ case elemIndex (Just reg) tmpPushedRegs of
             Nothing -> Register register
             Just offset -> MemoryIndirect
                 (Just (ImmediateInt (offset * 8))) (RSP, B8) Nothing
@@ -204,23 +204,30 @@ upRSP :: Int -> Seq Instruction
 upRSP 0 = Sq.empty
 upRSP x = Sq.singleton $ Add (Immediate $ ImmediateInt x) (Register (RSP, B8))
 
-{- Pushes the given physical register onto the stack. -}
-push :: PhysicalRegister -> State GeneratorState (Seq Instruction)
-push reg = do
+{-
+The reason why we take a Maybe PhysicalRegister is because,
+sometimes we don't want to push or pop a register but just
+move the stack pointer instead. Assuming "something" has been pushed.
+-}
+push :: Maybe PhysicalRegister -> State GeneratorState (Seq Instruction)
+push maybeReg = do
     modify $ \s -> s {
         tmpStackOffset = tmpStackOffset s - 8,
-        tmpPushedRegs = reg : tmpPushedRegs s
+        tmpPushedRegs = maybeReg : tmpPushedRegs s
     }
-    return $ Sq.singleton $ Push (Register (reg, B8))
+    return $ case maybeReg of
+        Just reg -> Sq.singleton $ Push (Register (reg, B8))
+        Nothing -> downRSP 8
 
-{- Pops the given physical register from the stack. -}
-pop :: PhysicalRegister -> State GeneratorState (Seq Instruction)
-pop reg = do
+pop :: Maybe PhysicalRegister -> State GeneratorState (Seq Instruction)
+pop maybeReg = do
     modify $ \s -> s {
         tmpStackOffset = tmpStackOffset s + 8,
         tmpPushedRegs = drop 1 (tmpPushedRegs s)
     }
-    return $ Sq.singleton $ Pop (Register (reg, B8))
+    return $ case maybeReg of
+        Just reg -> Sq.singleton $ Pop (Register (reg, B8))
+        Nothing -> upRSP 8
 
 useManyTemporary :: [PhysicalRegister] -> State GeneratorState (Seq Instruction)
     -> State GeneratorState (Seq Instruction)
@@ -235,9 +242,9 @@ useTemporary reg runner = do
     if not used then
         runner
     else do
-        pushInstr <- push reg
+        pushInstr <- push (Just reg)
         result <- runner
-        popInstr <- pop reg
+        popInstr <- pop (Just reg)
 
         return $ pushInstr >< result >< popInstr
 
@@ -421,11 +428,11 @@ expression = \case
         callerSaveRegistersToBePushed <- usedCallerSaveRegisters
         let needAlignStack = odd $ length callerSaveRegistersToBePushed
 
-        (asum -> pushCallerSave) <- traverse push callerSaveRegistersToBePushed
+        (asum -> pushCallerSave) <- traverse (push . Just) callerSaveRegistersToBePushed
 
-        let maybeAlignDownRSP = if needAlignStack then downRSP 8 else Sq.empty
-
+        maybeAlignDownRSP <- if needAlignStack then push Nothing else return Sq.empty
         operands <- traverse scalar scalars
+        maybeAlignUpRSP <- if needAlignStack then pop Nothing else return Sq.empty
 
         let (argsReg, argsStack) = splitAt 6 operands
         let (argsRegSizes, argsStackSizes) = splitAt 6 sizes
@@ -444,9 +451,7 @@ expression = \case
 
         let freeArgsStack = upRSP . ceil16 $ sum (IR.sizeToInt <$> argsStackSizes)
 
-        let maybeAlignUpRSP = if needAlignStack then upRSP 8 else Sq.empty
-
-        (asum -> popCallerSave) <- traverse pop (reverse callerSaveRegistersToBePushed)
+        (asum -> popCallerSave) <- traverse (pop . Just) (reverse callerSaveRegistersToBePushed)
 
         return $
             pushCallerSave ><
