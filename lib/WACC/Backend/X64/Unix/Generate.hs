@@ -723,7 +723,7 @@ macro =
     EndIf,
     EmptyLine,
     IfDefined "__linux__",
-        Define "flush" "fflush@PLT",
+        Define "fflush" "fflush@PLT",
         Define "write" "write@PLT",
         Define "printf" "printf@PLT",
         Define "exit" "exit@PLT",
