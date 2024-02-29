@@ -34,6 +34,7 @@ instance HasLiteralStrings Expression where
         LiteralArray _ ss -> S.unions $ getLiteralStrings <$> ss
         LiteralPair _ (a, b) -> getLiteralStrings a `S.union` 
                                 getLiteralStrings b
+        FunctionCall _ _ params -> getLiteralStrings (map snd params)
         _ -> S.empty
 
 {- For the Statement type, which may contain literal strings. -}
@@ -49,7 +50,6 @@ instance HasLiteralStrings Statement where
         If _ (Block ss') (Block ss'') ->
             getLiteralStrings ss' `S.union` getLiteralStrings ss''
         While _ (Block ss') -> getLiteralStrings ss'
-
         _ -> S.empty
 
 {- Define a newtype for data segments, which maps string literals to unique 

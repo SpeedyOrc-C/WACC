@@ -47,7 +47,7 @@ newParameter :: String -> State FlattenerState Identifier
 newParameter name = do
     number <- gets variableCounter
     modify nextVariable
-    return $ Parameter name number
+    return $ Identifier name number
 
 expressions :: [SM.Expression] -> State FlattenerState ([Scalar],
                 [SingleStatement])
