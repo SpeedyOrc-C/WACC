@@ -40,7 +40,7 @@ data NoControlFlowStatement
 data SingleStatement
     = Assign Size Identifier Expression
     | AssignIndirect Size Identifier Expression
-    | Return Scalar
+    | Return Size Scalar
     | Exit Scalar
     | Free Scalar
     -- Stupid array has a length before the elements,

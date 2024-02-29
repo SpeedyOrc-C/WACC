@@ -259,10 +259,10 @@ statement = \case
         modify $ \s -> s { mappingStack = tail $ mappingStack s }
         return b'
 
-    SM.Return _ e -> do
+    SM.Return t e -> do
         (result, evaluateExpression) <- expression e
         return $ map NE evaluateExpression ++
-            [NE $ Return result]
+            [NE $ Return (getSize t) result]
 
     SM.Exit e -> do
         (result, evaluateExpression) <- expression e
@@ -384,7 +384,7 @@ instance HasReference SingleStatement where
         Assign _ var@(Identifier {}) e -> var `S.insert` reference e
         Assign _ _ e -> reference e
         AssignIndirect _ _ e -> reference e
-        Return e -> reference e
+        Return _ e -> reference e
         Exit e -> reference e
         Free e -> reference e
         FreeArray e -> reference e

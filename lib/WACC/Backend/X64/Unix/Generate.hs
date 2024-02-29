@@ -607,9 +607,9 @@ singleStatement = \case
 
     IR.PrintAddress s -> expression (IR.Call B8 "print_pointer" [(B8, s)])
 
-    IR.Return s -> do
+    IR.Return size s -> do
         op <- scalar s
-        return $ Sq.fromList [Move op (Register (RAX, B8)), Leave, Return]
+        return $ Sq.fromList [Move op (Register (RAX, size)), Leave, Return]
 
     IR.Free s -> undefined
 
