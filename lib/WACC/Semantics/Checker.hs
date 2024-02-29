@@ -232,6 +232,21 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 else
                     Log [SemanticError range $ InvalidEquality leftType rightType]
 
+(?>) :: Type -> Type -> Type
+x ?> Any = x
+Any ?> x = x
+Pair (t1, t2) ?> Pair (t1', t2') = Pair (t1 ?> t1', t2 ?> t2')
+x ?> _ = x
+
+alignAny :: Type -> Expression -> Expression
+alignAny t (LiteralArray t' exps)
+    = LiteralArray (t ?> t') exps
+alignAny (Pair (t1', t2')) (LiteralPair (t1, t2) exp')
+    = LiteralPair (t1 ?> t1', t2 ?> t2') exp'
+alignAny _ y = y
+
+
+
 instance CheckSemantics Syntax.Statement Statement where
     check state = \case
         -- firstly use fromSyntaxType to the type of the declare
@@ -245,7 +260,10 @@ instance CheckSemantics Syntax.Statement Statement where
                     -- the name of the identifier must not appear in the inner most layer
                     -- of the stack of variable tables
                     then case lookUpInnermost state name of
-                        Nothing -> Ok (Declare declaredType name newValue)
+                        Nothing -> 
+                            Ok (Declare (declaredType ?> computedType) 
+                            name 
+                            (alignAny declaredType newValue))
                         Just ((previousPos, _), _) -> Log [SemanticError range $
                             RedefinedIdentifier name previousPos]
 
