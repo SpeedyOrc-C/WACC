@@ -125,6 +125,7 @@ instance ATnT Instruction where
         Return -> "ret"
         Leave -> "leave"
         EmptyLine -> ""
+        CLTD -> "cltd"
 
         Not op -> "not " ++ atnt op
         Add from to -> "add "   ++ atnt from ++ ", " ++ atnt to

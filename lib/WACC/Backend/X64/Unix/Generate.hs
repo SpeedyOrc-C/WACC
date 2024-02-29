@@ -289,7 +289,7 @@ expression = \case
 
         return $ Sq.fromList
             [ Move a' (Register (RAX, B4))
-            , Move (Immediate $ ImmediateInt 0) (Register (RDX, B4))
+            , CLTD
             , Move b' (Register (RSI, B4))
             , DivideI (Register (RSI, B4))]
 
