@@ -6,6 +6,7 @@ import qualified Data.Sequence as Sq
 import           Data.Char
 import           Data.List
 import           Data.Functor
+import           Data.Bifunctor
 import           Data.Foldable
 import           Data.Sequence ((|>), (<|), (><), Seq)
 import           Data.Function
@@ -178,56 +179,48 @@ scalar = \case
 
 {- This function determines which caller-save registers
    are currently being used. -}
-usedCallerSaveRegisters ::
-            State GeneratorState ([PhysicalRegister], [PhysicalRegister])
+usedCallerSaveRegisters :: State GeneratorState [PhysicalRegister]
 usedCallerSaveRegisters = do
     registerPool <- gets registerPool
-    let used = registerPool `S.intersection` callerSaveRegisters
-    let usedParam = used `S.intersection` S.fromList parameterList
-
-    let usedParamRegs = S.toList usedParam
-    let usedNonParamRegs = S.toList (used S.\\ usedParam)
-
-    return (usedParamRegs, usedNonParamRegs)
+    return (S.toList (registerPool `S.intersection` callerSaveRegisters))
 
 {- Given a list of physical registers to be pushed onto the stack,
    this function generates a pair of sequences of instructions to push
    and pop the registers onto and from the stack, respectively. -}
 pushRegisters :: [PhysicalRegister] -> (Seq Instruction, Seq Instruction)
-pushRegisters pushed =
-    ( Sq.fromList [Push (Register (x, B8)) | x <- pushed]
-    , Sq.fromList [Pop (Register (x, B8)) | x <- reverse pushed])
+pushRegisters pushed = bimap Sq.fromList Sq.fromList
+    ( [Push (Register (x, B8)) | x <- pushed]
+    , [Pop (Register (x, B8)) | x <- reverse pushed])
 
-{- Given an offset, this function generates a pair of sequences of instructions
-   to adjust the stack pointer (RSP) by that offset. -}
-moveESP :: Int -> (Seq Instruction, Seq Instruction)
-moveESP x
-    | x <= 0 = (Sq.empty, Sq.empty)
-    | otherwise = (
-        Sq.singleton (Subtract
-            (Immediate $ ImmediateInt x)
-            (Register (RSP, B8))),
-        Sq.singleton (Add
-            (Immediate $ ImmediateInt x)
-            (Register (RSP, B8))))
+ceil16 :: Int -> Int
+ceil16 x = if modulo == 0 then x else x + 16 - modulo
+    where modulo = x `mod` 16
+
+downRSP :: Int -> Seq Instruction
+downRSP 0 = Sq.empty
+downRSP x = Sq.singleton $ Subtract (Immediate $ ImmediateInt x) (Register (RSP, B8))
+
+upRSP :: Int -> Seq Instruction
+upRSP 0 = Sq.empty
+upRSP x = Sq.singleton $ Add (Immediate $ ImmediateInt x) (Register (RSP, B8))
 
 {- Pushes the given physical register onto the stack. -}
 push :: PhysicalRegister -> State GeneratorState (Seq Instruction)
-push op = do
+push reg = do
     modify $ \s -> s {
         tmpStackOffset = tmpStackOffset s - 8,
-        tmpPushedRegs = op : tmpPushedRegs s
+        tmpPushedRegs = reg : tmpPushedRegs s
     }
-    return $ Sq.singleton $ Push (Register (op, B8))
+    return $ Sq.singleton $ Push (Register (reg, B8))
 
 {- Pops the given physical register from the stack. -}
 pop :: PhysicalRegister -> State GeneratorState (Seq Instruction)
-pop op = do
+pop reg = do
     modify $ \s -> s {
         tmpStackOffset = tmpStackOffset s + 8,
         tmpPushedRegs = drop 1 (tmpPushedRegs s)
     }
-    return $ Sq.singleton $ Pop (Register (op, B8))
+    return $ Sq.singleton $ Pop (Register (reg, B8))
 
 useManyTemporary :: [PhysicalRegister] -> State GeneratorState (Seq Instruction)
     -> State GeneratorState (Seq Instruction)
@@ -424,80 +417,47 @@ expression = \case
             return (Add (Immediate (ImmediateInt 4)) (Register (RAX, B8))) ><
             initialise
 
-    IR.Call size name scalarsWithSize@(unzip -> (sizes, scalars)) -> do
-        memoryTable <- gets memoryTable
-        (usedParamRegs, usedNonParamRegs) <- usedCallerSaveRegisters
+    IR.Call _ name (unzip -> (sizes, scalars)) -> do
+        callerSaveRegistersToBePushed <- usedCallerSaveRegisters
+        let needAlignStack = odd $ length callerSaveRegistersToBePushed
 
-        let (_, unzip -> (stackScalarsSizes, stackScalars)) =
-                splitAt 6 scalarsWithSize
+        (asum -> pushCallerSave) <- traverse push callerSaveRegistersToBePushed
 
-        let pushedParamsOver6Size = sum (IR.sizeToInt <$> stackScalarsSizes)
+        let maybeAlignDownRSP = if needAlignStack then downRSP 8 else Sq.empty
 
-        let pushedOffset =
-                8 * (length usedParamRegs + length usedNonParamRegs)
-                + pushedParamsOver6Size
+        operands <- traverse scalar scalars
 
-        let usedParamRegsWithIndices = zip usedParamRegs
-                [pushedParamsOver6Size, pushedParamsOver6Size + 8..]
+        let (argsReg, argsStack) = splitAt 6 operands
+        let (argsRegSizes, argsStackSizes) = splitAt 6 sizes
 
-        scalars' <- for scalars $ \case
-            IR.Variable identifier -> return $
-                case memoryTable M.! identifier of
-                    AtStack offset _ ->
-                        MemoryIndirect
-                            (Just $ ImmediateInt (offset + pushedOffset))
-                            (RSP, B8)
-                            Nothing
+        let assignArgsReg =
+                zip3 [1..6] argsRegSizes argsReg <&> \(n, size, arg) -> do
+                    move size arg (Register (parameter n size))
 
-                    AtRegister (reg, size) ->
-                        case lookup reg usedParamRegsWithIndices of
-                            Nothing -> Register (reg, size)
-                            Just offset ->
-                                MemoryIndirect
-                                    (Just $ ImmediateInt offset)
-                                    (RSP, B8)
-                                    Nothing
+        let allocateArgsStack = downRSP . ceil16 $ sum (IR.sizeToInt <$> argsStackSizes)
 
-                    AtParameterStack offset _ ->
-                        MemoryIndirect
-                            (Just (ImmediateInt (offset + 16))) (RBP, B8) Nothing
+        let argsStackOffsets = scanl (+) 0 (IR.sizeToInt <$> argsStackSizes)
 
-            s -> scalar s
+        let assignArgsStack =
+                zip3 argsStackOffsets argsStackSizes argsStack <&> \(offset, size, arg) -> do
+                    move size arg (MemoryIndirect (Just (ImmediateInt offset)) (RSP, B8) Nothing)
 
-        let allToBePushed =
-                usedNonParamRegs ++
-                reverse usedParamRegs
+        let freeArgsStack = upRSP . ceil16 $ sum (IR.sizeToInt <$> argsStackSizes)
 
-        let (pushes, pops) = pushRegisters allToBePushed
-            (minuses, adds) = moveESP pushedParamsOver6Size
-            assignParameter' :: Int -> [(Size, Operand)] -> Seq Instruction
-            assignParameter' _ [] = Sq.empty
-            assignParameter' offset ((size, op):ops) =
-                move size op
-                    (MemoryIndirect
-                        (Just (ImmediateInt offset'))
-                        (RSP, B8)
-                        Nothing) ><
-                assignParameter' offset' ops
-                where
-                    offset' = offset - IR.sizeToInt size
+        let maybeAlignUpRSP = if needAlignStack then upRSP 8 else Sq.empty
 
-        let assignInstructions :: Seq Instruction
-            assignInstructions =
-                asum (paramList <&> \(i, (size, op)) ->
-                    move size op (Register (parameter i size))) ><
-                assignParameter' pushedParamsOver6Size paramStack
-                where
-                    (paramReg, paramStack) = splitAt 6 (zip sizes scalars')
-                    paramList = zip [1..6] paramReg
+        (asum -> popCallerSave) <- traverse pop (reverse callerSaveRegistersToBePushed)
 
         return $
-            pushes ><
-            minuses ><
-            (assignInstructions |>
-            Call (ImmediateLabel name)) ><
-            adds ><
-            pops
+            pushCallerSave ><
+            maybeAlignDownRSP ><
+                asum assignArgsReg ><
+                allocateArgsStack ><
+                    asum assignArgsStack ><
+                    Sq.singleton (Call (ImmediateLabel name)) ><
+                freeArgsStack ><
+            maybeAlignUpRSP ><
+            popCallerSave
 
     IR.SeekArrayElement B1 a i -> expression $
         IR.Call B8 "seek_array_element1" [(B8, a), (B4, i)]
@@ -685,10 +645,16 @@ function (IR.Function name parameters statements) = do
         }
 
     statements' <- instructions statements
-    (S.toList -> stainedCalleeSaveRegs) <- gets stainedCalleeSaveRegs
+
+    stainedCalleeSaveRegs <- gets stainedCalleeSaveRegs
     maxStackSize <- gets maxStackSize
-    let (pushes, pops) = pushRegisters stainedCalleeSaveRegs
-        (pushStack, popStack) = moveESP maxStackSize
+
+    let needAlignStack = odd $ length stainedCalleeSaveRegs
+    let maybeAlignDownRSP = if needAlignStack then downRSP 8 else Sq.empty
+    let maybeAlignUpRSP = if needAlignStack then upRSP 8 else Sq.empty
+
+    let (pushes, pops) = pushRegisters (S.toList stainedCalleeSaveRegs)
+
     put oldState
 
     -- Main program returns 0 by default, but other functions do not.
@@ -700,12 +666,18 @@ function (IR.Function name parameters statements) = do
             [ Label name
             , Push (Register (RBP, B8))
             , Move (Register (RSP, B8)) (Register (RBP, B8))] ><
+
         pushes ><
-        pushStack ><
-        statements' ><
-        Sq.singleton (Label $ name ++ ".return") ><
-        popStack ><
+        maybeAlignDownRSP ><
+
+        downRSP maxStackSize ><
+            statements' ><
+            Sq.singleton (Label $ name ++ ".return") ><
+        upRSP maxStackSize ><
+
+        maybeAlignUpRSP ><
         pops ><
+
         mainDefaultReturn ><
         Sq.fromList [Leave, Return]
 
