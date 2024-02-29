@@ -534,28 +534,6 @@ arrLoad1 = Sq.fromList
         Return
     ]
 
-
-printLineBreak :: Sq.Seq Instruction
-printLineBreak = Sq.fromList
-    [
-    Int 0,
-    Label ".L._println_str0",
-    AsciiZero "s",
-    Label "line_break", AsciiZero "\n",
-
-    Label "print_line_break",
-    Push (Register (RBP, B8)),
-    Move (Register (RSP, B8)) (Register (RBP, B8)),
-
-    Move (Immediate $ ImmediateInt 1) (Register (RDI, B4)),
-    LoadAddress (MemoryIndirect (Just "line_break") (RIP, B8) Nothing) (Register (RSI, B8)),
-    Move (Immediate $ ImmediateInt 1) (Register (RDX, B4)),
-    Call "write",
-
-    Leave,
-    Return
-    ]
-
 readInt :: Sq.Seq Instruction
 readInt
     = Sq.fromList

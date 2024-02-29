@@ -18,6 +18,7 @@ import           WACC.Backend.StackPool
 import Data.Functor
 import Debug.Trace (traceShowId, traceShow, trace)
 import qualified GHC.Real as Internal
+import Data.Char
 
 {- This indicates the location of the data. Stored in registers,
    stored in the stack or stored in the parameter stack. -}
@@ -603,7 +604,7 @@ singleStatement = \case
 
     IR.PrintBool s -> expression (IR.Call B8 "print_bool" [(B1, s)])
 
-    IR.PrintLineBreak -> expression (IR.Call B8 "print_line_break" [])
+    IR.PrintLineBreak -> expression (IR.Call B4 "putchar" [(B4, IR.Immediate (ord '\n'))])
 
     IR.PrintAddress s -> expression (IR.Call B8 "print_pointer" [(B8, s)])
 
@@ -710,6 +711,7 @@ macro =
         Define "fflush"  "_fflush",
         Define "write"   "_write",
         Define "printf"  "_printf",
+        Define "scanf"   "_scanf",
         Define "exit"    "_exit",
         Define "malloc"  "_malloc",
         Define "putchar" "_putchar",
@@ -722,6 +724,7 @@ macro =
         Define "fflush" "fflush@PLT",
         Define "write" "write@PLT",
         Define "printf" "printf@PLT",
+        Define "scanf" "scanf@PLT",
         Define "exit" "exit@PLT",
         Define "malloc" "malloc@PLT",
         Define "putchar" "putchar@PLT",
@@ -751,7 +754,6 @@ program (IR.Program dataSegment fs) = do
             , Internal.printBool
             , Internal.printChar
             , Internal.printChar'
-            , Internal.printLineBreak
             , Internal.printPointer
             , Internal.arrLoad8
             , Internal.arrLoad4
