@@ -129,6 +129,7 @@ instance ATnT Instruction where
         Set cond operand -> "set" ++ conditionSuffix cond ++ " " ++ atnt operand
 
         Not op -> "not " ++ atnt op
+        Xor op op2-> "xor " ++ atnt op ++ ", " ++ atnt op2
         Add from to -> "add "   ++ atnt from ++ ", " ++ atnt to
         Subtract from to -> "sub " ++ atnt from ++ ", " ++ atnt to
         DivideI a-> "idivl " ++ atnt a

@@ -255,7 +255,7 @@ expression = \case
         op <- scalar s
         return $ Sq.fromList
             [ Move op (Register (RAX, B1))
-            , Not (Register (RAX, B1))]
+            , Xor (Immediate $ ImmediateInt 1) (Register (RAX, B1))]
 
     IR.Add s1 s2 -> do
         op1 <- scalar s1
