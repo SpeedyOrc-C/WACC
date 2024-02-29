@@ -201,16 +201,16 @@ indirectExpression = \case
             evaluatePair ++
             [Assign B8 tmp (SeekPairSecond pair')])
 
-    SM.PairFirst t pair -> do
+    SM.PairFirst _ pair -> do
         (address, evaluatePair) <- indirectExpression pair
         value <- newTemporary
         tmp <- newTemporary
-        return (Variable value,
+        return (Variable tmp,
             evaluatePair ++
             [ Assign B8 value (Dereference B8 address)
             , Assign B8 tmp (SeekPairFirst (Variable value))])
 
-    SM.PairSecond t pair -> do
+    SM.PairSecond _ pair -> do
         (address, evaluatePair) <- indirectExpression pair
         value <- newTemporary
         tmp <- newTemporary
@@ -239,7 +239,7 @@ statement = \case
         return $ map NE evaluation ++
             [NE $ Assign (getSize t) identifier (Scalar result)]
 
-    SM.Assign t leftValue rightValue -> do
+    (SM.Assign t leftValue rightValue) -> do
         (result, evaluateRight) <- expression rightValue
         (scalar, evaluateLeft) <- indirectExpression leftValue
         let Variable identifier = scalar
