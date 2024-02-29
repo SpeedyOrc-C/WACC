@@ -319,6 +319,22 @@ errorNull = Sq.fromList
         Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
         Call "exit"
     ]
+
+errorOverFlow :: Sq.Seq Instruction
+errorOverFlow = Sq.fromList
+    [
+        Int 52,
+        Label ".L._errOverflow_str0",
+        AsciiZero "fatal error: integer overflow or underflow occurred\n",
+        Label "_errOverFlow",
+        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
+        LoadAddress
+            (MemoryIndirect (Just ".L._errOverflow_str0") (RIP, B8) Nothing)
+            (Register (RDI, B8)),
+        Call "print_string",
+        Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
+        Call "exit"
+    ]
 {-
 .section .rodata
 154	# length of .L._errOutOfBounds_str0

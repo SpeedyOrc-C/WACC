@@ -259,18 +259,13 @@ expression = \case
             [ Move op (Register (RAX, B1))
             , Not (Register (RAX, B1))]
 
-    IR.Negate s -> do
-        op <- scalar s
-        return $ Sq.fromList
-            [ Move op (Register (RAX, B4))
-            , Negate (Register (RAX, B4))]
-
     IR.Add s1 s2 -> do
         op1 <- scalar s1
         op2 <- scalar s2
         return $ Sq.fromList
             [ Move op1 (Register (RAX, B4))
-            , Add op2 (Register (RAX, B4))]
+            , Add op2 (Register (RAX, B4))
+            , JumpWhen Overflow "_errOverFlow"]
 
     IR.Subtract s1 s2 -> do
         op1 <- scalar s1
@@ -278,7 +273,8 @@ expression = \case
 
         return $ Sq.fromList
             [ Move op1 (Register (RAX, B4))
-            , Subtract op2 (Register (RAX, B4))]
+            , Subtract op2 (Register (RAX, B4))
+            , JumpWhen Overflow "_errOverFlow"]
 
     IR.Multiply s1 s2 -> do
         op1 <- scalar s1
@@ -286,7 +282,8 @@ expression = \case
 
         return $ Sq.fromList
             [ Move op1 (Register (RAX, B4))
-            , Multiply op2 (Register (RAX, B4))]
+            , Multiply op2 (Register (RAX, B4))
+            , JumpWhen Overflow "_errOverFlow" ]
 
     IR.Divide a b -> useTemporary RDX $ do
         a' <- scalar a
@@ -550,7 +547,7 @@ expression = \case
                 Move a' (Register (RAX, B1)),
                 Or b' (Register (RAX, B1))]
     IR.ReadInt
-        -> return (Sq.singleton $ Call "readi")
+        -> return (Sq.singleton $ Call "readInt")
     IR.ReadChar
         -> return (Sq.singleton $ Call "readChar")
 

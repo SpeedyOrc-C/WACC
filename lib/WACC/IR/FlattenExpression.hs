@@ -111,7 +111,7 @@ expression = \case
             evaluatePair ++ [Assign (getSize t) tmp (Dereference (getSize t) pair)])
 
     SM.Not       e -> unary B1 Not       e
-    SM.Negate    e -> unary B4 Negate    e
+    SM.Negate    e -> binary B4 Subtract (SM.LiteralInt 0) e
     SM.Length    e -> unary B4 Length    e
     SM.Order     e -> unary B4 Order     e
     SM.Character e -> unary B1 Character e
@@ -343,7 +343,6 @@ instance HasReference Expression where
         Scalar s -> reference s
 
         Not a -> reference a
-        Negate a -> reference a
         Length a -> reference a
         Order a -> reference a
         Character a -> reference a

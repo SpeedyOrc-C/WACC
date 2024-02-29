@@ -93,6 +93,7 @@ conditionSuffix = \case
     AboveEqual -> "ae"
     Below -> "b"
     BelowEqual -> "be"
+    Overflow -> "o"
 
 {- Implement ATnT instance for Instruction,
    converting instructions to AT&T syntax. -}
@@ -128,6 +129,8 @@ instance ATnT Instruction where
         Not op -> "not " ++ atnt op
         Add from to -> "add "   ++ atnt from ++ ", " ++ atnt to
         Subtract from to -> "sub " ++ atnt from ++ ", " ++ atnt to
+        DivideI a-> "idiv " ++ atnt a
+        Multiply a b -> "imull " ++ atnt a ++ "," ++ atnt b
 
         And from to -> "and " ++ atnt from ++ ", " ++ atnt to
         Or from to -> "or " ++ atnt from ++ ", " ++ atnt to

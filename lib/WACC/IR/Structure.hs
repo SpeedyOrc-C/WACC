@@ -63,7 +63,6 @@ data Expression
     = Scalar Scalar
 
     | Not Scalar
-    | Negate Scalar
     | Length Scalar
     | Order Scalar
     | Character Scalar

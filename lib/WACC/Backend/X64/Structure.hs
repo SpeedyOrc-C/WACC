@@ -32,6 +32,7 @@ data Condition
     | Less | LessEqual
     | Above | AboveEqual
     | Below | BelowEqual
+    | Overflow
     deriving (Show)
 
 data Instruction
@@ -56,7 +57,6 @@ data Instruction
 
     | Increase Operand
     | Decrease Operand
-    | Negate Operand
     | Not Operand
 
     | LoadAddress Operand Operand
