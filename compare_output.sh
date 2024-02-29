@@ -3,6 +3,7 @@
 directory="example/valid/"
 total=0
 passed=0
+failed_files=""
 
 for file in $(find "$directory" -type f \
     ! \( -path "example/valid/advanced/hashTable.wacc" \
@@ -47,22 +48,26 @@ for file in $(find "$directory" -type f \
                     ((passed++))
                 else
                     echo "The output is wrong!"
+                    failed_files="$failed_files\n$file"
                 fi
                 rm $exec_name
             else
                 echo -e "\nExecution failed!"
+                failed_files="$failed_files\n$file"
             fi
 
             rm "$exec_name.s"
         else
             echo -e "\nCompilation of $filename failed!"
+            failed_files="$failed_files\n$file"
         fi
 
         echo -e "\n\n"
     fi
 done
 
-echo "$passed/$total passed!"
+echo -e "$passed/$total passed!\n"
+echo -e "Failed files: $failed_files"
 
 if [ $passed -eq $total ]; then
     exit 0
