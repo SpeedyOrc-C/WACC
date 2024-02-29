@@ -104,21 +104,21 @@ instance ATnT Instruction where
         EndIf -> "#endif"
         Define l s -> "#define " ++ l ++ " " ++ s
 
-        Move from to -> "mov " ++ atnt from ++ ", " ++ atnt to
+        Move from to -> "mov " ++ combineTwoOp from to
         MoveSize size from to ->
             "mov" ++ sizeSuffix size ++ " " ++
-            atnt from ++ ", " ++ atnt to
+            combineTwoOp from to
         MoveZeroSizeExtend size size' from to ->
             "movz" ++ sizeSuffix size ++ sizeSuffix size' ++ " " ++
-            atnt from ++ ", " ++ atnt to
+            combineTwoOp from to
         MoveSignSizeExtend size size' from to ->
             "movs" ++ sizeSuffix size ++ sizeSuffix size' ++ " " ++
-            atnt from ++ ", " ++ atnt to
+            combineTwoOp from to
         CompareMove c from to ->
             "cmov" ++ conditionSuffix c ++ " " ++
-            atnt from ++ ", " ++ atnt to
+            combineTwoOp from to
 
-        LoadAddress from to -> "lea " ++ atnt from ++ ", " ++ atnt to
+        LoadAddress from to -> "lea " ++ combineTwoOp from to
         Push op -> "push " ++ atnt op
         Pop op -> "pop " ++ atnt op
         Call op -> "call " ++ atnt op
@@ -129,20 +129,20 @@ instance ATnT Instruction where
         Set cond operand -> "set" ++ conditionSuffix cond ++ " " ++ atnt operand
 
         Not op -> "not " ++ atnt op
-        Xor op op2-> "xor " ++ atnt op ++ ", " ++ atnt op2
-        Add from to -> "add "   ++ atnt from ++ ", " ++ atnt to
-        Subtract from to -> "sub " ++ atnt from ++ ", " ++ atnt to
+        Xor from to-> "xor " ++ combineTwoOp from to
+        Add from to -> "add "   ++ combineTwoOp from to
+        Subtract from to -> "sub " ++ combineTwoOp from to
         DivideI a-> "idivl " ++ atnt a
-        Multiply a b -> "imull " ++ atnt a ++ "," ++ atnt b
+        Multiply from to -> "imull " ++ combineTwoOp from to
 
-        And from to -> "and " ++ atnt from ++ ", " ++ atnt to
-        Or from to -> "or " ++ atnt from ++ ", " ++ atnt to
+        And from to -> "and " ++ combineTwoOp from to
+        Or from to -> "or " ++ combineTwoOp from to
 
         Jump l -> "jmp " ++ atnt l
         JumpWhen c l -> "j" ++ conditionSuffix c ++ " " ++ atnt l
 
-        Test a b -> "test " ++ atnt a ++ ", " ++ atnt b
-        Compare a b -> "cmp " ++ atnt a ++ ", " ++ atnt b
+        Test a b -> "test " ++ combineTwoOp a b
+        Compare a b -> "cmp " ++ combineTwoOp a b
 
         Int n -> ".int " ++ show n
         Global l -> ".globl " ++ l
@@ -162,3 +162,6 @@ instance ATnT (Sq.Seq Instruction) where
    that can be converted to AT&T syntax. -}
 generateFile :: ATnT a => [a] -> String
 generateFile = unlines . map atnt
+
+combineTwoOp :: Operand -> Operand -> String
+combineTwoOp op1 op2 = atnt op1 ++ ", " ++ atnt op2
