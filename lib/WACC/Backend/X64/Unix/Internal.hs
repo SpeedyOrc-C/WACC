@@ -519,6 +519,35 @@ readInt
         Return
         ]
 
+readChar :: Sq.Seq Instruction
+readChar
+    = Sq.fromList
+        [Int 3,
+        Label ".L._readc_str0",
+        AsciiZero " %c",
+        Label "readChar",
+        Push (Register (RBP, B8)),
+        Move (Register (RSP, B8)) (Register (RBP, B8)),
+        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
+        Subtract (Immediate $ ImmediateInt 16) (Register (RSP, B8)),
+        Move (Register (RDI, B1)) (MemoryIndirect Nothing (RSP, B8) Nothing),
+        LoadAddress (MemoryIndirect Nothing (RSP, B8) Nothing) (Register (RSI, B8)),
+
+        LoadAddress
+            (MemoryIndirect (Just ".L._readc_str0") (RIP, B8) Nothing)
+            (Register (RDI, B8)),
+
+        Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
+        Call "scanf",
+        MoveSignSizeExtend B1 B8
+            (MemoryIndirect Nothing (RSP, B8) Nothing)
+            (Register (RAX, B8)),
+
+        Add (Immediate $ ImmediateInt 16) (Register (RSP, B8)),
+        Leave,
+        Return
+        ]
+
 {-
 .section .rodata
 43	# length of .L._readc_str0

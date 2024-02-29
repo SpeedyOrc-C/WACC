@@ -502,7 +502,9 @@ expression = \case
     IR.ReadInt
         -> return (Sq.singleton $ Call "readInt")
 
-    IR.ReadChar -> expression (IR.Call B1 "getchar" [])
+    IR.ReadChar k ->
+            expression (IR.Call B1 "readChar" [(B1, k)])
+
 
 
 singleStatement :: IR.SingleStatement -> State GeneratorState (Seq Instruction)
@@ -746,6 +748,7 @@ program (IR.Program dataSegment fs) = do
             , Internal.errorOutOfMemory
             , Internal.errorOverFlow
             , Internal.readInt
+            , Internal.readChar
             ] |> EmptyLine)
         >< asum dataSegment'
 
