@@ -58,6 +58,7 @@ data Instruction
     | Increase Operand
     | Decrease Operand
     | Not Operand
+    | Set Condition Operand
 
     | CLTD
     | LoadAddress Operand Operand

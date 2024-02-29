@@ -126,6 +126,7 @@ instance ATnT Instruction where
         Leave -> "leave"
         EmptyLine -> ""
         CLTD -> "cltd"
+        Set cond operand -> "set" ++ conditionSuffix cond ++ " " ++ atnt operand
 
         Not op -> "not " ++ atnt op
         Add from to -> "add "   ++ atnt from ++ ", " ++ atnt to

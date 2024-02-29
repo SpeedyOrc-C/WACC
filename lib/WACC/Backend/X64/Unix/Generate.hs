@@ -304,76 +304,64 @@ expression = \case
         result <- expression (IR.Divide s1 s2)
         return $ result |> Move (Register (RDX, B4)) (Register (RAX, B4))
 
-    IR.GreaterEqual size s1 s2 -> useTemporary RDX $ do
+    IR.GreaterEqual size s1 s2 -> do
         op1 <- scalar s1
         op2 <- scalar s2
 
         return $ Sq.fromList
             [ Move op1 (Register (RAX, size))
             , Compare op2 (Register (RAX, size))
-            , Move (Immediate $ ImmediateInt 0) (Register (RAX, B4))
-            , Move (Immediate $ ImmediateInt 1) (Register (RDX, B4))
-            , CompareMove GreaterEqual (Register (RDX, B4)) (Register (RAX, B4))
+            , Set GreaterEqual (Register (RAX, B1))
             ]
 
-    IR.Greater size s1 s2 -> useTemporary RDX $ do
+    IR.Greater size s1 s2 -> do
         op1 <- scalar s1
         op2 <- scalar s2
 
         return $ Sq.fromList
             [ Move op1 (Register (RAX, size))
             , Compare op2 (Register (RAX, size))
-            , Move (Immediate $ ImmediateInt 0) (Register (RAX, B4))
-            , Move (Immediate $ ImmediateInt 1) (Register (RDX, B4))
-            , CompareMove Greater (Register (RDX, B4)) (Register (RAX, B4))
+            , Set Greater (Register (RAX, B1))
             ]
 
-    IR.LessEqual size s1 s2 ->useTemporary RDX $ do
+    IR.LessEqual size s1 s2 -> do
         op1 <- scalar s1
         op2 <- scalar s2
 
         return $ Sq.fromList
             [ Move op1 (Register (RAX, size))
             , Compare op2 (Register (RAX, size))
-            , Move (Immediate $ ImmediateInt 0) (Register (RAX, B4))
-            , Move (Immediate $ ImmediateInt 1) (Register (RDX, B4))
-            , CompareMove LessEqual (Register (RDX, B4)) (Register (RAX, B4))
+            , Set LessEqual (Register (RAX, B1))
             ]
 
-    IR.Less size s1 s2 -> useTemporary RDX $ do
+    IR.Less size s1 s2 -> do
         op1 <- scalar s1
         op2 <- scalar s2
 
         return $ Sq.fromList
             [ Move op1 (Register (RAX, size))
             , Compare op2 (Register (RAX, size))
-            , Move (Immediate $ ImmediateInt 0) (Register (RAX, B4))
-            , Move (Immediate $ ImmediateInt 1) (Register (RDX, B4))
-            , CompareMove Less (Register (RDX, B4)) (Register (RAX, B4))
+            , Set Less (Register (RAX, B1))
             ]
 
-    IR.Equal size s1 s2 -> useTemporary RDX $ do
+    IR.Equal size s1 s2 -> do
         op1 <- scalar s1
         op2 <- scalar s2
 
         return $ Sq.fromList
             [ Move op1 (Register (RAX, size))
             , Compare op2 (Register (RAX, size))
-            , Move (Immediate $ ImmediateInt 0) (Register (RAX, B4))
-            , Move (Immediate $ ImmediateInt 1) (Register (RDX, B4))
-            , CompareMove Equal (Register (RDX, B4)) (Register (RAX, B4))
+            , Set Equal (Register (RAX, B1))
             ]
 
-    IR.NotEqual size s1 s2 -> useTemporary RDX $ do
+    IR.NotEqual size s1 s2 -> do
         op1 <- scalar s1
         op2 <- scalar s2
 
         return $ Sq.fromList
             [ Move op1 (Register (RAX, size))
             , Compare op2 (Register (RAX, size))
-            , Move (Immediate $ ImmediateInt 0) (Register (RAX, B4))
-            , Move (Immediate $ ImmediateInt 1) (Register (RDX, B4))
-            , CompareMove NotEqual (Register (RDX, B4)) (Register (RAX, B4))
+            , Set NotEqual (Register (RAX, B1))
             ]
 
     IR.Dereference size s -> do
