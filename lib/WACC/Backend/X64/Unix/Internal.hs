@@ -293,10 +293,11 @@ print_line_break:
 printPointer :: Sq.Seq Instruction
 printPointer =
     Sq.fromList [
+        Int 2,
         Label ".L._printp_str0",
         AsciiZero "%p",
+        Int 5,
         Label ".nil.string",
-        Int 6,
         AsciiZero "(nil)",
         Label "print_pointer",
         Push (Register (RBP, B8)),
@@ -318,7 +319,7 @@ printPointer =
         Label "print_null",
         LoadAddress (MemoryIndirect (Just ".nil.string") (RIP, B8) Nothing)
                 (Register (RDI, B8)),
-        Call "print_string",
+        Call "_prints",
         Return
     ]
 {-
@@ -348,7 +349,7 @@ errorOutOfMemory = Sq.fromList
         LoadAddress
             (MemoryIndirect (Just ".L._errOutOfMemory_str0") (RIP, B8) Nothing)
             (Register (RDI, B8)),
-        Call "print_string",
+        Call "_prints",
         Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
         Call "exit"
     ]
@@ -408,7 +409,7 @@ errorNull = Sq.fromList
         LoadAddress
             (MemoryIndirect (Just ".L._errNull_str0") (RIP, B8) Nothing)
             (Register (RDI, B8)),
-        Call "print_string",
+        Call "_prints",
         Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
         Call "exit"
     ]
@@ -424,7 +425,7 @@ errorOverFlow = Sq.fromList
         LoadAddress
             (MemoryIndirect (Just ".L._errOverflow_str0") (RIP, B8) Nothing)
             (Register (RDI, B8)),
-        Call "print_string",
+        Call "_prints",
         Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
         Call "exit"
     ]

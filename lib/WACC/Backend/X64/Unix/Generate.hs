@@ -286,24 +286,19 @@ expression = \case
             , Multiply op2 (Register (RAX, B4))
             , JumpWhen Overflow "_errOverFlow" ]
 
-    IR.Divide a b -> useTemporary RDX $ do
+    IR.Divide a b -> useManyTemporary [RDX, RSI] $ do
         a' <- scalar a
         b' <- scalar b
 
         return $ Sq.fromList
             [ Move a' (Register (RAX, B4))
             , Move (Immediate $ ImmediateInt 0) (Register (RDX, B4))
-            , DivideI b']
+            , Move b' (Register (RSI, B4))
+            , DivideI (Register (RSI, B4))]
 
-    IR.Remainder s1 s2 -> useTemporary RDX . useTemporary RSI $ do
-        op1 <- scalar s1
-        op2 <- scalar s2
-
-        return $ Sq.fromList
-            [ Move op1 (Register (RAX, B4))
-            , Move (Immediate $ ImmediateInt 0) (Register (RDX, B4))
-            , DivideI op2
-            , Move (Register (RDX, B4)) (Register (RAX, B4))]
+    IR.Remainder s1 s2 -> do
+        result <- expression (IR.Divide s1 s2)
+        return $ result |> Move (Register (RDX, B4)) (Register (RAX, B4))
 
     IR.GreaterEqual size s1 s2 -> useTemporary RDX $ do
         op1 <- scalar s1
@@ -527,11 +522,11 @@ expression = \case
 
     IR.Order scalar' -> do
         scalar'' <- scalar scalar'
-        return $ Sq.singleton (Move scalar'' (Register (RAX, B4)))
+        return $ Sq.singleton (MoveSignSizeExtend B1 B4 scalar'' (Register (RAX, B4)))
 
     IR.Character scalar' -> do
         scalar'' <- scalar scalar'
-        return $ Sq.singleton (Move scalar'' (Register (RAX, B4)))
+        return $ Sq.singleton (MoveSignSizeExtend B4 B1 scalar'' (Register (RAX, B1)))
     IR.And a b -> do
         a' <- scalar a
         b' <- scalar b
@@ -748,8 +743,8 @@ program (IR.Program dataSegment fs) = do
         $  (macro |> EmptyLine)
         >< (functions' |> EmptyLine)
         >< (asum
-            [ Internal.printString
-            , Internal.printString'
+            [ Internal.printString'
+            -- , Internal.printString
             , Internal.printInt
             , Internal.printBool
             , Internal.printChar
