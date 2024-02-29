@@ -163,5 +163,7 @@ instance ATnT (Sq.Seq Instruction) where
 generateFile :: ATnT a => [a] -> String
 generateFile = unlines . map atnt
 
+{- This is a helper function which combines two oprands to 
+   an instruction string. -}
 combineTwoOp :: Operand -> Operand -> String
 combineTwoOp op1 op2 = atnt op1 ++ ", " ++ atnt op2
