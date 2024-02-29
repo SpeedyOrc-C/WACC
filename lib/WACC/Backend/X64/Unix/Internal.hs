@@ -112,8 +112,7 @@ printString' = Sq.fromList [
     And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
     Move (Register (RDI, B8)) (Register (RDX, B8)),
     Move (MemoryIndirect (Just $ ImmediateInt (-4)) (RDI, B8) Nothing)(Register (RSI, B4)),
-
-    LoadAddress (MemoryIndirect (Just ".L._printc_str0") (RIP, B8) Nothing) (Register (RDI, B8)),
+    LoadAddress (MemoryIndirect (Just ".L._prints_str0") (RIP, B8) Nothing) (Register (RDI, B8)),
 
     Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
     Call "printf",
