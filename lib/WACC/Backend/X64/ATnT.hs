@@ -104,7 +104,7 @@ instance ATnT Instruction where
         Label l -> l ++ ":"
         IfDefined l -> "#ifdef " ++ l
         EndIf -> "#endif"
-        Define l s -> "#define " ++ l ++ " " ++ s
+        Define l str -> "#define " ++ l ++ " " ++ str
 
         Move from to -> "mov " ++ combineTwoOp from to
         MoveSize size from to ->
@@ -148,7 +148,7 @@ instance ATnT Instruction where
 
         Int n -> ".int " ++ show n
         Global l -> ".globl " ++ l
-        AsciiZero s -> ".asciz " ++ show s
+        AsciiZero str -> ".asciz " ++ show str
 
         SectionText -> "section_text"
         SectionReadOnly -> "section_read_only"

@@ -3,7 +3,6 @@ module WACC.Backend.X64.Unix.Generate where
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Sequence as Sq
-import           Data.Char
 import           Data.List
 import           Data.Functor
 import           Data.Bifunctor
@@ -19,7 +18,6 @@ import qualified WACC.IR.Structure as IR
 import           WACC.IR.Structure (Size(..), Identifier, sizeToInt)
 import           WACC.Backend.X64.Structure
 import           WACC.Backend.StackPool
-import Debug.Trace (traceShowId, traceShow, trace)
 
 {- This indicates the location of the data. Stored in registers,
    stored in the stack or stored in the parameter stack. -}
@@ -253,7 +251,7 @@ pairHelper s = do
         op <- scalar s
         return $ Sq.fromList
             [   Compare (Immediate $ ImmediateInt 0) op
-            ,   JumpWhen Equal "_errNull"
+            ,   JumpWhen Equal "error_null"
             ,   Move op (Register (RAX, B8))]
 
 malloc :: Int -> State GeneratorState (Seq Instruction)
@@ -278,7 +276,7 @@ expression = \case
         return $ Sq.fromList
             [ Move op1 (Register (RAX, B4))
             , Add op2 (Register (RAX, B4))
-            , JumpWhen Overflow "_errOverFlow"]
+            , JumpWhen Overflow "error_overflow"]
 
     IR.Subtract s1 s2 -> do
         op1 <- scalar s1
@@ -287,7 +285,7 @@ expression = \case
         return $ Sq.fromList
             [ Move op1 (Register (RAX, B4))
             , Subtract op2 (Register (RAX, B4))
-            , JumpWhen Overflow "_errOverFlow"]
+            , JumpWhen Overflow "error_overflow"]
 
     IR.Multiply s1 s2 -> do
         op1 <- scalar s1
@@ -296,7 +294,7 @@ expression = \case
         return $ Sq.fromList
             [ Move op1 (Register (RAX, B4))
             , Multiply op2 (Register (RAX, B4))
-            , JumpWhen Overflow "_errOverFlow" ]
+            , JumpWhen Overflow "error_overflow" ]
 
     IR.Divide a b -> useTemporary RSI $ do
         a' <- scalar a
@@ -306,7 +304,7 @@ expression = \case
             [ Move a' (Register (RAX, B4))
             , Move b' (Register (RSI, B4))
             , Compare (Immediate $ ImmediateInt 0) (Register (RSI, B4))
-            , JumpWhen Equal "_errDivZero"
+            , JumpWhen Equal "error_divide_zero"
             , CLTD
             , DivideI (Register (RSI, B4))]
 
@@ -499,8 +497,8 @@ expression = \case
             Move scalar'' (Register (RAX, B4)),
             MoveSignSizeExtend B4 B8 (Register (RAX, B4)) (Register (RAX, B8)),
             Test (Immediate $ ImmediateInt $ -128) (Register (RAX, B8)),
-		    CompareMove (NotEqual) (Register (RAX, B8)) (Register (RSI, B8)),
-		    JumpWhen NotEqual "_errBadChar"]
+            CompareMove NotEqual (Register (RAX, B8)) (Register (RSI, B8)),
+            JumpWhen NotEqual "error_bad_char"]
     IR.And a b -> do
         a' <- scalar a
         b' <- scalar b
@@ -573,15 +571,15 @@ singleStatement = \case
                         (Register (RDX, B8)) ><
                     move size (Register (RAX, size)) (MemoryIndirect Nothing (RDX, B8) Nothing)
 
-    IR.PrintString s -> expression (IR.Call B8 "_prints" [(B8, s)])
+    IR.PrintString s -> expression (IR.Call B8 "print_string" [(B8, s)])
 
-    IR.PrintInt s -> expression (IR.Call B8 "_printi" [(B4, s)])
+    IR.PrintInt s -> expression (IR.Call B8 "print_int" [(B4, s)])
 
-    IR.PrintBool s -> expression (IR.Call B8 "_printb" [(B1, s)])
+    IR.PrintBool s -> expression (IR.Call B8 "print_bool" [(B1, s)])
 
     IR.PrintLineBreak -> expression (IR.Call B8 "print_line_break" [])
 
-    IR.PrintAddress s -> expression (IR.Call B8 "_printp" [(B8, s)])
+    IR.PrintAddress s -> expression (IR.Call B8 "print_pointer" [(B8, s)])
 
     IR.Return size s -> do
         op <- scalar s
@@ -595,7 +593,7 @@ singleStatement = \case
         op <- scalar s
         callFree <- expression (IR.Call B8 "free" [(B8, s)])
         return $ Sq.fromList
-            [Compare (Immediate $ ImmediateInt 0) op, JumpWhen Equal "_errNull"]
+            [Compare (Immediate $ ImmediateInt 0) op, JumpWhen Equal "error_null"]
             >< callFree
 
     IR.FreeArray s -> useTemporary RDX $ do
@@ -608,7 +606,7 @@ singleStatement = \case
             Move (Register (RDX, B8)) (Register (RDI, B8))]
             >< call
 
-    IR.PrintChar s -> expression (IR.Call B8 "_printc" [(B1, s)])
+    IR.PrintChar s -> expression (IR.Call B8 "print_char" [(B1, s)])
 
 instruction :: IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
 instruction = \case
@@ -646,11 +644,6 @@ instruction = \case
 
 instructions :: [IR.NoControlFlowStatement] -> State GeneratorState (Seq Instruction)
 instructions = fmap asum . traverse instruction
-
-accumulate :: Num a => [a] -> [a]
-accumulate = f 0 where
-    f _ [] = []
-    f n (x:xs) = (n + x) : f (n + x) xs
 
 function :: IR.Function IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
 function (IR.Function name parameters statements) = do

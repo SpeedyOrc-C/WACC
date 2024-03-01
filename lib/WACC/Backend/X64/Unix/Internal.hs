@@ -2,7 +2,7 @@ module WACC.Backend.X64.Unix.Internal where
 
 import qualified Data.Sequence as Sq
 import WACC.Backend.X64.Structure
-import WACC.IR.Structure (Size(..), SingleStatement (AssignIndirect))
+import WACC.IR.Structure (Size(..))
 
 newFunction :: String
     -> [(String, String)]
@@ -58,7 +58,7 @@ errorFunction name err
         LoadAddress
             (MemoryIndirect (Just (ImmediateLabel label)) (RIP, B8) Nothing)
             (Register (RDI, B8)),
-        Call "_prints",
+        Call "print_string",
         Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
         Call "exit"]
     where
@@ -140,7 +140,7 @@ print_int:
 
 printString :: Sq.Seq Instruction
 printString =
-    newPrintFunction "_prints" [(".L._prints_str0", "%.*s")]
+    newPrintFunction "print_string" [(".L._prints_str0", "%.*s")]
     [Move (Register (RDI, B8)) (Register (RDX, B8)),
     Move (MemoryIndirect (Just $ ImmediateInt (-4)) (RDI, B8) Nothing)
          (Register (RSI, B4)),
@@ -150,13 +150,13 @@ printString =
 
 printChar :: Sq.Seq Instruction
 printChar =
-    newPrintFunction "_printc" [(".L._printc_str0", "%c")]
+    newPrintFunction "print_char" [(".L._printc_str0", "%c")]
     [Move (Register (RDI, B1)) (Register (RSI, B1)),
     LoadAddress (MemoryIndirect (Just ".L._printc_str0") (RIP, B8) Nothing) (Register (RDI, B8))]
 
 printInt :: Sq.Seq Instruction
 printInt =
-    newPrintFunction "_printi" [(".L.printi_str0", "%d")]
+    newPrintFunction "print_int" [(".L.printi_str0", "%d")]
     [Move (Register (RDI, B4)) (Register (RSI, B4)),
     LoadAddress
         (MemoryIndirect (Just ".L.printi_str0") (RIP, B8) Nothing)
@@ -181,9 +181,9 @@ seekArrayElement size = Sq.fromList
     Push (Register (RBP, B8)),
     Move (Register (RSP, B8)) (Register (RBP, B8)),
     Compare (Immediate $ ImmediateInt 0) (Register (RSI, B4)),
-    JumpWhen Less "_errOutOfBounds",
+    JumpWhen Less "error_out_of_bounds",
     Compare (MemoryIndirect (Just $ ImmediateInt (-4)) (RDI,B8) Nothing) (Register (RSI, B4)),
-    JumpWhen GreaterEqual "_errOutOfBounds",
+    JumpWhen GreaterEqual "error_out_of_bounds",
     MoveSignSizeExtend B4 B8 (Register (RSI, B4)) (Register (RSI, B8)),
     LoadAddress (MemoryIndirect Nothing (RDI, B8) (Just ((RSI, B8), size))) (Register (RAX, B8)),
 
@@ -227,7 +227,7 @@ print_false:
 
 printBool :: Sq.Seq Instruction
 printBool = newPrintFunction
-    "_printb"
+    "print_bool"
     [(".L._printb_str0", "false"),
         (".L._printb_str1", "true"),
         (".L._printb_str2", "%.*s")]
@@ -294,7 +294,7 @@ printLineBreak = newFunction "print_line_break" [("line_break", "\n")]
 printPointer :: Sq.Seq Instruction
 printPointer =
     newPrintFunction
-        "_printp"
+        "print_pointer"
         [(".L._printp_str0", "%p"), (".L._printp_str1", "(nil)")]
         [Compare (Immediate (ImmediateInt 0)) (Register (RDI, B8)),
         JumpWhen Equal "print_null",
@@ -306,12 +306,12 @@ printPointer =
     [Label "print_null",
     LoadAddress (MemoryIndirect (Just ".L._printp_str1") (RIP, B8) Nothing)
                 (Register (RDI, B8)),
-    Call "_prints",
+    Call "print_string",
     Leave,
     Return]
 
 errorOutOfMemory :: Sq.Seq Instruction
-errorOutOfMemory = errorFunction "_errOutOfMemory" "out of memory"
+errorOutOfMemory = errorFunction "error_out_of_memory" "out of memory"
 
 {-
 _malloc:
@@ -343,26 +343,26 @@ _malloc:
 
 errorNull :: Sq.Seq Instruction
 errorNull = errorFunction
-    "_errNull"
+    "error_null"
     "null pair dereferenced or freed"
 
 errorDivideZero :: Sq.Seq Instruction
 errorDivideZero = errorFunction
-    "_errDivZero"
+    "error_divide_zero"
     "division or modulo by zero"
 
 errorOverFlow :: Sq.Seq Instruction
 errorOverFlow = errorFunction
-    "_errOverFlow"
+    "error_overflow"
     "integer overflow or underflow occurred"
 
 errorBadChar :: Sq.Seq Instruction
 errorBadChar = errorIntParam
-    "_errBadChar"
+    "error_bad_char"
     "int %d is not ascii character 0-127"
 
 errorOutOfBounds :: Sq.Seq Instruction
-errorOutOfBounds = errorIntParam "_errOutOfBounds" "array index %d out of bounds"
+errorOutOfBounds = errorIntParam "error_out_of_bounds" "array index %d out of bounds"
 
 readHelperFunction :: String -> (String, String) -> Size -> Sq.Seq Instruction
 readHelperFunction name str@(label, _) size
