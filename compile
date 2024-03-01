@@ -1,5 +1,5 @@
 #! /bin/sh
-cabal run . -- $1 --no-text-deco
+cabal run wacc25 -- $1 --no-text-deco
 
 status=$?
 
@@ -12,3 +12,5 @@ file_base_name="${file_name%.*}"
 
 mv $file_base_name.s $file_base_name.unix.S
 gcc -E $file_base_name.unix.S > $file_base_name.s
+
+rm $file_base_name.unix.S
