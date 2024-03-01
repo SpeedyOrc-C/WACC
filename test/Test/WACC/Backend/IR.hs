@@ -5,6 +5,7 @@ import Control.Monad.Trans.State.Lazy
 import Data.Map as M
 import qualified WACC.Semantics.Structure as SM
 import WACC.IR.Structure
+import WACC.IR.FlattenExpression
 
 {- Helper function for testing expressions -}
 testExpression :: SM.Expression -> (Scalar, [SingleStatement])
@@ -18,6 +19,13 @@ testExpression expr (s, ss) fs =
 
 emptyState :: FlattenerState
 emptyState = initialState M.empty
+
+state1 :: FlattenerState
+state1 = FlattenerState {
+    mappingStack = [M.fromList [("x", Identifier "x" 1)]],
+    variableCounter = (M.size $ M.empty) + 1,
+    dataSegment = M.empty
+}
 
 {- Tests for expressions. -}
 testLiteralBool :: IO Bool
@@ -67,22 +75,31 @@ testUnaryNegate :: IO Bool
 testUnaryNegate = do
     let s = emptyState
     let expr = SM.Negate (SM.LiteralInt 5)
-    let expected = (Variable (Temporary "var" 1), [Assign B4 (Temporary "var" 1) (Subtract (Immediate 0) (Immediate 5))])
+    let expected = (Variable (Temporary "var" 1), [Assign B4 
+                    (Temporary "var" 1) (Subtract (Immediate 0) (Immediate 5))])
     testExpression expr expected s
 
 testBinaryAdd :: IO Bool
 testBinaryAdd = do
     let s = emptyState
     let expr = SM.Add (SM.LiteralInt 2) (SM.LiteralInt 3)
-    let expected = (Variable (Temporary "var" 1), [Assign B4 (Temporary "var" 1) (Add (Immediate 2) (Immediate 3))])
+    let expected = (Variable (Temporary "var" 1), [Assign B4 
+                    (Temporary "var" 1) (Add (Immediate 2) (Immediate 3))])
     testExpression expr expected s
 
--- Test a function call expression
 testFunctionCall :: IO Bool
 testFunctionCall = do
     let s = emptyState
     let expr = SM.FunctionCall SM.Int "func" []
-    let expected = (Variable (Temporary "var" 1), [Assign B4 (Temporary "var" 1) (Call B4 "fn_func" [])])
+    let expected = (Variable (Temporary "var" 1), [Assign B4 
+                    (Temporary "var" 1) (Call B4 "fn_func" [])])
+    testExpression expr expected s
+
+testIndirectIdentifier :: IO Bool
+testIndirectIdentifier = do
+    let s = state1
+    let expr = SM.Identifier SM.Int "x"
+    let expected = (Variable (Identifier "x" 1), [])
     testExpression expr expected s
 
 irUnitTests :: IO [Bool]
@@ -96,5 +113,6 @@ irUnitTests = sequence [
     testLiteralPair,
     testUnaryNegate,
     testBinaryAdd,
-    testFunctionCall
+    testFunctionCall,
+    testIndirectIdentifier
   ]
