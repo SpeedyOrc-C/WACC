@@ -15,7 +15,8 @@ newFunction name strings doblock
         [Push (Register (RBP, B8)),
         Move (Register (RSP, B8)) (Register (RBP, B8)),
         And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8))]) Sq.>< 
-        Sq.fromList doblock
+        Sq.fromList doblock Sq.><
+        Sq.fromList [Leave,Return]
 
 newPrintFunction :: String 
     -> [(String, String)]
@@ -29,9 +30,7 @@ newPrintFunction name strings doblock =
                 [Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
                 Call "printf",
                 Move (Immediate $ ImmediateInt 0) (Register (RDI, B8)),
-                Call "fflush",
-                Leave,
-                Return]
+                Call "fflush"]
 
 {-
 .section .rodata
@@ -265,9 +264,7 @@ printLineBreak = newFunction "print_line_break" [("line_break", "\n")]
     Move (Immediate $ ImmediateInt 1) (Register (RDI, B4)),
     LoadAddress (stringAddress "line_break") (Register (RSI, B8)),
     Move (Immediate $ ImmediateInt 1) (Register (RDX, B4)),
-    Call "write",
-    Leave,
-    Return
+    Call "write"
     ]
 
 {-
@@ -387,7 +384,7 @@ readHelperFunction :: String -> (String, String) -> Size -> Sq.Seq Instruction
 readHelperFunction name str@(label, _) size
     = newFunction name [str] [
         Subtract (Immediate $ ImmediateInt 16) (Register (RSP, B8)),
-        Move (Register (RDI, B1)) (MemoryIndirect Nothing (RSP, B8) Nothing),
+        Move (Register (RDI, size)) (MemoryIndirect Nothing (RSP, B8) Nothing),
         LoadAddress (MemoryIndirect Nothing (RSP, B8) Nothing) (Register (RSI, B8)),
 
         LoadAddress
