@@ -257,6 +257,7 @@ pairHelper s = do
     op <- scalar s
 
     use Internal.ErrorNull
+    use Internal.PrintString
 
     return $ Sq.fromList
         [ Compare (Immediate $ ImmediateInt 0) op
@@ -306,6 +307,7 @@ expression = \case
         op2 <- scalar s2
 
         use Internal.ErrorOverflow
+        use Internal.PrintString
 
         return $ Sq.fromList
             [ Move op1 (Register (RAX, B4))
@@ -317,6 +319,7 @@ expression = \case
         b' <- scalar b
 
         use Internal.ErrorDivideZero
+        use Internal.PrintString
 
         return $ Sq.fromList
             [ Move a' (Register (RAX, B4))
@@ -619,6 +622,8 @@ singleStatement = \case
 
     IR.PrintAddress s -> do
         use Internal.PrintPointer
+        use Internal.PrintString
+
         expression (IR.Call B8 "print_pointer" [(B8, s)])
 
     IR.Return size s -> do
@@ -634,6 +639,7 @@ singleStatement = \case
         callFree <- expression (IR.Call B8 "free" [(B8, s)])
 
         use Internal.ErrorNull
+        use Internal.PrintString
 
         return $ Sq.fromList
             [Compare (Immediate $ ImmediateInt 0) op, JumpWhen Equal "error_null"]
