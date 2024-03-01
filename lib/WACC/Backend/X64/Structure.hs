@@ -13,10 +13,10 @@ newtype Program = Program {
 } deriving Show
 
 stringsToInstructions :: [(String, String)] -> Seq Instruction
-stringsToInstructions strs = RodataSection Sq.<| 
+stringsToInstructions strs = SectionReadOnly Sq.<|
         foldl (Sq.><) Sq.Empty [Sq.fromList
             [Int (length str),
-            Label label, 
+            Label label,
             AsciiZero str] |(label, str) <- strs]
 
 stringAddress :: String -> Operand
@@ -130,9 +130,10 @@ data Instruction
     | EndIf
     | Define String String
 
-    -- .section .rodata
-    | RodataSection
-    | Text
+    | SectionReadOnly
+    | SectionText
+    | SectionLiteral4
+    | SectionCString
 
     {- For layout use only, not compiled. -}
     | Comment String

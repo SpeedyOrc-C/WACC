@@ -143,7 +143,7 @@ expression = \case
         tmp <- newTemporary
         return (Variable tmp,
             evaluate ++
-            [Assign (getSize t) tmp (Call (getSize t) ("wacc_" ++ f)
+            [Assign (getSize t) tmp (Call (getSize t) ("fn." ++ f)
             ((getSize <$> ts) `zip` scalars))])
     where
     unary :: Size -> (Scalar -> Expression) -> SM.Expression
@@ -457,7 +457,7 @@ program (SM.Program fs main) = do
             = SM.Function SM.Int "main" [] main
                 : map
                     (\(SM.Function ret name param b) ->
-                        SM.Function ret ("wacc_" ++ name) param b)
+                        SM.Function ret ("fn." ++ name) param b)
                     (S.toList fs)
     functions' <- functions allFunctions
     return $ Program dataSegment functions'

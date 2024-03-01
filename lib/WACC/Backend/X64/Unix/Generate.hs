@@ -249,7 +249,7 @@ useTemporary reg runner = do
         return $ pushInstr >< result >< popInstr
 
 pairHelper :: IR.Scalar -> State GeneratorState (Seq Instruction)
-pairHelper s = do 
+pairHelper s = do
         op <- scalar s
         return $ Sq.fromList
             [   Compare (Immediate $ ImmediateInt 0) op
@@ -489,7 +489,7 @@ expression = \case
 
     IR.Order scalar' -> useTemporary RDX $ do
         scalar'' <- scalar scalar'
-        return $ Sq.fromList 
+        return $ Sq.fromList
             [Move scalar'' (Register (RDX, B1)),
             MoveSignSizeExtend B1 B4 (Register (RDX, B1)) (Register (RAX, B4))]
 
@@ -594,8 +594,8 @@ singleStatement = \case
     IR.Free s -> do
         op <- scalar s
         callFree <- expression (IR.Call B8 "free" [(B8, s)])
-        return $ Sq.fromList 
-            [Compare (Immediate $ ImmediateInt 0) op, JumpWhen Equal "_errNull"] 
+        return $ Sq.fromList
+            [Compare (Immediate $ ImmediateInt 0) op, JumpWhen Equal "_errNull"]
             >< callFree
 
     IR.FreeArray s -> useTemporary RDX $ do
@@ -603,10 +603,10 @@ singleStatement = \case
         call <- expression (IR.Call B8 "free" [])
         return $
             Sq.fromList
-            [Move op (Register (RDX, B8)), 
+            [Move op (Register (RDX, B8)),
             Subtract (Immediate $ ImmediateInt 4) (Register (RDX, B8)),
             Move (Register (RDX, B8)) (Register (RDI, B8))]
-            >< call 
+            >< call
 
     IR.PrintChar s -> expression (IR.Call B8 "_printc" [(B1, s)])
 
@@ -668,7 +668,7 @@ function (IR.Function name parameters statements) = do
             registerPool = S.insert physicalReg (registerPool s)
         }
 
-    let stackParamOffsets = 0 : accumulate (sizeToInt . snd <$> stackParams)
+    let stackParamOffsets = scanl (+) 0 (sizeToInt . snd <$> stackParams)
 
     for_ (zip stackParamOffsets stackParams) $ \(offset, (ident, size)) -> do
         memoryTable <- gets memoryTable
@@ -721,6 +721,10 @@ macro =
     Sq.fromList
     [
     IfDefined "__APPLE__",
+        Define "section_read_only" "",
+        Define "section_literal4" ".literal4",
+        Define "section_cstring" ".cstring",
+        Define "section_text" ".text",
         Define "fflush"  "_fflush",
         Define "write"   "_write",
         Define "printf"  "_printf",
@@ -735,6 +739,10 @@ macro =
     EndIf,
     EmptyLine,
     IfDefined "__linux__",
+        Define "section_read_only" ".section .rodata",
+        Define "section_literal4" "",
+        Define "section_cstring" "",
+        Define "section_text" ".text",
         Define "fflush" "fflush@PLT",
         Define "write" "write@PLT",
         Define "printf" "printf@PLT",
@@ -755,7 +763,10 @@ program (IR.Program dataSegment fs) = do
     dataSegment' <-
         for (Sq.fromList $ M.toList dataSegment) $ \(name, number) ->
             return $ Sq.fromList
-                [ Int (length name)
+                [ SectionReadOnly
+                , SectionLiteral4
+                , Int (length name)
+                , SectionCString
                 , Label ("str." ++ show number)
                 , AsciiZero name]
 
@@ -773,7 +784,6 @@ program (IR.Program dataSegment fs) = do
             , Internal.seekArrayElement4
             , Internal.seekArrayElement8
             , Internal.errorOutOfBounds
-            , Internal.mallocFunction
             , Internal.errorNull
             , Internal.errorOutOfMemory
             , Internal.errorOverFlow

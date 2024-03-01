@@ -1,2 +1,8 @@
 #! /bin/sh
 cabal run . -- $1 --no-text-deco
+
+file_name=$(basename "$1")
+file_base_name="${file_name%.*}"
+
+mv $file_base_name.s $file_base_name.unix.S
+gcc -E $file_base_name.unix.S > $file_base_name.s

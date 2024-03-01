@@ -65,8 +65,10 @@ ident = \case
     Define {} -> ""
     EndIf -> ""
     Global {} -> ""
-    RodataSection -> ""
-    Text -> ""
+    SectionReadOnly -> ""
+    SectionText -> ""
+    SectionLiteral4 -> ""
+    SectionCString -> ""
     _ -> "    "
 
 {- Convert a Size value to its corresponding AT&T operand size suffix. -}
@@ -147,9 +149,11 @@ instance ATnT Instruction where
         Int n -> ".int " ++ show n
         Global l -> ".globl " ++ l
         AsciiZero s -> ".asciz " ++ show s
-        RodataSection -> ".section .rodata"
 
-        Text -> ".Text"
+        SectionText -> "section_text"
+        SectionReadOnly -> "section_read_only"
+        SectionLiteral4 -> "section_literal4"
+        SectionCString -> "section_cstring"
 
         Comment c -> "// " ++ c
         e -> error $ "ATnT: " ++ show e
@@ -163,7 +167,7 @@ instance ATnT (Sq.Seq Instruction) where
 generateFile :: ATnT a => [a] -> String
 generateFile = unlines . map atnt
 
-{- This is a helper function which combines two oprands to 
+{- This is a helper function which combines two oprands to
    an instruction string. -}
 combineTwoOp :: Operand -> Operand -> String
 combineTwoOp op1 op2 = atnt op1 ++ ", " ++ atnt op2

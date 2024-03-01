@@ -4,28 +4,28 @@ import qualified Data.Sequence as Sq
 import WACC.Backend.X64.Structure
 import WACC.IR.Structure (Size(..), SingleStatement (AssignIndirect))
 
-newFunction :: String 
+newFunction :: String
     -> [(String, String)]
-    -> [Instruction] 
+    -> [Instruction]
     -> Sq.Seq Instruction
 newFunction name strings doblock
-    = (stringsToInstructions strings Sq.|> Text)
-        Sq.>< (Label name Sq.<| 
-        Sq.fromList 
+    = (stringsToInstructions strings Sq.|> SectionText)
+        Sq.>< (Label name Sq.<|
+        Sq.fromList
         [Push (Register (RBP, B8)),
         Move (Register (RSP, B8)) (Register (RBP, B8)),
-        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8))]) Sq.>< 
+        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8))]) Sq.><
         Sq.fromList doblock Sq.><
         Sq.fromList [Leave,Return]
 
-newPrintFunction :: String 
+newPrintFunction :: String
     -> [(String, String)]
-    -> [Instruction] 
+    -> [Instruction]
     -> Sq.Seq Instruction
-newPrintFunction name strings doblock = 
+newPrintFunction name strings doblock =
     newFunction name strings doblock'
     where
-        doblock' 
+        doblock'
             = doblock ++
                 [Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
                 Call "printf",
@@ -52,7 +52,7 @@ errorFunction :: String -> String -> Sq.Seq Instruction
 errorFunction name err
     = stringsToInstructions [(label, err')] Sq.><
         Sq.fromList
-        [Text,
+        [SectionText,
         Label name,
         And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
         LoadAddress
@@ -62,14 +62,14 @@ errorFunction name err
         Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
         Call "exit"]
     where
-        label = ".L._" ++ name ++ "str0" 
+        label = ".L._" ++ name ++ "str0"
         err' = "fatal error: " ++ err ++ "\n"
 
 errorIntParam :: String -> String -> Sq.Seq Instruction
 errorIntParam name err
-    = stringsToInstructions [(label, err')] Sq.>< 
+    = stringsToInstructions [(label, err')] Sq.><
     Sq.fromList [
-        Text,
+        SectionText,
         Label name,
         And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
         LoadAddress
@@ -83,7 +83,7 @@ errorIntParam name err
         Call "exit"
     ]
     where
-        label = ".L._" ++ name ++ "str0" 
+        label = ".L._" ++ name ++ "str0"
         err' = "fatal error: " ++ err ++ "\n"
 {-
 .section .rodata
@@ -140,26 +140,26 @@ print_int:
 
 printString :: Sq.Seq Instruction
 printString =
-    newPrintFunction "_prints" [(".L._prints_str0", "%.*s")] 
+    newPrintFunction "_prints" [(".L._prints_str0", "%.*s")]
     [Move (Register (RDI, B8)) (Register (RDX, B8)),
     Move (MemoryIndirect (Just $ ImmediateInt (-4)) (RDI, B8) Nothing)
          (Register (RSI, B4)),
-    LoadAddress (MemoryIndirect (Just ".L._prints_str0") 
-                (RIP, B8) Nothing) 
+    LoadAddress (MemoryIndirect (Just ".L._prints_str0")
+                (RIP, B8) Nothing)
                 (Register (RDI, B8))]
 
 printChar :: Sq.Seq Instruction
-printChar = 
+printChar =
     newPrintFunction "_printc" [(".L._printc_str0", "%c")]
     [Move (Register (RDI, B1)) (Register (RSI, B1)),
     LoadAddress (MemoryIndirect (Just ".L._printc_str0") (RIP, B8) Nothing) (Register (RDI, B8))]
 
 printInt :: Sq.Seq Instruction
-printInt = 
-    newPrintFunction "_printi" [(".L.printi_str0", "%d")] 
+printInt =
+    newPrintFunction "_printi" [(".L.printi_str0", "%d")]
     [Move (Register (RDI, B4)) (Register (RSI, B4)),
-    LoadAddress 
-        (MemoryIndirect (Just ".L.printi_str0") (RIP, B8) Nothing) 
+    LoadAddress
+        (MemoryIndirect (Just ".L.printi_str0") (RIP, B8) Nothing)
         (Register (RDI, B8))]
 
 {-
@@ -226,11 +226,11 @@ print_false:
 -}
 
 printBool :: Sq.Seq Instruction
-printBool = newPrintFunction 
-    "_printb" 
-    [(".L._printb_str0", "false"), 
-        (".L._printb_str1", "true"), 
-        (".L._printb_str2", "%.*s")] 
+printBool = newPrintFunction
+    "_printb"
+    [(".L._printb_str0", "false"),
+        (".L._printb_str1", "true"),
+        (".L._printb_str2", "%.*s")]
     [Compare (Immediate $ ImmediateInt 0) (Register (RDI, B1)),
      JumpWhen NotEqual ".L_printb0",
      LoadAddress (stringAddress ".L._printb_str0") (Register (RDX, B8)),
@@ -238,8 +238,8 @@ printBool = newPrintFunction
      Label ".L_printb0",
      LoadAddress (stringAddress ".L._printb_str1") (Register (RDX, B8)),
      Label ".L_printb1",
-     Move (MemoryIndirect (Just $ ImmediateInt (-4)) 
-        (RDX, B8) Nothing) 
+     Move (MemoryIndirect (Just $ ImmediateInt (-4))
+        (RDX, B8) Nothing)
         (Register (RSI, B4)),
      LoadAddress (stringAddress ".L._printb_str2") (Register (RDI, B8))
      ]
@@ -292,16 +292,16 @@ printLineBreak = newFunction "print_line_break" [("line_break", "\n")]
 -}
 
 printPointer :: Sq.Seq Instruction
-printPointer = 
+printPointer =
     newPrintFunction
-        "_printp" 
+        "_printp"
         [(".L._printp_str0", "%p"), (".L._printp_str1", "(nil)")]
         [Compare (Immediate (ImmediateInt 0)) (Register (RDI, B8)),
         JumpWhen Equal "print_null",
         Move (Register (RDI, B8)) (Register (RSI, B8)),
         LoadAddress
             (MemoryIndirect (Just ".L._printp_str0") (RIP, B8) Nothing)
-            (Register (RDI, B8))] Sq.>< 
+            (Register (RDI, B8))] Sq.><
     Sq.fromList
     [Label "print_null",
     LoadAddress (MemoryIndirect (Just ".L._printp_str1") (RIP, B8) Nothing)
@@ -327,22 +327,6 @@ _malloc:
 302		ret
 -}
 
-mallocFunction :: Sq.Seq Instruction
-mallocFunction = Sq.fromList
-    [
-        Label "w.malloc",
-        Push (Register (RBP, B8)),
-        Move (Register (RSP, B8)) (Register (RBP, B8)),
-
-        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
-        Call "malloc",
-        Compare (Immediate $ ImmediateInt 0) (Register (RAX, B8)),
-        JumpWhen Equal "_errOutOfMemory",
-        Move (Register (RBP, B8))(Register (RSP, B8)) ,
-        Pop (Register (RBP, B8)),
-        Return
-    ]
-
 {-.section .rodata
 86	# length of .L._errNull_str0
 87		.int 45
@@ -358,8 +342,8 @@ mallocFunction = Sq.fromList
 97		call exit@plt-}
 
 errorNull :: Sq.Seq Instruction
-errorNull = errorFunction 
-    "_errNull" 
+errorNull = errorFunction
+    "_errNull"
     "null pair dereferenced or freed"
 
 errorDivideZero :: Sq.Seq Instruction
@@ -368,7 +352,7 @@ errorDivideZero = errorFunction
     "division or modulo by zero"
 
 errorOverFlow :: Sq.Seq Instruction
-errorOverFlow = errorFunction 
+errorOverFlow = errorFunction
     "_errOverFlow"
     "integer overflow or underflow occurred"
 
@@ -401,10 +385,10 @@ readHelperFunction name str@(label, _) size
     ]
 
 readInt :: Sq.Seq Instruction
-readInt = 
+readInt =
     readHelperFunction "readInt" (".L._readi_str0", "%d") B4
 
 readChar :: Sq.Seq Instruction
-readChar = 
+readChar =
     readHelperFunction "readChar" (".L._readc_str0", " %c") B1
-   
+
