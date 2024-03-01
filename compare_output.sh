@@ -19,6 +19,12 @@ for file in $(find "$directory" -type f \
             | sed -n '/Input:/,/Output:/p' \
             | sed '/Output:/d' \
             | sed 's/^# Input: //g')
+        expected_exit_code=$(echo "$file_content" \
+            | sed -n '/Exit:/,/begin/p' \
+            | sed '/begin/d' \
+            | sed -n '/Exit:/,/Program:/p' \
+            | sed '/Exit:/d; /Program:/d' \
+            | sed 's/^# //g')
         expected_output=$(echo "$file_content" \
             | sed -n '/Output:/,/begin/p' \
             | sed '/begin/d' \
@@ -39,8 +45,23 @@ for file in $(find "$directory" -type f \
 
             if gcc -o "$exec_name" -z noexecstack "$exec_name.s"; then
                 output=$(./"$exec_name" <<< $input)
+                exit_code=$?
                 output=$(echo "$output" | sed 's/0x[0-9a-f]\{12\}/#addrs#/g')
                 echo -e "\nExecution succeeded!\n"
+
+                if [ -n "$expected_exit_code" ]; then
+                    echo -e "The expected exit code is:\n$expected_exit_code"
+                    echo -e "The actual exit code is:\n$exit_code"
+                    if [ "$expected_exit_code" = "$exit_code" ]; then
+                        echo -e "The exit code is correct!\n"
+                    else
+                        echo -e "The exit code is wrong!\n\n"
+                        failed_files="$failed_files\n$file"
+                        rm "$exec_name"
+                        rm "$exec_name.s"
+                        continue
+                    fi
+                fi
 
                 echo -e "The expected output is:\n$expected_output"
                 echo -e "The actual output is:\n$output"
@@ -51,7 +72,7 @@ for file in $(find "$directory" -type f \
                     echo "The output is wrong!"
                     failed_files="$failed_files\n$file"
                 fi
-                rm $exec_name
+                rm "$exec_name"
             else
                 echo -e "\nExecution failed!"
                 failed_files="$failed_files\n$file"
