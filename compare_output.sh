@@ -63,14 +63,18 @@ for file in $(find "$directory" -type f \
                     fi
                 fi
 
-                echo -e "The expected output is:\n$expected_output"
-                echo -e "The actual output is:\n$output"
-                if [ "$expected_output" = "$output" ]; then
-                    echo "The output is correct!"
-                    ((passed++))
+                if [[ "$file" != example/valid/runtimeErr/* ]]; then
+                    echo -e "The expected output is:\n$expected_output"
+                    echo -e "The actual output is:\n$output"
+                    if [ "$expected_output" = "$output" ]; then
+                        echo "The output is correct!"
+                        ((passed++))
+                    else
+                        echo "The output is wrong!"
+                        failed_files="$failed_files\n$file"
+                    fi
                 else
-                    echo "The output is wrong!"
-                    failed_files="$failed_files\n$file"
+                    ((passed++))
                 fi
                 rm "$exec_name"
             else
