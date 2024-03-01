@@ -5,6 +5,7 @@ import Data.Map as M
 import qualified WACC.Semantics.Structure as SM
 import WACC.IR.Structure
 import WACC.IR.FlattenExpression
+import Text.AnsiEscape
 
 {- Helper function for testing expressions -}
 testExpression :: SM.Expression -> (Scalar, [SingleStatement])
@@ -13,8 +14,12 @@ testExpression expr (s, ss) fs =
     case runIdentity (evalStateT (expression expr) fs) of
         (s', ss') -> do
             if s == s' && ss == ss'
-            then return True
-            else return False
+            then do 
+                putStrLn $ green "    * " ++ show expr
+                return True
+            else do
+                putStrLn $ red "    ! " ++ show expr
+                return False
 
 emptyState :: FlattenerState
 emptyState = initialState M.empty
