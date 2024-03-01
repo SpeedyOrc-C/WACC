@@ -15,7 +15,7 @@ import           WACC.Syntax.Validation
 
 class CheckSemantics syntaxTree result
     | syntaxTree -> result, result -> syntaxTree where
-    {- |
+    {-
     Given a state and a part of the syntax tree,
     return the new bindings and the tree passed the semantic check,
     Or some errors if the semantic check failed.
@@ -373,9 +373,9 @@ instance CheckSemantics [Syntax.Statement] Block where
             <*> check state ss
 
 
--- | Try to find repetition in a list of entries.
---   If no repetition found, which is good, nothing happens.
---   Otherwise returns the repeated entries.
+{- Try to find repetition in a list of entries.
+   If no repetition found, which is good, nothing happens.
+   Otherwise returns the repeated entries. -}
 findRepetition :: (Ord k, Eq a) => [(k, a)] -> ([(k, a)], [(k, a)])
 findRepetition entries =
     (concatMap NE.tail groups, map NE.last groups)
