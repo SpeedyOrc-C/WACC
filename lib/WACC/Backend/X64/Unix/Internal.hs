@@ -184,9 +184,10 @@ printString :: Sq.Seq Instruction
 printString =
     newPrintFunction "print_string" [(".L._prints_str0", "%.*s")]
     [Move (Register (RDI, B8)) (Register (RDX, B8)),
-    Move (Register (RDI, B8)) (Register (RSI, B8)),
-    LoadAddress (MemoryIndirect (Just ".L._prints_str0")
-                (RIP, B8) Nothing)
+    Move (MemoryIndirect (Just $ ImmediateInt (-4)) (RDI, B8) Nothing)
+         (Register (RSI, B4)),
+    LoadAddress (MemoryIndirect (Just ".L._prints_str0") 
+                (RIP, B8) Nothing) 
                 (Register (RDI, B8))]
 
 printChar :: Sq.Seq Instruction
