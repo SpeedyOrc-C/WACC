@@ -551,7 +551,7 @@ expression = \case
 
     IR.ReadInt -> do
         use Internal.ReadInt
-        return (Sq.singleton $ Call "read_int")
+        expression (IR.Call B1 "read_int" [])
 
     IR.ReadChar k -> do
         use Internal.ReadChar
