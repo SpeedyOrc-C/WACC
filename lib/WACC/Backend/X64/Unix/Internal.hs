@@ -54,6 +54,7 @@ errorFunction name err
     = stringsToInstructions [(label, err')] Sq.><
         Sq.fromList
         [Text,
+        Label name,
         And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
         LoadAddress
             (MemoryIndirect (Just (ImmediateLabel label)) (RIP, B8) Nothing)
