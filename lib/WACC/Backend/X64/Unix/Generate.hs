@@ -248,6 +248,14 @@ useTemporary reg runner = do
 
         return $ pushInstr >< result >< popInstr
 
+pairHelper :: IR.Scalar -> State GeneratorState (Seq Instruction)
+pairHelper s = do 
+        op <- scalar s
+        return $ Sq.fromList
+            [   Compare (Immediate $ ImmediateInt 0) op
+            ,   JumpWhen Equal "_errNull"
+            ,   Move op (Register (RAX, B8))]
+
 malloc :: Int -> State GeneratorState (Seq Instruction)
 malloc size = expression (IR.Call B8 "malloc" [(B4, IR.Immediate size)])
 
@@ -374,16 +382,11 @@ expression = \case
                     (Register (RAX, size))
             ]
 
-    IR.SeekPairFirst s -> do
-        op <- scalar s
-        return $ return $
-            Move op (Register (RAX, B8))
+    IR.SeekPairFirst s -> pairHelper s
 
     IR.SeekPairSecond s -> do
-        op <- scalar s
-        return $ Sq.fromList
-            [ Move op (Register (RAX, B8))
-            , Add (Immediate $ ImmediateInt 8) (Register (RAX, B8))]
+        getPair <- pairHelper s
+        return $ getPair |> Add (Immediate $ ImmediateInt 8) (Register (RAX, B8))
 
     IR.NewPair (fstSize, sndSize) (a, b) -> do
         evaluateAddress <- malloc 16
@@ -587,8 +590,12 @@ singleStatement = \case
             [ Move op (Register (RAX, size))
             , Jump . ImmediateLabel $ name ++ ".return"]
 
-    IR.Free s -> useTemporary RDX $ 
-        expression (IR.Call B8 "free" [(B8, s)])
+    IR.Free s -> do
+        op <- scalar s
+        callFree <- expression (IR.Call B8 "free" [(B8, s)])
+        return $ Sq.fromList 
+            [Compare (Immediate $ ImmediateInt 0) op, JumpWhen Equal "_errNull"] 
+            >< callFree
 
     IR.FreeArray s -> useTemporary RDX $ do
         op <- scalar s
