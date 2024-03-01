@@ -53,7 +53,7 @@ data SingleStatement
     | PrintString Scalar
     | PrintAddress Scalar
     | PrintLineBreak
-    deriving Show
+    deriving (Show, Eq)
 
 {- Define different sizes. -}
 data Size = B1 | B2 | B4 | B8 deriving (Show, Eq, Ord)
@@ -96,14 +96,14 @@ data Expression
     | Call Size String [(Size, Scalar)]
     | ReadInt
     | ReadChar Scalar
-    deriving Show
+    deriving (Show, Eq)
 
 {- A scalar is an immediate value, a variable or a string. -}
 data Scalar
     = Immediate Int
     | Variable Identifier
     | String Int
-    deriving Show
+    deriving (Show, Eq)
 
 {- Identifiers can be normal variable names, parameter names,
    or temporary names within the program. -}

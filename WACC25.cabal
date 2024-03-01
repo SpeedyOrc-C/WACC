@@ -127,12 +127,14 @@ test-suite wacc25-test
 
     other-modules:
         Test.WACC.Syntax,
-        Test.WACC.Semantics
+        Test.WACC.Semantics,
+        Test.WACC.Backend.IR
 
     build-depends:
         wacc25-lib,
         directory,
         containers,
+        transformers,
         base ^>=4.17.1.0
 
     type: exitcode-stdio-1.0

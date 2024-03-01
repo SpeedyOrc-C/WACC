@@ -20,6 +20,7 @@ import WACC.Semantics.Checker (checkProgram)
 import WACC.Semantics.Utils ( LogEither(..), SemanticError(..) )
 import Data.Foldable (for_)
 import Data.List (sort)
+import Test.WACC.Backend.IR (irUnitTests)
 
 getDirectoryContents' :: FilePath -> IO [FilePath]
 getDirectoryContents' path =
@@ -181,7 +182,8 @@ main = do
             testSemanticError,
             testValid,
             getTestResult "Syntax Unit Test" syntaxUnitTests,
-            getTestResult "Semantics Unit Test" semanticsUnitTests
+            getTestResult "Semantics Unit Test" semanticsUnitTests,
+            getTestResult "IR Unit Test" irUnitTests
             ]
 
     if succeed then exitSuccess else exitFailure
