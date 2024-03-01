@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 module WACC.IR.FlattenExpression where
 
 import qualified Data.Map as M

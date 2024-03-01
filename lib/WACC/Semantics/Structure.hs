@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-overlapping-patterns #-}
 module WACC.Semantics.Structure where
 
 import Data.Set (Set)

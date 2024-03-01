@@ -7,9 +7,8 @@ import           Data.List
 import           Data.Functor
 import           Data.Bifunctor
 import           Data.Foldable
-import           Data.Sequence ((|>), (<|), (><), Seq)
+import           Data.Sequence ((|>), (><), Seq)
 import           Data.Function
-import           Data.Traversable
 import           Control.Monad
 import           Control.Monad.Trans.State.Lazy
 
