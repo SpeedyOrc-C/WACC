@@ -12,6 +12,17 @@ newtype Program = Program {
     dataSegmentsDefinition :: [Instruction]
 } deriving Show
 
+stringsToInstructions :: [(String, String)] -> Seq Instruction
+stringsToInstructions strs = RodataSection Sq.<| 
+        foldl (Sq.><) Sq.Empty [Sq.fromList
+            [Int (length str),
+            Label label, 
+            AsciiZero str] |(label, str) <- strs]
+
+stringAddress :: String -> Operand
+stringAddress str
+    = MemoryIndirect (Just (ImmediateLabel str)) (RIP, B8) Nothing
+
 {- This is a function to generate move instructions
    between two operands, handling special cases. -}
 move :: Size -> Operand -> Operand -> Seq Instruction
@@ -97,6 +108,7 @@ data Instruction
     {- Different kinds of Jump instructions. -}
     | Jump Immediate
     | JumpWhen Condition Immediate
+
 
     {- Push next instruction's address and jump to it. -}
     | Call Immediate

@@ -563,15 +563,15 @@ singleStatement = \case
                         (Register (RDX, B8)) ><
                     move size (Register (RAX, size)) (MemoryIndirect Nothing (RDX, B8) Nothing)
 
-    IR.PrintString s -> expression (IR.Call B8 "print_string" [(B8, s)])
+    IR.PrintString s -> expression (IR.Call B8 "_prints" [(B8, s)])
 
-    IR.PrintInt s -> expression (IR.Call B8 "print_int" [(B4, s)])
+    IR.PrintInt s -> expression (IR.Call B8 "_printi" [(B4, s)])
 
-    IR.PrintBool s -> expression (IR.Call B8 "print_bool" [(B1, s)])
+    IR.PrintBool s -> expression (IR.Call B8 "_printb" [(B1, s)])
 
     IR.PrintLineBreak -> expression (IR.Call B8 "print_line_break" [])
 
-    IR.PrintAddress s -> expression (IR.Call B8 "print_pointer" [(B8, s)])
+    IR.PrintAddress s -> expression (IR.Call B8 "_printp" [(B8, s)])
 
     IR.Return size s -> do
         op <- scalar s
@@ -749,13 +749,11 @@ program (IR.Program dataSegment fs) = do
         $  (macro |> EmptyLine)
         >< (functions' |> EmptyLine)
         >< (asum
-            [ Internal.printString'
-            , Internal.printLineBreak
+            [ Internal.printLineBreak
             , Internal.printString
             , Internal.printInt
             , Internal.printBool
             , Internal.printChar
-            , Internal.printChar'
             , Internal.printPointer
             , Internal.seekArrayElement1
             , Internal.seekArrayElement4

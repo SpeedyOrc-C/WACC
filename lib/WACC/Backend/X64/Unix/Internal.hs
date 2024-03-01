@@ -4,24 +4,104 @@ import qualified Data.Sequence as Sq
 import WACC.Backend.X64.Structure
 import WACC.IR.Structure (Size(..), SingleStatement (AssignIndirect))
 
-printString :: Sq.Seq Instruction
-printString = Sq.fromList
-    [
-    Label "print_string",
-    Push (Register (RBP, B8)),
-    Move (Register (RSP, B8)) (Register (RBP, B8)),
-    Move (Register (RDI, B8)) (Register (RAX, B8)),
+newFunction :: String 
+    -> [(String, String)]
+    -> [Instruction] 
+    -> Sq.Seq Instruction
+newFunction name strings doblock
+    = (stringsToInstructions strings Sq.|> Text)
+        Sq.>< (Label name Sq.<| 
+        Sq.fromList 
+        [Push (Register (RBP, B8)),
+        Move (Register (RSP, B8)) (Register (RBP, B8)),
+        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8))]) Sq.>< 
+        Sq.fromList doblock
 
-    Move (Immediate $ ImmediateInt 1) (Register (RDI, B4)),
-    LoadAddress (MemoryIndirect Nothing (RAX, B8) Nothing)
-                (Register (RSI, B8)),
-    Move (MemoryIndirect (Just (ImmediateInt (-4))) (RAX, B8) Nothing) (Register (RDX, B4)),
-    Call "write",
+newPrintFunction :: String 
+    -> [(String, String)]
+    -> [Instruction] 
+    -> Sq.Seq Instruction
+newPrintFunction name strings doblock = 
+    newFunction name strings doblock'
+    where
+        doblock' 
+            = doblock ++
+                [Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
+                Call "printf",
+                Move (Immediate $ ImmediateInt 0) (Register (RDI, B8)),
+                Call "fflush",
+                Leave,
+                Return]
 
-    Leave,
-    Return
-    ]
+{-
+.section .rodata
+346	# length of .L._errOutOfMemory_str0
+347		.int 27
+348	.L._errOutOfMemory_str0:
+349		.asciz "fatal error: out of memory\n"
+350	.text
+351	_errOutOfMemory:
+352		# external calls must be stack-aligned to 16 bytes, accomplished by masking with fffffffffffffff0
+353		andq $-16, %rsp
+354		leaq .L._errOutOfMemory_str0(%rip), %rdi
+355		call _prints
+356		movb $-1, %dil
+357		call exit@plt
+-}
 
+errorFunction :: String -> String -> Sq.Seq Instruction
+errorFunction name err
+    = stringsToInstructions [(label, err')] Sq.><
+        Sq.fromList
+        [Text,
+        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
+        LoadAddress
+            (MemoryIndirect (Just (ImmediateLabel label)) (RIP, B8) Nothing)
+            (Register (RDI, B8)),
+        Call "_prints",
+        Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
+        Call "exit"]
+    where
+        label = ".L._" ++ name ++ "str0" 
+        err' = "fatal error: " ++ err ++ "\n"
+{-
+.section .rodata
+28	# length of .L._printb_str0
+29		.int 5
+30	.L._printb_str0:
+31		.asciz "false"
+32	# length of .L._printb_str1
+33		.int 4
+34	.L._printb_str1:
+35		.asciz "true"
+36	# length of .L._printb_str2
+37		.int 4
+38	.L._printb_str2:
+39		.asciz "%.*s"
+40	.text
+41	_printb:
+42		pushq %rbp
+43		movq %rsp, %rbp
+44		# external calls must be stack-aligned to 16 bytes, accomplished by masking with fffffffffffffff0
+45		andq $-16, %rsp
+46		cmpb $0, %dil
+47		jne .L_printb0
+48		leaq .L._printb_str0(%rip), %rdx
+49		jmp .L_printb1
+50	.L_printb0:
+51		leaq .L._printb_str1(%rip), %rdx
+52	.L_printb1:
+53		movl -4(%rdx), %esi
+54		leaq .L._printb_str2(%rip), %rdi
+55		# on x86, al represents the number of SIMD registers used as variadic arguments
+56		movb $0, %al
+57		call printf@plt
+58		movq $0, %rdi
+59		call fflush@plt
+60		movq %rbp, %rsp
+61		popq %rbp
+62		ret
+-}
 {-
 format_int: .asciz "%d"
 print_int:
@@ -36,137 +116,30 @@ print_int:
     leave
     ret
 -}
-printInt :: Sq.Seq Instruction
-printInt = Sq.fromList
-    [
-    Int 2,
-    Label "format_int", AsciiZero "%d",
 
-    Label "print_int",
-    Push (Register (RBP, B8)),
-    Move (Register (RSP, B8)) (Register (RBP, B8)),
-
-    Move (Register (RDI, B4)) (Register (RSI, B4)),
-    LoadAddress (MemoryIndirect (Just "format_int") (RIP, B8) Nothing) (Register (RDI, B8)),
-    And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
-    Call "printf",
-
-    Move (Immediate $ ImmediateInt 0) (Register (RDI, B8)),
-    Call "fflush",
-
-    Leave,
-    Return
-    ]
+printString :: Sq.Seq Instruction
+printString =
+    newPrintFunction "_prints" [(".L._prints_str0", "%.*s")] 
+    [Move (Register (RDI, B8)) (Register (RDX, B8)),
+    Move (MemoryIndirect (Just $ ImmediateInt (-4)) (RDI, B8) Nothing)
+         (Register (RSI, B4)),
+    LoadAddress (MemoryIndirect (Just ".L._prints_str0") 
+                (RIP, B8) Nothing) 
+                (Register (RDI, B8))]
 
 printChar :: Sq.Seq Instruction
-printChar = Sq.fromList [
-    Label "print_char",
-    Push (Register (RBP, B8)),
-    Move (Register (RSP, B8)) (Register (RBP, B8)),
+printChar = 
+    newPrintFunction "_printc" [(".L._printc_str0", "%c")]
+    [Move (Register (RDI, B1)) (Register (RSI, B1)),
+    LoadAddress (MemoryIndirect (Just ".L._printc_str0") (RIP, B8) Nothing) (Register (RDI, B8))]
 
-    MoveZeroSizeExtend B1 B4 (Register (RDI, B1)) (Register (RDI, B4)),
-    Move (Immediate $ ImmediateInt 1) (Register (RSI, B4)),
-    Call "putchar",
-
-    Move (Immediate $ ImmediateInt 0) (Register (RDI, B8)),
-    Call "fflush",
-
-    Leave,
-    Return
-    ]
-
-{-
-.section .rodata
-46	# length of .L._prints_str0
-47		.int 4
-48	.L._prints_str0:
-49		.asciz "%.*s"
-50	.text
-51	_prints:
-52		pushq %rbp
-53		movq %rsp, %rbp
-54		# external calls must be stack-aligned to 16 bytes, accomplished by masking with fffffffffffffff0
-55		andq $-16, %rsp
-56		movq %rdi, %rdx
-57		movl -4(%rdi), %esi
-58		leaq .L._prints_str0(%rip), %rdi
-59		# on x86, al represents the number of SIMD registers used as variadic arguments
-60		movb $0, %al
-61		call printf@plt
-62		movq $0, %rdi
-63		call fflush@plt
-64		movq %rbp, %rsp
-65		popq %rbp
-66		ret
-67
--}
-printString' :: Sq.Seq Instruction
-printString' = Sq.fromList [
-    Int 4,
-    Label ".L._prints_str0",
-    AsciiZero "%.*s",
-    Label "_prints",
-    Push (Register (RBP, B8)),
-    Move (Register (RSP, B8)) (Register (RBP, B8)),
-
-    And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
-    Move (Register (RDI, B8)) (Register (RDX, B8)),
-    Move (MemoryIndirect (Just $ ImmediateInt (-4)) (RDI, B8) Nothing)(Register (RSI, B4)),
-    LoadAddress (MemoryIndirect (Just ".L._prints_str0") (RIP, B8) Nothing) (Register (RDI, B8)),
-
-    Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
-    Call "printf",
-    Move (Immediate $ ImmediateInt 0) (Register (RDI, B8)),
-    Call "fflush",
-    Leave,
-    Return]
-
-
-{-
-.section .rodata
-77	# length of .L._printc_str0
-78		.int 2
-79	.L._printc_str0:
-80		.asciz "%c"
-81	.text
-82	_printc:
-83		pushq %rbp
-84		movq %rsp, %rbp
-85		# external calls must be stack-aligned to 16 bytes, accomplished by masking with fffffffffffffff0
-86		andq $-16, %rsp
-87		movb %dil, %sil
-88		leaq .L._printc_str0(%rip), %rdi
-89		# on x86, al represents the number of SIMD registers used as variadic arguments
-90		movb $0, %al
-91		call printf@plt
-92		movq $0, %rdi
-93		call fflush@plt
-94		movq %rbp, %rsp
-95		popq %rbp
-96		ret
--}
-
-printChar' :: Sq.Seq Instruction
-printChar' = Sq.fromList [
-    Int 2,
-    Label ".L._printc_str0",
-    AsciiZero "%c",
-    Label "_printc",
-    Push (Register (RBP, B8)),
-    Move (Register (RSP, B8)) (Register (RBP, B8)),
-
-    And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
-    Move (Register (RDI, B1)) (Register (RSI, B1)),
-
-    LoadAddress (MemoryIndirect (Just ".L._printc_str0") (RIP, B8) Nothing) (Register (RDI, B8)),
-
-    Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
-    Call "printf",
-    Move (Immediate $ ImmediateInt 0) (Register (RDI, B8)),
-    Call "fflush",
-    Leave,
-    Return
-    ]
+printInt :: Sq.Seq Instruction
+printInt = 
+    newPrintFunction "_printi" [(".L.printi_str0", "%d")] 
+    [Move (Register (RDI, B4)) (Register (RSI, B4)),
+    LoadAddress 
+        (MemoryIndirect (Just ".L.printi_str0") (RIP, B8) Nothing) 
+        (Register (RDI, B8))]
 
 {-
 seek_array_element4:
@@ -232,34 +205,23 @@ print_false:
 -}
 
 printBool :: Sq.Seq Instruction
-printBool = Sq.fromList
-    [
-    Label "bool_true", AsciiZero "true",
-    Label "bool_false", AsciiZero "false",
-
-    Label "print_bool",
-    Push (Register (RBP, B8)),
-    Move (Register (RSP, B8)) (Register (RBP, B8)),
-
-    Compare (Immediate (ImmediateInt 0)) (Register (RDI, B1)),
-    JumpWhen Equal "print_false",
-
-    Label "print_true",
-    Move (Immediate $ ImmediateInt 1) (Register (RDI, B4)),
-    LoadAddress (MemoryIndirect (Just "bool_true") (RIP, B8) Nothing) (Register (RSI, B8)),
-    Move (Immediate $ ImmediateInt 4) (Register (RDX, B4)),
-    Call "write",
-    Leave,
-    Return,
-
-    Label "print_false",
-    Move (Immediate $ ImmediateInt 1) (Register (RDI, B4)),
-    LoadAddress (MemoryIndirect (Just "bool_false") (RIP, B8) Nothing) (Register (RSI, B8)),
-    Move (Immediate $ ImmediateInt 5) (Register (RDX, B4)),
-    Call "write",
-    Leave,
-    Return
-    ]
+printBool = newPrintFunction 
+    "_printb" 
+    [(".L._printb_str0", "false"), 
+        (".L._printb_str1", "true"), 
+        (".L._printb_str2", "%.*s")] 
+    [Compare (Immediate $ ImmediateInt 0) (Register (RDI, B1)),
+     JumpWhen NotEqual ".L_printb0",
+     LoadAddress (stringAddress ".L._printb_str0") (Register (RDX, B8)),
+     Jump ".L_printb1",
+     Label ".L_printb0",
+     LoadAddress (stringAddress ".L._printb_str1") (Register (RDX, B8)),
+     Label ".L_printb1",
+     Move (MemoryIndirect (Just $ ImmediateInt (-4)) 
+        (RDX, B8) Nothing) 
+        (Register (RSI, B4)),
+     LoadAddress (stringAddress ".L._printb_str2") (Register (RDI, B8))
+     ]
 
 {-
 line_break: .asciz "\n"
@@ -276,17 +238,12 @@ print_line_break:
     ret
 -}
 printLineBreak :: Sq.Seq Instruction
-printLineBreak = Sq.fromList [
-    Label "line_break", AsciiZero "\n",
-    Label "print_line_break",
-    Push (Register (RBP, B8)),
-    Move (Register (RSP, B8)) (Register (RBP, B8)),
-
+printLineBreak = newFunction "print_line_break" [("line_break", "\n")]
+    [
     Move (Immediate $ ImmediateInt 1) (Register (RDI, B4)),
-    LoadAddress (MemoryIndirect (Just "line_break") (RIP, B8) Nothing) (Register (RSI, B8)),
+    LoadAddress (stringAddress "print_line_break") (Register (RSI, B8)),
     Move (Immediate $ ImmediateInt 1) (Register (RDX, B4)),
     Call "write",
-
     Leave,
     Return
     ]
@@ -316,69 +273,26 @@ printLineBreak = Sq.fromList [
 -}
 
 printPointer :: Sq.Seq Instruction
-printPointer =
-    Sq.fromList [
-        Int 2,
-        Label ".L._printp_str0",
-        AsciiZero "%p",
-        Int 5,
-        Label ".nil.string",
-        AsciiZero "(nil)",
-        Label "print_pointer",
-        Push (Register (RBP, B8)),
-        Move (Register (RSP, B8)) (Register (RBP, B8)),
-        Compare (Immediate (ImmediateInt 0)) (Register (RDI, B8)),
+printPointer = 
+    newPrintFunction
+        "_printp" 
+        [(".L._printp_str0", "%p"), (".L._printp_str1", "(nil)")]
+        [Compare (Immediate (ImmediateInt 0)) (Register (RDI, B8)),
         JumpWhen Equal "print_null",
-        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
         Move (Register (RDI, B8)) (Register (RSI, B8)),
         LoadAddress
             (MemoryIndirect (Just ".L._printp_str0") (RIP, B8) Nothing)
-            (Register (RDI, B8)),
-        Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
-        Call "printf",
-        Move (Immediate $ ImmediateInt 0) (Register (RDI, B8)),
-        Call "fflush",
-        Move (Register (RBP, B8)) (Register (RSP, B8)),
-        Pop (Register (RBP, B8)),
-        Return,
-        Label "print_null",
-        LoadAddress (MemoryIndirect (Just ".nil.string") (RIP, B8) Nothing)
+            (Register (RDI, B8))] Sq.>< 
+    Sq.fromList
+    [Label "print_null",
+    LoadAddress (MemoryIndirect (Just ".L._printp_str1") (RIP, B8) Nothing)
                 (Register (RDI, B8)),
-        Call "_prints",
-        Leave,
-        Return
-    ]
-{-
-.section .rodata
-346	# length of .L._errOutOfMemory_str0
-347		.int 27
-348	.L._errOutOfMemory_str0:
-349		.asciz "fatal error: out of memory\n"
-350	.text
-351	_errOutOfMemory:
-352		# external calls must be stack-aligned to 16 bytes, accomplished by masking with fffffffffffffff0
-353		andq $-16, %rsp
-354		leaq .L._errOutOfMemory_str0(%rip), %rdi
-355		call _prints
-356		movb $-1, %dil
-357		call exit@plt
--}
+    Call "_prints",
+    Leave,
+    Return]
 
 errorOutOfMemory :: Sq.Seq Instruction
-errorOutOfMemory = Sq.fromList
-    [
-        Int 27,
-        Label ".L._errOutOfMemory_str0",
-        AsciiZero "fatal error: out of memory\n",
-        Label "_errOutOfMemory",
-        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
-        LoadAddress
-            (MemoryIndirect (Just ".L._errOutOfMemory_str0") (RIP, B8) Nothing)
-            (Register (RDI, B8)),
-        Call "_prints",
-        Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
-        Call "exit"
-    ]
+errorOutOfMemory = errorFunction "_errOutOfMemory" "out of memory"
 
 {-
 _malloc:
@@ -425,55 +339,14 @@ mallocFunction = Sq.fromList
 97		call exit@plt-}
 
 errorNull :: Sq.Seq Instruction
-errorNull = Sq.fromList
-    [
-        Int 45,
-        Label ".L._errNull_str0",
-        AsciiZero "fatal error: null pair dereferenced or freed\n",
-        Label "_errNull",
-        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
-        LoadAddress
-            (MemoryIndirect (Just ".L._errNull_str0") (RIP, B8) Nothing)
-            (Register (RDI, B8)),
-        Call "_prints",
-        Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
-        Call "exit"
-    ]
+errorNull = errorFunction 
+    "_errNull" 
+    "null pair dereferenced or freed"
 
 errorOverFlow :: Sq.Seq Instruction
-errorOverFlow = Sq.fromList
-    [
-        Int 52,
-        Label ".L._errOverflow_str0",
-        AsciiZero "fatal error: integer overflow or underflow occurred\n",
-        Label "_errOverFlow",
-        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
-        LoadAddress
-            (MemoryIndirect (Just ".L._errOverflow_str0") (RIP, B8) Nothing)
-            (Register (RDI, B8)),
-        Call "_prints",
-        Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
-        Call "exit"
-    ]
-{-
-.section .rodata
-154	# length of .L._errOutOfBounds_str0
-155		.int 42
-156	.L._errOutOfBounds_str0:
-157		.asciz "fatal error: array index %d out of bounds\n"
-158	.text
-159	_errOutOfBounds:
-160		# external calls must be stack-aligned to 16 bytes, accomplished by masking with fffffffffffffff0
-161		andq $-16, %rsp
-162		leaq .L._errOutOfBounds_str0(%rip), %rdi
-163		# on x86, al represents the number of SIMD registers used as variadic arguments
-164		movb $0, %al
-165		call printf@plt
-166		movq $0, %rdi
-167		call fflush@plt
-168		movb $-1, %dil
-169		call exit@plt
--}
+errorOverFlow = errorFunction 
+    "_errOverFlow"
+    "integer overflow or underflow occurred"
 
 errorOutOfBounds :: Sq.Seq Instruction
 errorOutOfBounds = Sq.fromList
@@ -493,117 +366,31 @@ errorOutOfBounds = Sq.fromList
         Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
         Call "exit"
     ]
+readHelperFunction :: String -> (String, String) -> Size -> Sq.Seq Instruction
+readHelperFunction name str@(label, _) size
+    = newFunction name [str] [
+        Subtract (Immediate $ ImmediateInt 16) (Register (RSP, B8)),
+        Move (Register (RDI, B1)) (MemoryIndirect Nothing (RSP, B8) Nothing),
+        LoadAddress (MemoryIndirect Nothing (RSP, B8) Nothing) (Register (RSI, B8)),
+
+        LoadAddress
+            (stringAddress label)
+            (Register (RDI, B8)),
+
+        Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
+        Call "scanf",
+        MoveSignSizeExtend size B8
+            (MemoryIndirect Nothing (RSP, B8) Nothing)
+            (Register (RAX, B8)),
+
+        Add (Immediate $ ImmediateInt 16) (Register (RSP, B8))
+    ]
 
 readInt :: Sq.Seq Instruction
-readInt
-    = Sq.fromList
-        [Int 2,
-        Label ".L._readi_str0",
-        AsciiZero "%d",
-        Label "readInt",
-        Push (Register (RBP, B8)),
-        Move (Register (RSP, B8)) (Register (RBP, B8)),
-        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
-        Subtract (Immediate $ ImmediateInt 16) (Register (RSP, B8)),
-        Move (Register (RDI, B1)) (MemoryIndirect Nothing (RSP, B8) Nothing),
-        LoadAddress (MemoryIndirect Nothing (RSP, B8) Nothing) (Register (RSI, B8)),
-
-        LoadAddress
-            (MemoryIndirect (Just ".L._readi_str0") (RIP, B8) Nothing)
-            (Register (RDI, B8)),
-
-        Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
-        Call "scanf",
-        MoveSignSizeExtend B4 B8
-            (MemoryIndirect Nothing (RSP, B8) Nothing)
-            (Register (RAX, B8)),
-
-        Add (Immediate $ ImmediateInt 16) (Register (RSP, B8)),
-        Leave,
-        Return
-        ]
+readInt = 
+    readHelperFunction "readInt" (".L._readi_str0", "%d") B4
 
 readChar :: Sq.Seq Instruction
-readChar
-    = Sq.fromList
-        [Int 3,
-        Label ".L._readc_str0",
-        AsciiZero " %c",
-        Label "readChar",
-        Push (Register (RBP, B8)),
-        Move (Register (RSP, B8)) (Register (RBP, B8)),
-        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
-        Subtract (Immediate $ ImmediateInt 16) (Register (RSP, B8)),
-        Move (Register (RDI, B1)) (MemoryIndirect Nothing (RSP, B8) Nothing),
-        LoadAddress (MemoryIndirect Nothing (RSP, B8) Nothing) (Register (RSI, B8)),
-
-        LoadAddress
-            (MemoryIndirect (Just ".L._readc_str0") (RIP, B8) Nothing)
-            (Register (RDI, B8)),
-
-        Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
-        Call "scanf",
-        MoveSignSizeExtend B1 B8
-            (MemoryIndirect Nothing (RSP, B8) Nothing)
-            (Register (RAX, B8)),
-
-        Add (Immediate $ ImmediateInt 16) (Register (RSP, B8)),
-        Leave,
-        Return
-        ]
-
-{-
-.section .rodata
-43	# length of .L._readc_str0
-44		.int 3
-45	.L._readc_str0:
-46		.asciz " %c"
-47	.text
-48	_readc:
-49		pushq %rbp
-50		movq %rsp, %rbp
-51		# external calls must be stack-aligned to 16 bytes, accomplished by masking with fffffffffffffff0
-52		andq $-16, %rsp
-53		# RDI contains the "original" value of the destination of the read
-54		# allocate space on the stack to store the read: preserve alignment!
-55		# the passed default argument should be stored in case of EOF
-56		subq $16, %rsp
-57		movb %dil, (%rsp)
-58		leaq (%rsp), %rsi
-59		leaq .L._readc_str0(%rip), %rdi
-60		# on x86, al represents the number of SIMD registers used as variadic arguments
-61		movb $0, %al
-62		call scanf@plt
-63		movsbq (%rsp), %rax
-64		addq $16, %rsp
-65		movq %rbp, %rsp
-66		popq %rbp
-67		ret
-68
-69	.section .rodata
-70	# length of .L._readi_str0
-71		.int 2
-72	.L._readi_str0:
-73		.asciz "%d"
-74	.text
-75	_readi:
-76		pushq %rbp
-77		movq %rsp, %rbp
-78		# external calls must be stack-aligned to 16 bytes, accomplished by masking with fffffffffffffff0
-79		andq $-16, %rsp
-80		# RDI contains the "original" value of the destination of the read
-81		# allocate space on the stack to store the read: preserve alignment!
-82		# the passed default argument should be stored in case of EOF
-83		subq $16, %rsp
-84		movl %edi, (%rsp)
-85		leaq (%rsp), %rsi
-86		leaq .L._readi_str0(%rip), %rdi
-87		# on x86, al represents the number of SIMD registers used as variadic arguments
-88		movb $0, %al
-89		call scanf@plt
-90		movslq (%rsp), %rax
-91		addq $16, %rsp
-92		movq %rbp, %rsp
-93		popq %rbp
-94		ret
--}
+readChar = 
+    readHelperFunction "readChar" (".L._readc_str0", " %c") B1
+   
