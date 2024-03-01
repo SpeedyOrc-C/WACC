@@ -62,8 +62,14 @@ data GeneratorState = GeneratorState {
     maxStackSize :: Int,
     tmpStackOffset :: Int,
     tmpPushedRegs :: [Maybe PhysicalRegister],
-    functionName :: String
+    functionName :: String,
+    calledInternalFunctions :: S.Set Internal.Function
 } deriving (Show)
+
+use :: Internal.Function -> State GeneratorState ()
+use f = modify $ \s -> s {
+    calledInternalFunctions = S.insert f (calledInternalFunctions s)
+}
 
 {- This function is responsible for allocating memory for a variable.
    It first checks if there are any free registers available. If so,
@@ -248,11 +254,14 @@ useTemporary reg runner = do
 
 pairHelper :: IR.Scalar -> State GeneratorState (Seq Instruction)
 pairHelper s = do
-        op <- scalar s
-        return $ Sq.fromList
-            [   Compare (Immediate $ ImmediateInt 0) op
-            ,   JumpWhen Equal "error_null"
-            ,   Move op (Register (RAX, B8))]
+    op <- scalar s
+
+    use Internal.ErrorNull
+
+    return $ Sq.fromList
+        [ Compare (Immediate $ ImmediateInt 0) op
+        , JumpWhen Equal "error_null"
+        , Move op (Register (RAX, B8))]
 
 malloc :: Int -> State GeneratorState (Seq Instruction)
 malloc size = expression (IR.Call B8 "malloc" [(B4, IR.Immediate size)])
@@ -273,6 +282,9 @@ expression = \case
     IR.Add s1 s2 -> do
         op1 <- scalar s1
         op2 <- scalar s2
+
+        use Internal.ErrorOverflow
+
         return $ Sq.fromList
             [ Move op1 (Register (RAX, B4))
             , Add op2 (Register (RAX, B4))
@@ -281,6 +293,8 @@ expression = \case
     IR.Subtract s1 s2 -> do
         op1 <- scalar s1
         op2 <- scalar s2
+
+        use Internal.ErrorOverflow
 
         return $ Sq.fromList
             [ Move op1 (Register (RAX, B4))
@@ -291,6 +305,8 @@ expression = \case
         op1 <- scalar s1
         op2 <- scalar s2
 
+        use Internal.ErrorOverflow
+
         return $ Sq.fromList
             [ Move op1 (Register (RAX, B4))
             , Multiply op2 (Register (RAX, B4))
@@ -299,6 +315,8 @@ expression = \case
     IR.Divide a b -> useTemporary RSI $ do
         a' <- scalar a
         b' <- scalar b
+
+        use Internal.ErrorDivideZero
 
         return $ Sq.fromList
             [ Move a' (Register (RAX, B4))
@@ -467,22 +485,29 @@ expression = \case
             maybeAlignUpRSP ><
             popCallerSave
 
-    IR.SeekArrayElement B1 a i -> expression $
-        IR.Call B8 "seek_array_element1" [(B8, a), (B4, i)]
-    IR.SeekArrayElement B4 a i -> expression $
-        IR.Call B8 "seek_array_element4" [(B8, a), (B4, i)]
-    IR.SeekArrayElement B8 a i -> expression $
-        IR.Call B8 "seek_array_element8" [(B8, a), (B4, i)]
+    IR.SeekArrayElement B1 a i -> do
+        use Internal.SeekArrayElement1
+        use Internal.ErrorOutOfBounds
+        expression $ IR.Call B8 "seek_array_element1" [(B8, a), (B4, i)]
+
+    IR.SeekArrayElement B4 a i -> do
+        use Internal.SeekArrayElement4
+        use Internal.ErrorOutOfBounds
+        expression $ IR.Call B8 "seek_array_element4" [(B8, a), (B4, i)]
+
+    IR.SeekArrayElement B8 a i -> do
+        use Internal.SeekArrayElement8
+        use Internal.ErrorOutOfBounds
+        expression $ IR.Call B8 "seek_array_element8" [(B8, a), (B4, i)]
+
     IR.SeekArrayElement {} -> error "Other sizes are not supported."
 
     IR.Length addr -> useTemporary RDX $ do
         addr' <- scalar addr
         return $ Sq.fromList
-            [
-                Move addr' (Register (RDX, B8)),
-                Move (MemoryIndirect (Just $ ImmediateInt (-4))
-                        (RDX, B8)
-                        Nothing) (Register (RAX, B4))
+            [ Move addr' (Register (RDX, B8))
+            , Move (MemoryIndirect (Just $ ImmediateInt (-4)) (RDX, B8) Nothing)
+                    (Register (RAX, B4))
             ]
 
     IR.Order scalar' -> useTemporary RDX $ do
@@ -493,34 +518,39 @@ expression = \case
 
     IR.Character scalar' -> do
         scalar'' <- scalar scalar'
-        return $ Sq.fromList [
-            Move scalar'' (Register (RAX, B4)),
-            MoveSignSizeExtend B4 B8 (Register (RAX, B4)) (Register (RAX, B8)),
-            Test (Immediate $ ImmediateInt $ -128) (Register (RAX, B8)),
-            CompareMove NotEqual (Register (RAX, B8)) (Register (RSI, B8)),
-            JumpWhen NotEqual "error_bad_char"]
+
+        use Internal.ErrorBadChar
+
+        return $ Sq.fromList
+            [ Move scalar'' (Register (RAX, B4))
+            , MoveSignSizeExtend B4 B8 (Register (RAX, B4)) (Register (RAX, B8))
+            , Test (Immediate $ ImmediateInt $ -128) (Register (RAX, B8))
+            , CompareMove NotEqual (Register (RAX, B8)) (Register (RSI, B8))
+            , JumpWhen NotEqual "error_bad_char"]
+
     IR.And a b -> do
         a' <- scalar a
         b' <- scalar b
+
         return $ Sq.fromList
-            [
-                Move a' (Register (RAX, B1)),
-                And b' (Register (RAX, B1))
-            ]
+            [ Move a' (Register (RAX, B1))
+            , And b' (Register (RAX, B1)) ]
+
     IR.Or a b -> do
         a' <- scalar a
         b' <- scalar b
+
         return $ Sq.fromList
-            [
-                Move a' (Register (RAX, B1)),
-                Or b' (Register (RAX, B1))]
-    IR.ReadInt
-        -> return (Sq.singleton $ Call "readInt")
+            [ Move a' (Register (RAX, B1))
+            , Or b' (Register (RAX, B1))]
 
-    IR.ReadChar k ->
-            expression (IR.Call B1 "readChar" [(B1, k)])
+    IR.ReadInt -> do
+        use Internal.ReadInt
+        return (Sq.singleton $ Call "read_int")
 
-
+    IR.ReadChar k -> do
+        use Internal.ReadChar
+        expression (IR.Call B1 "read_char" [(B1, k)])
 
 singleStatement :: IR.SingleStatement -> State GeneratorState (Seq Instruction)
 singleStatement = \case
@@ -571,15 +601,25 @@ singleStatement = \case
                         (Register (RDX, B8)) ><
                     move size (Register (RAX, size)) (MemoryIndirect Nothing (RDX, B8) Nothing)
 
-    IR.PrintString s -> expression (IR.Call B8 "print_string" [(B8, s)])
+    IR.PrintString s -> do
+        use Internal.PrintString
+        expression (IR.Call B8 "print_string" [(B8, s)])
 
-    IR.PrintInt s -> expression (IR.Call B8 "print_int" [(B4, s)])
+    IR.PrintInt s -> do
+        use Internal.PrintInt
+        expression (IR.Call B8 "print_int" [(B4, s)])
 
-    IR.PrintBool s -> expression (IR.Call B8 "print_bool" [(B1, s)])
+    IR.PrintBool s -> do
+        use Internal.PrintBool
+        expression (IR.Call B8 "print_bool" [(B1, s)])
 
-    IR.PrintLineBreak -> expression (IR.Call B8 "print_line_break" [])
+    IR.PrintLineBreak -> do
+        use Internal.PrintLineBreak
+        expression (IR.Call B8 "print_line_break" [])
 
-    IR.PrintAddress s -> expression (IR.Call B8 "print_pointer" [(B8, s)])
+    IR.PrintAddress s -> do
+        use Internal.PrintPointer
+        expression (IR.Call B8 "print_pointer" [(B8, s)])
 
     IR.Return size s -> do
         op <- scalar s
@@ -592,6 +632,9 @@ singleStatement = \case
     IR.Free s -> do
         op <- scalar s
         callFree <- expression (IR.Call B8 "free" [(B8, s)])
+
+        use Internal.ErrorNull
+
         return $ Sq.fromList
             [Compare (Immediate $ ImmediateInt 0) op, JumpWhen Equal "error_null"]
             >< callFree
@@ -606,12 +649,13 @@ singleStatement = \case
             Move (Register (RDX, B8)) (Register (RDI, B8))]
             >< call
 
-    IR.PrintChar s -> expression (IR.Call B8 "print_char" [(B1, s)])
+    IR.PrintChar s -> do
+        use Internal.PrintChar
+        expression (IR.Call B8 "print_char" [(B1, s)])
 
 instruction :: IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
 instruction = \case
-    IR.NCF statement ->
-        (Comment (show statement) <|) <$> singleStatement statement
+    IR.NCF statement -> singleStatement statement
 
     IR.Label name ->
         return $ Sq.singleton $ Label name
@@ -641,14 +685,12 @@ instruction = \case
         traverse_ free (S.toList identifiers)
         return Sq.empty
 
-
 instructions :: [IR.NoControlFlowStatement] -> State GeneratorState (Seq Instruction)
 instructions = fmap asum . traverse instruction
 
-function :: IR.Function IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
+function :: IR.Function IR.NoControlFlowStatement
+    -> State GeneratorState (S.Set Internal.Function, Seq Instruction)
 function (IR.Function name parameters statements) = do
-    oldState <- get
-
     modify $ \s -> s { functionName = name }
 
     let (registerParams, stackParams) = splitAt 6 parameters
@@ -680,34 +722,33 @@ function (IR.Function name parameters statements) = do
 
     let (pushes, pops) = pushRegisters (S.toList stainedCalleeSaveRegs)
 
-    put oldState
-
     -- Main program returns 0 by default, but other functions do not.
     let mainDefaultReturn = if name /= "main" then Sq.empty else Sq.singleton
             (Move (Immediate $ ImmediateInt 0) (Register (RAX, B8)))
 
-    return $
-        Sq.fromList
-            [ Label name
-            , Push (Register (RBP, B8))
-            , Move (Register (RSP, B8)) (Register (RBP, B8))] ><
+    let allStatements =
+            Sq.fromList
+                [ Label name
+                , Push (Register (RBP, B8))
+                , Move (Register (RSP, B8)) (Register (RBP, B8))] ><
 
-        pushes ><
-        maybeAlignDownRSP ><
+            pushes ><
+            maybeAlignDownRSP ><
 
-        downRSP maxStackSize ><
-            statements' ><
-            Sq.singleton (Label $ name ++ ".return") ><
-        upRSP maxStackSize ><
+            downRSP maxStackSize ><
+                statements' ><
+                Sq.singleton (Label $ name ++ ".return") ><
+            upRSP maxStackSize ><
 
-        maybeAlignUpRSP ><
-        pops ><
+            maybeAlignUpRSP ><
+            pops ><
 
-        mainDefaultReturn ><
-        Sq.fromList [Leave, Return]
+            mainDefaultReturn ><
+            Sq.fromList [Leave, Return]
 
-functions :: [IR.Function IR.NoControlFlowStatement] -> State GeneratorState (Seq Instruction)
-functions = fmap asum . traverse function
+    calledInternalFunctions <- gets calledInternalFunctions
+
+    return (calledInternalFunctions, allStatements)
 
 macro :: Seq Instruction
 macro =
@@ -718,6 +759,7 @@ macro =
         Define "section_literal4" ".literal4",
         Define "section_cstring" ".cstring",
         Define "section_text" ".text",
+
         Define "fflush"  "_fflush",
         Define "write"   "_write",
         Define "printf"  "_printf",
@@ -727,15 +769,19 @@ macro =
         Define "putchar" "_putchar",
         Define "getchar" "_getchar",
         Define "free" "_free",
+
         Global "_main",
         Define "main" "_main",
     EndIf,
+
     EmptyLine,
+
     IfDefined "__linux__",
         Define "section_read_only" ".section .rodata",
         Define "section_literal4" "",
         Define "section_cstring" "",
         Define "section_text" ".text",
+
         Define "fflush" "fflush@PLT",
         Define "write" "write@PLT",
         Define "printf" "printf@PLT",
@@ -745,47 +791,40 @@ macro =
         Define "malloc" "malloc@PLT",
         Define "putchar" "putchar@PLT",
         Define "getchar" "getchar@PLT",
+
         Global "main",
     EndIf
     ]
 
-program :: IR.Program IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
-program (IR.Program dataSegment fs) = do
-    functions' <- functions fs
+program :: IR.Program IR.NoControlFlowStatement -> Seq Instruction
+program (IR.Program dataSegment functions) = let
 
-    dataSegment' <-
-        for (Sq.fromList $ M.toList dataSegment) $ \(name, number) ->
-            return $ Sq.fromList
+    (unzip -> (calledInternalFunctionsSets, functionsStatements)) =
+        (`evalState` initialState) . function <$> functions
+
+    allCalledInternalFunctions = S.toList $ S.unions calledInternalFunctionsSets
+    internalFunctionsStatements =
+        (Internal.functions M.!) <$> allCalledInternalFunctions
+
+    dataSegmentStatements =
+        Sq.fromList (M.toList dataSegment) <&> \(name, number) ->
+            Sq.fromList
                 [ SectionReadOnly
                 , SectionLiteral4
                 , Int (length name)
                 , SectionCString
                 , Label ("str." ++ show number)
-                , AsciiZero name]
+                , AsciiZero name
+                ]
 
-    return
-        $  (macro |> EmptyLine)
-        >< (functions' |> EmptyLine)
-        >< (asum
-            [ Internal.printLineBreak
-            , Internal.printString
-            , Internal.printInt
-            , Internal.printBool
-            , Internal.printChar
-            , Internal.printPointer
-            , Internal.seekArrayElement1
-            , Internal.seekArrayElement4
-            , Internal.seekArrayElement8
-            , Internal.errorOutOfBounds
-            , Internal.errorNull
-            , Internal.errorOutOfMemory
-            , Internal.errorOverFlow
-            , Internal.readInt
-            , Internal.readChar
-            , Internal.errorBadChar
-            , Internal.errorDivideZero
-            ] |> EmptyLine)
-        >< asum dataSegment'
+    addLineBreaks = intersperse (return EmptyLine)
+
+    in
+
+    (                    macro                        |> EmptyLine) ><
+    (asum (addLineBreaks functionsStatements        ) |> EmptyLine) ><
+    (asum (addLineBreaks internalFunctionsStatements) |> EmptyLine) ><
+    (asum                dataSegmentStatements        |> EmptyLine)
 
 initialState :: GeneratorState
 initialState = GeneratorState {
@@ -796,8 +835,9 @@ initialState = GeneratorState {
     maxStackSize = 0,
     tmpStackOffset = 0,
     tmpPushedRegs = [],
-    functionName = undefined
+    functionName = undefined,
+    calledInternalFunctions = S.empty
 }
 
 generateX64 :: IR.Program IR.NoControlFlowStatement -> Seq Instruction
-generateX64 p = evalState (program p) initialState
+generateX64 = program
