@@ -15,8 +15,6 @@ newLabel :: State FlattenerState String
 newLabel = state $ \s ->
     (show (labelCounter s), s {labelCounter = labelCounter s + 1})
 
-{- It is a helper function which accept a 'NoExpressionStatement' and then
-   returns 'State FlattenerState [NoControlFlowStatement]'. -}
 noExpressionStatement ::
     NoExpressionStatement -> State FlattenerState [NoControlFlowStatement]
 noExpressionStatement = \case
@@ -50,7 +48,6 @@ noExpressionStatement = \case
             [GotoIf condition whileLabel] ++
             [WhileReference refs]
 
-{- Here we defines different types of flatten control flow. -}
 noExpressionStatements ::
     [NoExpressionStatement] -> State FlattenerState [NoControlFlowStatement]
 noExpressionStatements xs = concat <$> traverse noExpressionStatement xs

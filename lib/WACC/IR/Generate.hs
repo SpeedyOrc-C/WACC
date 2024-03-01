@@ -13,8 +13,6 @@ import           WACC.IR.FlattenExpression (flattenExpression)
 import           WACC.IR.FlattenControlFlow (flattenControlFlow)
 import           WACC.IR.LiveRange (analyseLiveRange)
 
-{- Function to generate intermediate representation (IR) from semantic analysis
-   results. -}
 generateIR :: Semantics.Program -> IR.Program IR.NoControlFlowStatement
 generateIR =
         createDataSegments &&& id
@@ -22,7 +20,6 @@ generateIR =
     >>> flattenControlFlow
     >>> analyseLiveRange
 
-{- Function for debugging purposes to print the generated IR. -}
 debug :: IR.Program IR.NoControlFlowStatement -> IO ()
 debug (IR.Program (M.toList -> dataSegment) functions) = do
     for_ dataSegment $ \(string, number) -> do

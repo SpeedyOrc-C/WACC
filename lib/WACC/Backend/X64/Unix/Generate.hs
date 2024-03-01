@@ -149,18 +149,26 @@ operandFromMemoryLocation = \case
             Just offset -> MemoryIndirect
                 (Just (ImmediateInt (offset * 8))) (RSP, B8) Nothing
 
+    -- Variable A
+    -- Variable B  Minus the offset to get the variables on the stack.
+    -- Variable C  ---------------------------------+
+    -- Pushing registers before calling a function. |  temporary
+    -- Pushing...                                   |   offset
+    -- Pushing...  <- RSP points here. -------------+
     AtStack offset _ -> do
         tmpStackOffset <- gets tmpStackOffset
         return $ MemoryIndirect
             (Just (ImmediateInt (offset - tmpStackOffset))) (RSP, B8) Nothing
 
+    -- 9th parameter
+    -- 8th parameter  Move up to get the parameters after 6th.
+    -- 7th parameter  ----------------------------------+  2 registers
+    -- return address                                   |   16 bytes
+    -- pushed RBP     <- RBP points here in the body. --+
     AtParameterStack offset _ ->
-        -- +8 go beyond the pushed RBP
-        -- +8 go beyond the return address
         return $ MemoryIndirect
             (Just (ImmediateInt (offset + 16))) (RBP, B8) Nothing
 
-{- Given an IR.Scalar, this function generates the corresponding 'Operand'. -}
 scalar :: IR.Scalar -> State GeneratorState Operand
 scalar = \case
     IR.Immediate n -> return $
@@ -597,8 +605,6 @@ singleStatement = \case
                     move size (Register (RAX, size)) (MemoryIndirect Nothing (RDX, B8) Nothing)
 
             AtParameterStack offset _ -> useTemporary RDX $
-                -- +8 go beyond the pushed RBP
-                -- +8 go beyond the return address
                 return $ evaluate ><
                     move size (MemoryIndirect
                             (Just (ImmediateInt (offset + 16))) (RBP, B8) Nothing)
@@ -710,6 +716,9 @@ function (IR.Function name parameters statements) = do
             registerPool = S.insert physicalReg (registerPool s)
         }
 
+    -- e.g. If there are 4 parameters after the 6th,
+    -- and their sizes are:  [8, 1, 4, 1 ].
+    -- Then the offsets are: [0, 8, 9, 13].
     let stackParamOffsets = scanl (+) 0 (sizeToInt . snd <$> stackParams)
 
     for_ (zip stackParamOffsets stackParams) $ \(offset, (ident, size)) -> do

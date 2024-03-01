@@ -5,25 +5,21 @@ import Data.Map (Map)
 
 import qualified WACC.Semantics.Structure as SM
 
-{- Define the IR program structure. -}
 data Program s = Program (Map String Int) [Function s] deriving Show
 
-{- Define the structure of a function in the IR. -}
 data Function s = Function String [(Identifier, Size)] [s] deriving Show
 
-{- Define statements that do not contain expressions directly. -}
 data NoExpressionStatement
     = NE SingleStatement
     | If Scalar [NoExpressionStatement] [NoExpressionStatement]
 
-    {- Cannot free the "free variables" inside the while loop
-     as they might be referenced again.
-     References might only be freed after the loop. -}
+    -- Cannot free the "free variables" inside the while loop
+    -- as they might be referenced again.
+    -- References might only be freed after the loop.
     | While (Scalar, [SingleStatement]) [NoExpressionStatement]
             (Set Identifier)
     deriving Show
 
-{- Define statements without control flow constructs. -}
 data NoControlFlowStatement
     = NCF SingleStatement
     | Label String
@@ -31,12 +27,11 @@ data NoControlFlowStatement
     | GotoIf Scalar String
     | GotoIfNot Scalar String
 
-    {- These directives are for compiler only and not compiled. -}
+    -- These directives are for compiler only and not compiled.
     | FreeVariable Identifier
     | WhileReference (Set Identifier)
     deriving Show
 
-{- Define single statements. -}
 data SingleStatement
     = Assign Size Identifier Expression
     | AssignIndirect Size Identifier Expression
@@ -55,10 +50,8 @@ data SingleStatement
     | PrintLineBreak
     deriving (Show, Eq)
 
-{- Define different sizes. -}
 data Size = B1 | B2 | B4 | B8 deriving (Show, Eq, Ord)
 
-{- Define all kinds of expressions. -}
 data Expression
     = Scalar Scalar
 
@@ -98,23 +91,18 @@ data Expression
     | ReadChar Scalar
     deriving (Show, Eq)
 
-{- A scalar is an immediate value, a variable or a string. -}
 data Scalar
     = Immediate Int
     | Variable Identifier
     | String Int
     deriving (Show, Eq)
 
-{- Identifiers can be normal variable names, parameter names,
-   or temporary names within the program. -}
 data Identifier
     = Identifier String Int
     | Parameter String Int
     | Temporary String Int
     deriving Show
 
-{- This is a function to extract the number part of an identifier,
-   which can be used for comparison and ordering. -}
 identifierNo :: Identifier -> Int
 identifierNo = \case
     Identifier _ n -> n
@@ -123,12 +111,10 @@ identifierNo = \case
 
 data IdentifierType
 
-{- Compare two identifiers according to their identifierNo. -}
 instance Eq Identifier where
     (==) :: Identifier -> Identifier -> Bool
     a == b = identifierNo a == identifierNo b
 
-{- Order identifiers according to their identifierNo. -}
 instance Ord Identifier where
     compare :: Identifier -> Identifier -> Ordering
     compare a b = compare (identifierNo a) (identifierNo b)
@@ -136,7 +122,6 @@ instance Ord Identifier where
 class HasSize a where
     getSize :: a -> Size
 
-{- Retrieve the size of different data types. -}
 instance HasSize SM.Type where
     getSize :: SM.Type -> Size
     getSize = \case
@@ -146,10 +131,9 @@ instance HasSize SM.Type where
         SM.String -> B8
         SM.Array {} -> B8
         SM.Pair {} -> B8
-        -- will happen when left hand side is type of Any 
+        -- will happen when left hand side is type of Any
         -- and right hand side being []
         SM.Any -> B1
 
-{- Convert the size to a corresponding number. -}
 sizeToInt :: Size -> Int
 sizeToInt = \case B1 -> 1; B2 -> 2; B4 -> 4; B8 -> 8
