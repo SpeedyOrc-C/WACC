@@ -36,7 +36,7 @@ for file in $(find "$directory" -type f \
             | sed 's/^addrs#/#addrs#/g')
 
         echo -e "Compiling...\n"
-        if cabal run wacc25 -- "$file" --no-text-deco; then
+        if ./compile "$file"; then
             echo -e "\nCompilation of $filename succeeded!"
             echo -e "\nExecuting..."
             if [ -n "$input" ]; then
@@ -46,7 +46,6 @@ for file in $(find "$directory" -type f \
             if gcc -o "$exec_name" -z noexecstack "$exec_name.s"; then
                 output=$(./"$exec_name" <<< $input)
                 exit_code=$?
-                output=$(echo "$output" | sed 's/0x[0-9a-f]\{12\}/#addrs#/g')
                 echo -e "\nExecution succeeded!\n"
 
                 if [ -n "$expected_exit_code" ]; then
@@ -66,6 +65,8 @@ for file in $(find "$directory" -type f \
                 if [[ "$file" != example/valid/runtimeErr/* ]]; then
                     echo -e "The expected output is:\n$expected_output"
                     echo -e "The actual output is:\n$output"
+                    output=$(echo "$output" \
+                        | sed 's/0x[0-9a-f]\{12\}/#addrs#/g')
                     if [ "$expected_output" = "$output" ]; then
                         echo "The output is correct!"
                         ((passed++))
