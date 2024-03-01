@@ -26,7 +26,8 @@ for file in $(find "$directory" -type f \
             | sed '/Output:/d; /Program:/d' \
             | sed -n '/Exit:/q;p' \
             | sed 's/^# //g' \
-            | sed 's/^#//g')
+            | sed 's/^#//g' \
+            | sed 's/^addrs#/#addrs#/g')
 
         echo -e "Compiling...\n"
         if cabal run wacc25 -- "$file" --no-text-deco; then
@@ -38,6 +39,7 @@ for file in $(find "$directory" -type f \
 
             if gcc -o "$exec_name" -z noexecstack "$exec_name.s"; then
                 output=$(./"$exec_name" <<< $input)
+                output=$(echo "$output" | sed 's/0x[0-9a-f]\{12\}/#addrs#/g')
                 echo -e "\nExecution succeeded!\n"
 
                 echo -e "The expected output is:\n$expected_output"
@@ -65,11 +67,11 @@ for file in $(find "$directory" -type f \
     fi
 done
 
-echo -e "$passed/$total passed!\n"
-echo -e "Failed files: $failed_files"
+echo "$passed/$total passed!"
 
 if [ $passed -eq $total ]; then
     exit 0
 else
+    echo -e "\nFailed files: $failed_files"
     exit 1
 fi
