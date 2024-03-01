@@ -13,7 +13,7 @@ import           WACC.IR.FlattenExpression (flattenExpression)
 import           WACC.IR.FlattenControlFlow (flattenControlFlow)
 import           WACC.IR.LiveRange (analyseLiveRange)
 
-{- Function to generate intermediate representation (IR) from semantic analysis 
+{- Function to generate intermediate representation (IR) from semantic analysis
    results. -}
 generateIR :: Semantics.Program -> IR.Program IR.NoControlFlowStatement
 generateIR =
