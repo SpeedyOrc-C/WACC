@@ -285,6 +285,7 @@ expression = \case
         op2 <- scalar s2
 
         use Internal.ErrorOverflow
+        use Internal.PrintString
 
         return $ Sq.fromList
             [ Move op1 (Register (RAX, B4))
@@ -296,6 +297,7 @@ expression = \case
         op2 <- scalar s2
 
         use Internal.ErrorOverflow
+        use Internal.PrintString
 
         return $ Sq.fromList
             [ Move op1 (Register (RAX, B4))
