@@ -1,6 +1,12 @@
 #! /bin/sh
 cabal run . -- $1 --no-text-deco
 
+status=$?
+
+if [ $status -ne 0 ]; then
+    exit $status
+fi
+
 file_name=$(basename "$1")
 file_base_name="${file_name%.*}"
 
