@@ -4,6 +4,7 @@ import WACC.Semantics.Structure
 
 data OperandDirection = OperandLeft | OperandRight deriving Show
 
+{- Define different semantic error types. -}
 data WaccSemanticsErrorType
     = UndefinedIdentifier String
     | UndefinedFunction String
@@ -35,6 +36,7 @@ data WaccSemanticsErrorType
     | BothSideAnyAssignment
     | InvalidExit Type
 
+{- Define 'Show' for all kinds of semantic error types. -}
 instance Show WaccSemanticsErrorType where
     show :: WaccSemanticsErrorType -> String
     show (UndefinedIdentifier identifier) =
@@ -91,8 +93,8 @@ instance Show WaccSemanticsErrorType where
         "Can only compare the same type as " ++ show expect ++ ". " ++
         "Actual: " ++ show actual
     show (InvalidEquality expect actual) =
-        "Can only check the equality of the same type as " ++ show expect ++ ". " ++
-        "Actual: " ++ show actual
+        "Can only check the equality of the same type as " ++ show expect 
+        ++ ". " ++ "Actual: " ++ show actual
     show (InvalidLogical invalidType) =
         "Logical operators are only for bool. Actual: " ++ show invalidType
     show BothSideAnyAssignment =
