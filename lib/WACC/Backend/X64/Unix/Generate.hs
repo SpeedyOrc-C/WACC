@@ -763,8 +763,8 @@ macro =
     [
     IfDefined "__APPLE__",
         Define "section_read_only" "",
-        Define "section_literal4" ".literal4",
-        Define "section_cstring" ".cstring",
+        Define "section_literal4" "",
+        Define "section_cstring" "",
         Define "section_text" ".text",
 
         Define "fflush"  "_fflush",
