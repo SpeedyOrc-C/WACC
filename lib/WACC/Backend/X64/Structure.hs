@@ -33,12 +33,75 @@ move _ from to@(Register _) = return $ Move from to
 move size from@(MemoryIndirect {}) to@(MemoryIndirect {}) =
     Sq.fromList [ Move from (Register (RAX, size))
     , Move (Register (RAX, size)) to]
+move _ _ (Immediate {}) = error "cannot have Immediate at right parameter"
 move size from to = return $ MoveSize size from to
+
+moveSign :: Operand -> Operand -> Instruction
+moveSign _ (Immediate {}) = error "cannot have Immediate at right parameter"
+moveSign op op2 = MoveSign op op2 
+moveZero :: Operand -> Operand -> Instruction
+moveZero _ (Immediate {}) = error "cannot have Immediate at right parameter"
+moveZero op op2 = MoveZero op op2 
+moveSize :: Size -> Operand -> Operand -> Instruction
+moveSize _ _ (Immediate {}) = error "cannot have Immediate at right parameter"
+moveSize size op op2 = MoveSize size op op2
+
+moveSizeSign :: t1 -> t2 -> Operand -> a
+moveSizeSign _ _ (Immediate {}) = error "cannot have Immediate at right parameter"
+moveSizeSign size op op2 = moveSizeSign size op op2
+
+moveZeroSign :: t1 -> t2 -> Operand -> a
+moveZeroSign _ _ (Immediate {}) = error "cannot have Immediate at right parameter"
+moveZeroSign size op op2 = moveZeroSign size op op2
+
+moveZeroSizeExtend :: p1 -> p2 -> p3 -> Operand -> a
+moveZeroSizeExtend _ _ _ (Immediate {}) = error "cannot have Immediate at right parameter"
+moveZeroSizeExtend s1 s2 o1 o2 = moveZeroSizeExtend s1 s2 o1 o2
+
+moveSignSizeExtend :: Size -> Size -> Operand -> Operand -> Instruction
+moveSignSizeExtend _ _ _ (Immediate {}) = error "cannot have Immediate at right parameter"
+moveSignSizeExtend s1 s2 o1 o2 = MoveSignSizeExtend s1 s2 o1 o2
+set :: Condition -> Operand -> Instruction
+set _  (Immediate {}) = error "cannot have Immediate at right parameter"
+set cond operat = Set cond operat
+
+add' :: Operand -> Operand -> Instruction
+add' _ (Immediate {}) = error "cannot have Immediate at right parameter"
+add' op op2 = Add op op2
+
+subtract' :: Operand -> Operand -> Instruction
+subtract' _ (Immediate {}) = error "cannot have Immediate at right parameter"
+subtract' op op2 = Subtract op op2
+
+multiply' :: Operand -> Operand -> Instruction
+multiply' _ (Immediate {}) = error "cannot have Immediate at right parameter"
+multiply' op op2 = Multiply op op2
+
+xor' :: Operand -> Operand -> Instruction
+xor' _ (Immediate {}) = error "cannot have Immediate at right parameter"
+xor' op op2 = Xor op op2
+
+or' :: Operand -> Operand -> Instruction
+or' _ (Immediate {}) = error "cannot have Immediate at right parameter"
+or' op op2 = Or op op2
+
+and' :: Operand -> Operand -> Instruction
+and' _ (Immediate {}) = error "cannot have Immediate at right parameter"
+and' op op2 = And op op2
+
+test' :: Operand -> Operand -> Instruction
+test' _ (Immediate {}) = error "cannot have Immediate at right parameter"
+test' op op2 = Test op op2
+
+compareMove :: Condition -> Operand -> Operand -> Instruction
+compareMove _ _ (Immediate {}) = error "cannot have Immediate at right parameter"
+compareMove cond op1 op2 = CompareMove cond op1 op2
 
 loadAddress :: Operand -> Operand -> Seq Instruction
 loadAddress from to@(MemoryIndirect {})
     = Sq.fromList [ LoadAddress from (Register (RAX, B8))
     , Move (Register (RAX, B8)) to]
+loadAddress _ (Immediate {}) = error "cannot have Immediate at right parameter"
 loadAddress from to = Sq.singleton $ LoadAddress from to
 
 data Condition
@@ -68,10 +131,6 @@ data Instruction
     | Push Operand
     | Pop Operand
 
-    | ExtendB2ToB4 Operand
-    | ExtendB4ToB8 Operand
-    | ExtendB8ToB16 Operand
-
     | Increase Operand
     | Decrease Operand
     | Not Operand
@@ -85,10 +144,6 @@ data Instruction
     | Xor Operand Operand
     | Or Operand Operand
     | And Operand Operand
-
-    | ShiftLeft Int Operand
-    | ShiftRight Int Operand
-    | ShiftRightArithmetic Int Operand
 
     {- RDX:RAX = RAX * Operand -}
     | MultiplyFullI Operand
@@ -144,7 +199,7 @@ data Instruction
 type Register = (PhysicalRegister, Size)
 
 {- Operand types for instructions, it can be an immediate value,
-   a register, or a memory address. -}
+   a register, or a memory address. -}   
 data Operand
     = Immediate Immediate
     | Register Register

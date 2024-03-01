@@ -278,7 +278,7 @@ expression = \case
         op <- scalar s
         return $ Sq.fromList
             [ Move op (Register (RAX, B1))
-            , Xor (Immediate $ ImmediateInt 1) (Register (RAX, B1))]
+            , xor' (Immediate $ ImmediateInt 1) (Register (RAX, B1))]
 
     IR.Add s1 s2 -> do
         op1 <- scalar s1
@@ -289,7 +289,7 @@ expression = \case
 
         return $ Sq.fromList
             [ Move op1 (Register (RAX, B4))
-            , Add op2 (Register (RAX, B4))
+            , add' op2 (Register (RAX, B4))
             , JumpWhen Overflow "error_overflow"]
 
     IR.Subtract s1 s2 -> do
@@ -301,7 +301,7 @@ expression = \case
 
         return $ Sq.fromList
             [ Move op1 (Register (RAX, B4))
-            , Subtract op2 (Register (RAX, B4))
+            , subtract' op2 (Register (RAX, B4))
             , JumpWhen Overflow "error_overflow"]
 
     IR.Multiply s1 s2 -> do
@@ -342,7 +342,7 @@ expression = \case
         return $ Sq.fromList
             [ Move op1 (Register (RAX, size))
             , Compare op2 (Register (RAX, size))
-            , Set GreaterEqual (Register (RAX, B1))
+            , set GreaterEqual (Register (RAX, B1))
             ]
 
     IR.Greater size s1 s2 -> do
@@ -352,7 +352,7 @@ expression = \case
         return $ Sq.fromList
             [ Move op1 (Register (RAX, size))
             , Compare op2 (Register (RAX, size))
-            , Set Greater (Register (RAX, B1))
+            , set Greater (Register (RAX, B1))
             ]
 
     IR.LessEqual size s1 s2 -> do
@@ -362,7 +362,7 @@ expression = \case
         return $ Sq.fromList
             [ Move op1 (Register (RAX, size))
             , Compare op2 (Register (RAX, size))
-            , Set LessEqual (Register (RAX, B1))
+            , set LessEqual (Register (RAX, B1))
             ]
 
     IR.Less size s1 s2 -> do
@@ -519,7 +519,7 @@ expression = \case
         scalar'' <- scalar scalar'
         return $ Sq.fromList
             [Move scalar'' (Register (RDX, B1)),
-            MoveSignSizeExtend B1 B4 (Register (RDX, B1)) (Register (RAX, B4))]
+            moveSignSizeExtend B1 B4 (Register (RDX, B1)) (Register (RAX, B4))]
 
     IR.Character scalar' -> do
         scalar'' <- scalar scalar'
@@ -528,9 +528,9 @@ expression = \case
 
         return $ Sq.fromList
             [ Move scalar'' (Register (RAX, B4))
-            , MoveSignSizeExtend B4 B8 (Register (RAX, B4)) (Register (RAX, B8))
-            , Test (Immediate $ ImmediateInt $ -128) (Register (RAX, B8))
-            , CompareMove NotEqual (Register (RAX, B8)) (Register (RSI, B8))
+            , moveSignSizeExtend B4 B8 (Register (RAX, B4)) (Register (RAX, B8))
+            , test' (Immediate $ ImmediateInt $ -128) (Register (RAX, B8))
+            , compareMove NotEqual (Register (RAX, B8)) (Register (RSI, B8))
             , JumpWhen NotEqual "error_bad_char"]
 
     IR.And a b -> do
@@ -539,7 +539,7 @@ expression = \case
 
         return $ Sq.fromList
             [ Move a' (Register (RAX, B1))
-            , And b' (Register (RAX, B1)) ]
+            , and' b' (Register (RAX, B1)) ]
 
     IR.Or a b -> do
         a' <- scalar a
@@ -547,7 +547,7 @@ expression = \case
 
         return $ Sq.fromList
             [ Move a' (Register (RAX, B1))
-            , Or b' (Register (RAX, B1))]
+            , or' b' (Register (RAX, B1))]
 
     IR.ReadInt -> do
         use Internal.ReadInt
@@ -653,7 +653,7 @@ singleStatement = \case
         return $
             Sq.fromList
             [Move op (Register (RDX, B8)),
-            Subtract (Immediate $ ImmediateInt 4) (Register (RDX, B8)),
+            subtract' (Immediate $ ImmediateInt 4) (Register (RDX, B8)),
             Move (Register (RDX, B8)) (Register (RDI, B8))]
             >< call
 
