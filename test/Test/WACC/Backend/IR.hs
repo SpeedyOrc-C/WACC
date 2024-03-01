@@ -1,5 +1,4 @@
 module Test.WACC.Backend.IR where
-import WACC.IR.FlattenExpression (expression, initialState, FlattenerState (FlattenerState))
 import Data.Functor.Identity
 import Control.Monad.Trans.State.Lazy
 import Data.Map as M
@@ -23,13 +22,13 @@ emptyState = initialState M.empty
 state1 :: FlattenerState
 state1 = FlattenerState {
     mappingStack = [M.fromList [("x", Identifier "x" 1)]],
-    variableCounter = (M.size $ M.empty) + 1,
+    variableCounter = M.size M.empty + 1,
     dataSegment = M.empty
 }
 
 {- Tests for expressions. -}
 testLiteralBool :: IO Bool
-testLiteralBool = testExpression (SM.LiteralBool True) (Immediate 1, []) 
+testLiteralBool = testExpression (SM.LiteralBool True) (Immediate 1, [])
                     emptyState
 
 testLiteralInt :: IO Bool
@@ -56,18 +55,18 @@ testLiteralArray = do
     let s = emptyState
     let expr = SM.LiteralArray SM.Int [SM.LiteralInt 1, SM.LiteralInt 2,
                                        SM.LiteralInt 3]
-    let expected = (Variable (Temporary "var" 1), [Assign B8 
-                    (Temporary "var" 1) (NewArray B4 [Immediate 1, Immediate 2, 
+    let expected = (Variable (Temporary "var" 1), [Assign B8
+                    (Temporary "var" 1) (NewArray B4 [Immediate 1, Immediate 2,
                     Immediate 3])])
     testExpression expr expected s
 
 testLiteralPair :: IO Bool
 testLiteralPair = do
     let s = emptyState
-    let expr = SM.LiteralPair (SM.Int, SM.Char) (SM.LiteralInt 42, 
+    let expr = SM.LiteralPair (SM.Int, SM.Char) (SM.LiteralInt 42,
                                                  SM.LiteralChar 'a')
-    let expected = (Variable (Temporary "var" 1), [Assign B8 
-                    (Temporary "var" 1) (NewPair (B4, B1) (Immediate 42, 
+    let expected = (Variable (Temporary "var" 1), [Assign B8
+                    (Temporary "var" 1) (NewPair (B4, B1) (Immediate 42,
                     Immediate 97))])
     testExpression expr expected s
 
@@ -75,7 +74,7 @@ testUnaryNegate :: IO Bool
 testUnaryNegate = do
     let s = emptyState
     let expr = SM.Negate (SM.LiteralInt 5)
-    let expected = (Variable (Temporary "var" 1), [Assign B4 
+    let expected = (Variable (Temporary "var" 1), [Assign B4
                     (Temporary "var" 1) (Subtract (Immediate 0) (Immediate 5))])
     testExpression expr expected s
 
@@ -83,7 +82,7 @@ testBinaryAdd :: IO Bool
 testBinaryAdd = do
     let s = emptyState
     let expr = SM.Add (SM.LiteralInt 2) (SM.LiteralInt 3)
-    let expected = (Variable (Temporary "var" 1), [Assign B4 
+    let expected = (Variable (Temporary "var" 1), [Assign B4
                     (Temporary "var" 1) (Add (Immediate 2) (Immediate 3))])
     testExpression expr expected s
 
@@ -91,7 +90,7 @@ testFunctionCall :: IO Bool
 testFunctionCall = do
     let s = emptyState
     let expr = SM.FunctionCall SM.Int "func" []
-    let expected = (Variable (Temporary "var" 1), [Assign B4 
+    let expected = (Variable (Temporary "var" 1), [Assign B4
                     (Temporary "var" 1) (Call B4 "fn_func" [])])
     testExpression expr expected s
 
