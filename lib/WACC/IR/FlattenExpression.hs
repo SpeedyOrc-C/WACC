@@ -15,6 +15,7 @@ lookUp :: Ord k => k -> [M.Map k a] -> a
 lookUp _ [] = error "Semantic check has failed!"
 lookUp k (m:ms) = lookUp k ms `fromMaybe` (m M.!? k)
 
+{- This FlattenState is different from that in FlattenControlFlow.hs -}
 data FlattenerState = FlattenerState {
     mappingStack :: [String `M.Map` Identifier],
     variableCounter :: Int,
@@ -31,6 +32,7 @@ initialState ds = FlattenerState {
 nextVariable :: FlattenerState -> FlattenerState
 nextVariable s = s { variableCounter = variableCounter s + 1 }
 
+{- Here are some functions for creating a new item. -}
 newTemporary :: State FlattenerState Identifier
 newTemporary = do
     number <- gets variableCounter
@@ -55,6 +57,7 @@ expressions xs = do
     (unzip -> (scalars, concat -> evaluate)) <- traverse expression xs
     return (scalars, evaluate)
 
+{- Here are our expressions. -}
 expression :: SM.Expression -> State FlattenerState (Scalar, [SingleStatement])
 expression = \case
     SM.Identifier _ name -> do
@@ -85,7 +88,8 @@ expression = \case
         (result, evaluate) <- indirectExpression e
         tmp <- newTemporary
         return (Variable tmp,
-            evaluate ++ [Assign (getSize t) tmp (Dereference (getSize t) result)])
+            evaluate ++ 
+            [Assign (getSize t) tmp (Dereference (getSize t) result)])
 
     SM.LiteralPairNull ->
         return (Immediate 0, [])
@@ -102,13 +106,15 @@ expression = \case
         (pair, evaluatePair) <- indirectExpression e
         tmp <- newTemporary
         return (Variable tmp,
-            evaluatePair ++ [Assign (getSize t) tmp (Dereference (getSize t) pair)])
+            evaluatePair ++ 
+            [Assign (getSize t) tmp (Dereference (getSize t) pair)])
 
     e@(SM.PairSecond t _) -> do
         (pair, evaluatePair) <- indirectExpression e
         tmp <- newTemporary
         return (Variable tmp,
-            evaluatePair ++ [Assign (getSize t) tmp (Dereference (getSize t) pair)])
+            evaluatePair ++ 
+            [Assign (getSize t) tmp (Dereference (getSize t) pair)])
 
     SM.Not       e -> unary B1 Not       e
     SM.Negate    e -> binary B4 Subtract (SM.LiteralInt 0) e
@@ -164,6 +170,7 @@ expression = \case
         return (Variable tmp,
             evaluateA ++ evaluateB ++ [Assign size tmp (f a' b')])
 
+{- Here are our indirect expressions. -}
 indirectExpression ::
     SM.Expression -> State FlattenerState (Scalar, [SingleStatement])
 indirectExpression = \case
@@ -185,7 +192,8 @@ indirectExpression = \case
         return (Variable tmp,
             evaluateIndex ++ evaluateElementAddress ++
             [ Assign B8 value (Dereference B8 array')
-            , Assign B8 tmp (SeekArrayElement (getSize t) (Variable value) index')])
+            , Assign B8 tmp 
+                (SeekArrayElement (getSize t) (Variable value) index')])
 
     SM.PairFirst _ pair@(SM.Identifier {}) -> do
         (pair', evaluatePair) <- indirectExpression pair
@@ -221,6 +229,7 @@ indirectExpression = \case
 
     _ -> error "Semantic check has failed."
 
+{- Here are our statements. -}
 statement :: SM.Statement -> State FlattenerState [NoExpressionStatement]
 statement = \case
     SM.Declare t name rightValue -> do
@@ -332,6 +341,7 @@ statement = \case
 statements :: [SM.Statement] -> State FlattenerState [NoExpressionStatement]
 statements xs = concat <$> traverse statement xs
 
+{- This is a function which accepts a block and returns a State. -}
 block :: SM.Block -> State FlattenerState [NoExpressionStatement]
 block (SM.Block xs) = do
     modify $ \s -> s { mappingStack = M.empty : mappingStack s }
@@ -351,6 +361,7 @@ instance HasReference Scalar where
         (Variable var@(Parameter {})) -> S.singleton var
         _ -> S.empty
 
+{- Here are different expressions which have reference. -}
 instance HasReference Expression where
     reference :: Expression -> S.Set Identifier
     reference = \case
@@ -425,7 +436,9 @@ instance HasReference NoExpressionStatement where
                 , reference elseClause
                 , reference condition]
 
-function :: SM.Function -> State FlattenerState (Function NoExpressionStatement)
+{- This is the definition of a function. -}
+function :: SM.Function -> 
+            State FlattenerState (Function NoExpressionStatement)
 function (SM.Function _ functionName params@(unzip -> (names, types)) b) = do
     oldState <- get
 
@@ -450,6 +463,7 @@ functions :: [SM.Function] -> State FlattenerState
                 [Function NoExpressionStatement]
 functions = traverse function
 
+{- This is the definition of a program. -}
 program :: SM.Program -> State FlattenerState (Program NoExpressionStatement)
 program (SM.Program fs main) = do
     dataSegment <- gets dataSegment
