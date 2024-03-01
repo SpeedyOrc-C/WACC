@@ -496,7 +496,7 @@ expression = \case
     IR.Character scalar' -> do
         scalar'' <- scalar scalar'
         return $ Sq.fromList [
-            Move scalar'' (Register (RAX, B8)),
+            MoveSignSizeExtend B4 B8 scalar'' (Register (RAX, B8)),
             Test (Immediate $ ImmediateInt $ -128) (Register (RAX, B8)),
 		    CompareMove (NotEqual) (Register (RAX, B8)) (Register (RSI, B8)),
 		    JumpWhen NotEqual "_errBadChar"]
