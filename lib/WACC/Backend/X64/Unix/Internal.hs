@@ -65,6 +65,27 @@ errorFunction name err
     where
         label = ".L._" ++ name ++ "str0" 
         err' = "fatal error: " ++ err ++ "\n"
+
+errorIntParam :: String -> String -> Sq.Seq Instruction
+errorIntParam name err
+    = stringsToInstructions [(label, err')] Sq.>< 
+    Sq.fromList [
+        Text,
+        Label name,
+        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
+        LoadAddress
+            (stringAddress label)
+            (Register (RDI, B8)),
+        Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
+        Call "printf",
+        Move (Immediate $ ImmediateInt 0) (Register (RDI, B8)),
+        Call "fflush",
+        Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
+        Call "exit"
+    ]
+    where
+        label = ".L._" ++ name ++ "str0" 
+        err' = "fatal error: " ++ err ++ "\n"
 {-
 .section .rodata
 28	# length of .L._printb_str0
@@ -242,7 +263,7 @@ printLineBreak :: Sq.Seq Instruction
 printLineBreak = newFunction "print_line_break" [("line_break", "\n")]
     [
     Move (Immediate $ ImmediateInt 1) (Register (RDI, B4)),
-    LoadAddress (stringAddress "print_line_break") (Register (RSI, B8)),
+    LoadAddress (stringAddress "line_break") (Register (RSI, B8)),
     Move (Immediate $ ImmediateInt 1) (Register (RDX, B4)),
     Call "write",
     Leave,
@@ -344,29 +365,24 @@ errorNull = errorFunction
     "_errNull" 
     "null pair dereferenced or freed"
 
+errorDivideZero :: Sq.Seq Instruction
+errorDivideZero = errorFunction
+    "_errDivZero"
+    "division or modulo by zero"
+
 errorOverFlow :: Sq.Seq Instruction
 errorOverFlow = errorFunction 
     "_errOverFlow"
     "integer overflow or underflow occurred"
 
+errorBadChar :: Sq.Seq Instruction
+errorBadChar = errorIntParam
+    "_errBadChar"
+    "int %d is not ascii character 0-127"
+
 errorOutOfBounds :: Sq.Seq Instruction
-errorOutOfBounds = Sq.fromList
-    [
-        Int 42,
-        Label ".L._errOutOfBounds_str0",
-        AsciiZero "fatal error: array index %d out of bounds\n",
-        Label "_errOutOfBounds",
-        And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
-        LoadAddress
-            (MemoryIndirect (Just ".L._errOutOfBounds_str0") (RIP, B8) Nothing)
-            (Register (RDI, B8)),
-        Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
-        Call "printf",
-        Move (Immediate $ ImmediateInt 0) (Register (RDI, B8)),
-        Call "fflush",
-        Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
-        Call "exit"
-    ]
+errorOutOfBounds = errorIntParam "_errOutOfBounds" "array index %d out of bounds"
+
 readHelperFunction :: String -> (String, String) -> Size -> Sq.Seq Instruction
 readHelperFunction name str@(label, _) size
     = newFunction name [str] [

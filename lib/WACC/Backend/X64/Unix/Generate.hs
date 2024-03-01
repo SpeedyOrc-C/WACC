@@ -290,14 +290,16 @@ expression = \case
             , Multiply op2 (Register (RAX, B4))
             , JumpWhen Overflow "_errOverFlow" ]
 
-    IR.Divide a b -> useManyTemporary [RDX, RSI] $ do
+    IR.Divide a b -> useTemporary RSI $ do
         a' <- scalar a
         b' <- scalar b
 
         return $ Sq.fromList
             [ Move a' (Register (RAX, B4))
-            , CLTD
             , Move b' (Register (RSI, B4))
+            , Compare (Immediate $ ImmediateInt 0) (Register (RSI, B4))
+            , JumpWhen Equal "_errDivZero"
+            , CLTD
             , DivideI (Register (RSI, B4))]
 
     IR.Remainder s1 s2 -> do
@@ -490,7 +492,11 @@ expression = \case
 
     IR.Character scalar' -> do
         scalar'' <- scalar scalar'
-        return $ Sq.singleton (Move scalar'' (Register (RAX, B4)))
+        return $ Sq.fromList [
+            Move scalar'' (Register (RAX, B8)),
+            Test (Immediate $ ImmediateInt $ -128) (Register (RAX, B8)),
+		    CompareMove (NotEqual) (Register (RAX, B8)) (Register (RSI, B8)),
+		    JumpWhen NotEqual "_errBadChar"]
     IR.And a b -> do
         a' <- scalar a
         b' <- scalar b
@@ -765,6 +771,8 @@ program (IR.Program dataSegment fs) = do
             , Internal.errorOverFlow
             , Internal.readInt
             , Internal.readChar
+            , Internal.errorBadChar
+            , Internal.errorDivideZero
             ] |> EmptyLine)
         >< asum dataSegment'
 
