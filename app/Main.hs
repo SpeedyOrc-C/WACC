@@ -1,9 +1,10 @@
 module Main where
 
 import Prelude hiding (error)
+import qualified Prelude as P
 
 import System.Environment ( getArgs )
-import System.FilePath
+import System.FilePath ( takeBaseName )
 import System.Exit ( ExitCode(ExitFailure), exitSuccess, exitWith )
 
 import Control.Monad ( when )
@@ -19,9 +20,12 @@ import qualified WACC.Semantics.Checker   as Semantics.Checker
 import qualified WACC.Semantics.Structure as Semantics.Structure
 import qualified WACC.Semantics.Utils     as Semantics.Utils
 import qualified WACC.Semantics.Error     as Semantics.Error
-import qualified WACC.IR.Generate as IR.Generate
-import qualified WACC.Backend.X64.Unix.Generate as Unix.Generate
+import qualified WACC.IR.Generate as IR
+import qualified WACC.Backend.X64.Generate as X64
 import qualified WACC.Backend.X64.ATnT as ATnT
+
+import qualified WACC.Backend.X64.Unix.Config as Unix
+import qualified WACC.Backend.X64.Windows.Config as Windows
 
 syntaxErrorExit :: IO ()
 syntaxErrorExit = exitWith $ ExitFailure 100
@@ -32,15 +36,23 @@ semanticErrorExit = exitWith $ ExitFailure 200
 splitFlags :: [String] -> ([String], [String])
 splitFlags args = (filter ((== "--") . take 2) args, filter ((/= "--") . take 2) args)
 
+data Target = Unix | Windows deriving Show
+
 data Flags = Flags {
     noTextDecoration :: Bool,
-    showIR :: Bool
+    showIR :: Bool,
+    target :: Target
 } deriving Show
 
 flagsFromArgs :: [String] -> Flags
 flagsFromArgs args = Flags {
     noTextDecoration = "--no-text-deco" `elem` args,
-    showIR = "--show-ir" `elem` args
+    showIR = "--show-ir" `elem` args,
+    target = case ("--target-unix" `elem` args, "--target-windows" `elem` args) of
+        (True, False) -> Unix
+        (False, True) -> Windows
+        (False, False) -> P.error "Target is not specified."
+        (True, True) -> P.error "So confusing. Please only choose one target."
 }
 
 preventTextDecoration :: Bool -> (a -> a) -> a -> a
@@ -51,17 +63,28 @@ main :: IO ()
 main = do
     (splitFlags -> (flagsArgs, args)) <- getArgs
 
-    let flags = flagsFromArgs flagsArgs
-
     case args of
-
         [] -> putStrLn "Please provide a .wacc file to compile."
 
         _:_:_ -> putStrLn "Too many arguments provided (1 accepted)."
 
         path:_ -> do
-            sourceCode <- readFile path
-            processSourceCode path flags sourceCode
+            let targetUnix = "--target-unix" `elem` flagsArgs
+            let targetWindows = "--target-windows" `elem` flagsArgs
+
+            let flags = flagsFromArgs flagsArgs
+            
+            case (targetUnix, targetWindows) of
+                (True, False) -> do
+                    sourceCode <- readFile path
+                    processSourceCode path flags {target=Unix} sourceCode
+                (False, True) -> do
+                    sourceCode <- readFile path
+                    processSourceCode path flags {target=Windows} sourceCode
+                (True, True) ->
+                    putStrLn "So confusing. Please specify only one target."
+                (False, False) ->
+                    putStrLn "Please specify a target."
 
 processSourceCode :: FilePath -> Flags -> String -> IO ()
 processSourceCode path flags (removeTabs -> sourceCode) =
@@ -137,12 +160,16 @@ generateCode :: FilePath -> Flags -> Semantics.Structure.Program -> IO ()
 generateCode path flags ast = do
     let name = takeBaseName path
 
-    let ir = IR.Generate.generateIR ast
-    let asm = Unix.Generate.generateX64 ir
+    let ir = IR.generateIR ast
+
+    let asm = (`X64.generateX64` ir) $ case target flags of
+            Unix -> Unix.config
+            Windows -> Windows.config
+    
     let output = ATnT.atnt asm
 
-    when (showIR flags) $ IR.Generate.debug ir
+    when (showIR flags) $ IR.debug ir
 
-    writeFile (name ++ ".s") output
+    writeFile (name ++ ".S") output
 
     exitSuccess

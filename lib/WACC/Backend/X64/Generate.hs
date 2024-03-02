@@ -1,4 +1,4 @@
-module WACC.Backend.X64.Unix.Generate where
+module WACC.Backend.X64.Generate where
 
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -12,8 +12,9 @@ import           Data.Function
 import           Control.Monad
 import           Control.Monad.Trans.State.Lazy
 
-import qualified WACC.Backend.X64.Unix.Internal as Internal
+import qualified WACC.Backend.X64.Internal as Internal
 import qualified WACC.IR.Structure as IR
+import           WACC.Backend.X64.Config
 import           WACC.IR.Structure (Size(..), Identifier, sizeToInt)
 import           WACC.Backend.X64.Structure
 import           WACC.Backend.StackPool
@@ -26,32 +27,11 @@ data MemoryLocation
     | AtParameterStack Int Size
     deriving (Show)
 
-{- Function to rank physical registers based on priority. -}
-rankRegister :: PhysicalRegister -> Int
-rankRegister = \case
-    RBX -> 1; R12 -> 2;  R13 -> 3;  R14 -> 4
-    R15 -> 5; R10 -> 6;  R11 -> 7;  R9  -> 8
-    R8  -> 9; RCX -> 10; RSI -> 11; RDI -> 12
-
-    r -> error $ "Cannot use register " ++ show r
-
-{- A set of all available physical registers. -}
-registers :: S.Set PhysicalRegister
-registers = S.fromList
-    [RBX, R12, R13, R14, R15, R10, R11, R9, R8, RCX, RSI, RDI]
-
-parameter :: Int -> Size -> Register
-parameter n size = case n of
-    1 -> (RDI, size)
-    2 -> (RSI, size)
-    3 -> (RDX, size)
-    4 -> (RCX, size)
-    6 -> (R9, size)
-    5 -> (R8, size)
-    _ -> error $ "Cannot use parameter " ++ show n
-
-parameterList :: [PhysicalRegister]
-parameterList = [RDI, RSI, RDX, RCX, R8, R9]
+parameter :: Config -> Int -> Size -> Register
+parameter cfg n size =
+    maybe (error ("Cannot use parameter " ++ show n))
+        (, size)
+        (lookup n (zip [1..] (parameterRegisters cfg)))
 
 data GeneratorState = GeneratorState {
     memoryTable :: M.Map Identifier MemoryLocation,
@@ -74,18 +54,18 @@ use f = modify $ \s -> s {
    It first checks if there are any free registers available. If so,
    it allocates the variable to one of the available registers.
    If all registers are in use, it allocates memory on the stack. -}
-allocate :: Identifier -> Size -> State GeneratorState MemoryLocation
-allocate var size = do
+allocate :: Config -> Identifier -> Size -> State GeneratorState MemoryLocation
+allocate cfg var size = do
     registerPool <- gets registerPool
     memoryTable <- gets memoryTable
     stackPool <- gets stackPool
     stainedCalleeSaveRegs <- gets stainedCalleeSaveRegs
     maxStackSize <- gets maxStackSize
 
-    if S.size registerPool < S.size registers then do
+    if S.size registerPool < S.size (availableRegisters cfg) then do
         -- There are free registers.
-        let freeRegisters = registers S.\\ registerPool
-        let freeRegister = minimumBy (compare `on` rankRegister) $ S.toList freeRegisters
+        let freeRegisters = availableRegisters cfg S.\\ registerPool
+        let freeRegister = minimumBy (compare `on` rankRegister cfg) $ S.toList freeRegisters
 
         let location = AtRegister (freeRegister, size)
 
@@ -94,7 +74,7 @@ allocate var size = do
             memoryTable = M.insert var location memoryTable
         }
 
-        when (freeRegister `elem` calleeSaveRegisters) $
+        when (freeRegister `elem` calleeSaveRegisters cfg) $
             modify $ \s -> s {
                 stainedCalleeSaveRegs =
                     S.insert freeRegister stainedCalleeSaveRegs
@@ -190,10 +170,10 @@ scalar = \case
 
 {- This function determines which caller-save registers
    are currently being used. -}
-usedCallerSaveRegisters :: State GeneratorState [PhysicalRegister]
-usedCallerSaveRegisters = do
+usedCallerSaveRegisters :: Config -> State GeneratorState [PhysicalRegister]
+usedCallerSaveRegisters cfg = do
     registerPool <- gets registerPool
-    return (S.toList (registerPool `S.intersection` callerSaveRegisters))
+    return (S.toList (registerPool `S.intersection` callerSaveRegisters cfg))
 
 {- Given a list of physical registers to be pushed onto the stack,
    this function generates a pair of sequences of instructions to push
@@ -271,11 +251,11 @@ pairHelper s = do
         , JumpWhen Equal "error_null"
         , Move op (Register (RAX, B8))]
 
-malloc :: Int -> State GeneratorState (Seq Instruction)
-malloc size = expression (IR.Call B8 "malloc" [(B4, IR.Immediate size)])
+malloc :: Config -> Int -> State GeneratorState (Seq Instruction)
+malloc cfg size = expression cfg (IR.Call B8 "malloc" [(B4, IR.Immediate size)])
 
-expression :: IR.Expression -> State GeneratorState (Seq Instruction)
-expression = \case
+expression :: Config -> IR.Expression -> State GeneratorState (Seq Instruction)
+expression cfg = \case
     IR.Scalar s -> do
         op <- scalar s
         let size = IR.getSize op
@@ -361,7 +341,7 @@ expression = \case
             , DivideI (Register (RSI, B4))]
 
     IR.Remainder s1 s2 -> do
-        result <- expression (IR.Divide s1 s2)
+        result <- expression cfg (IR.Divide s1 s2)
         return $ result |> Move (Register (RDX, B4)) (Register (RAX, B4))
 
     IR.GreaterEqual size s1 s2 -> do
@@ -439,7 +419,7 @@ expression = \case
         return $ getPair |> Add (Immediate $ ImmediateInt 8) (Register (RAX, B8))
 
     IR.NewPair (fstSize, sndSize) (a, b) -> do
-        evaluateAddress <- malloc 16
+        evaluateAddress <- malloc cfg 16
 
         initialise <- useTemporary RDX $ do
             opA <- scalar a
@@ -454,7 +434,7 @@ expression = \case
         return $ evaluateAddress >< initialise
 
     IR.NewArray size@(IR.sizeToInt -> bytes) xs -> do
-        evaluateAddress <- malloc (4 + bytes * length xs)
+        evaluateAddress <- malloc cfg (4 + bytes * length xs)
 
         initialise <- useTemporary RDX $ do
             elements <- traverse scalar xs
@@ -480,8 +460,9 @@ expression = \case
             initialise
 
     IR.Call _ name (unzip -> (sizes, scalars)) -> do
-        callerSaveRegistersToBePushed <- usedCallerSaveRegisters
+        callerSaveRegistersToBePushed <- usedCallerSaveRegisters cfg
         let needAlignStack = odd $ length callerSaveRegistersToBePushed
+        let paramRegCount = length (parameterRegisters cfg)
 
         (asum -> pushCallerSave) <- traverse (push . Just) callerSaveRegistersToBePushed
 
@@ -489,12 +470,12 @@ expression = \case
         operands <- traverse scalar scalars
         maybeAlignUpRSP <- if needAlignStack then pop Nothing else return Sq.empty
 
-        let (argsReg, argsStack) = splitAt 6 operands
-        let (argsRegSizes, argsStackSizes) = splitAt 6 sizes
+        let (argsReg, argsStack) = splitAt paramRegCount operands
+        let (argsRegSizes, argsStackSizes) = splitAt paramRegCount sizes
 
         let assignArgsReg =
-                zip3 [1..6] argsRegSizes argsReg <&> \(n, size, arg) -> do
-                    move size arg (Register (parameter n size))
+                zip3 [1..paramRegCount] argsRegSizes argsReg <&> \(n, size, arg) -> do
+                    move size arg (Register (parameter cfg n size))
 
         let allocateArgsStack = downRSP . ceil16 $ sum (IR.sizeToInt <$> argsStackSizes)
 
@@ -522,17 +503,17 @@ expression = \case
     IR.SeekArrayElement B1 a i -> do
         use Internal.SeekArrayElement1
         use Internal.ErrorOutOfBounds
-        expression $ IR.Call B8 "seek_array_element1" [(B8, a), (B4, i)]
+        expression cfg $ IR.Call B8 "seek_array_element1" [(B8, a), (B4, i)]
 
     IR.SeekArrayElement B4 a i -> do
         use Internal.SeekArrayElement4
         use Internal.ErrorOutOfBounds
-        expression $ IR.Call B8 "seek_array_element4" [(B8, a), (B4, i)]
+        expression cfg $ IR.Call B8 "seek_array_element4" [(B8, a), (B4, i)]
 
     IR.SeekArrayElement B8 a i -> do
         use Internal.SeekArrayElement8
         use Internal.ErrorOutOfBounds
-        expression $ IR.Call B8 "seek_array_element8" [(B8, a), (B4, i)]
+        expression cfg $ IR.Call B8 "seek_array_element8" [(B8, a), (B4, i)]
 
     IR.SeekArrayElement {} -> error "Other sizes are not supported."
 
@@ -580,21 +561,21 @@ expression = \case
 
     IR.ReadInt -> do
         use Internal.ReadInt
-        expression (IR.Call B1 "read_int" [])
+        expression cfg (IR.Call B1 "read_int" [])
 
     IR.ReadChar k -> do
         use Internal.ReadChar
-        expression (IR.Call B1 "read_char" [(B1, k)])
+        expression cfg (IR.Call B1 "read_char" [(B1, k)])
 
-singleStatement :: IR.SingleStatement -> State GeneratorState (Seq Instruction)
-singleStatement = \case
+singleStatement :: Config -> IR.SingleStatement -> State GeneratorState (Seq Instruction)
+singleStatement cfg = \case
     IR.Exit s -> do
         op <- scalar s
-        return $ Sq.fromList [Move op (Register (parameter 1 B4)), Call "exit"]
+        return $ Sq.fromList [Move op (Register (parameter cfg 1 B4)), Call "exit"]
 
     IR.Assign size to from -> do
         memoryTable <- gets memoryTable
-        evaluate <- expression from
+        evaluate <- expression cfg from
 
         case memoryTable M.!? to of
 
@@ -603,13 +584,13 @@ singleStatement = \case
                 return $ evaluate >< move size (Register (RAX, size)) to'
 
             Nothing -> do
-                location <- allocate to size
+                location <- allocate cfg to size
                 to' <- operandFromMemoryLocation location
                 return $ evaluate >< move size (Register (RAX, size)) to'
 
     IR.AssignIndirect size to from -> do
         memoryTable <- gets memoryTable
-        evaluate <- expression from
+        evaluate <- expression cfg from
 
         case memoryTable M.! to of
             AtRegister reg ->
@@ -635,25 +616,25 @@ singleStatement = \case
 
     IR.PrintString s -> do
         use Internal.PrintString
-        expression (IR.Call B8 "print_string" [(B8, s)])
+        expression cfg (IR.Call B8 "print_string" [(B8, s)])
 
     IR.PrintInt s -> do
         use Internal.PrintInt
-        expression (IR.Call B8 "print_int" [(B4, s)])
+        expression cfg (IR.Call B8 "print_int" [(B4, s)])
 
     IR.PrintBool s -> do
         use Internal.PrintBool
-        expression (IR.Call B8 "print_bool" [(B1, s)])
+        expression cfg (IR.Call B8 "print_bool" [(B1, s)])
 
     IR.PrintLineBreak -> do
         use Internal.PrintLineBreak
-        expression (IR.Call B8 "print_line_break" [])
+        expression cfg (IR.Call B8 "print_line_break" [])
 
     IR.PrintAddress s -> do
         use Internal.PrintPointer
         use Internal.PrintString
 
-        expression (IR.Call B8 "print_pointer" [(B8, s)])
+        expression cfg (IR.Call B8 "print_pointer" [(B8, s)])
 
     IR.Return size s -> do
         op <- scalar s
@@ -665,7 +646,7 @@ singleStatement = \case
 
     IR.Free s -> do
         op <- scalar s
-        callFree <- expression (IR.Call B8 "free" [(B8, s)])
+        callFree <- expression cfg (IR.Call B8 "free" [(B8, s)])
 
         use Internal.ErrorNull
         use Internal.PrintString
@@ -676,7 +657,7 @@ singleStatement = \case
 
     IR.FreeArray s -> useTemporary RDX $ do
         op <- scalar s
-        call <- expression (IR.Call B8 "free" [])
+        call <- expression cfg (IR.Call B8 "free" [])
         return $
             Sq.fromList
             [Move op (Register (RDX, B8)),
@@ -686,11 +667,11 @@ singleStatement = \case
 
     IR.PrintChar s -> do
         use Internal.PrintChar
-        expression (IR.Call B8 "print_char" [(B1, s)])
+        expression cfg (IR.Call B8 "print_char" [(B1, s)])
 
-instruction :: IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
-instruction = \case
-    IR.NCF statement -> singleStatement statement
+instruction :: Config -> IR.NoControlFlowStatement -> State GeneratorState (Seq Instruction)
+instruction cfg = \case
+    IR.NCF statement -> singleStatement cfg statement
 
     IR.Label name ->
         return $ Sq.singleton $ Label name
@@ -720,19 +701,20 @@ instruction = \case
         traverse_ free (S.toList identifiers)
         return Sq.empty
 
-instructions :: [IR.NoControlFlowStatement] -> State GeneratorState (Seq Instruction)
-instructions = fmap asum . traverse instruction
+instructions :: Config -> [IR.NoControlFlowStatement] -> State GeneratorState (Seq Instruction)
+instructions cfg = fmap asum . traverse (instruction cfg)
 
-function :: IR.Function IR.NoControlFlowStatement
+function :: Config -> IR.Function IR.NoControlFlowStatement
     -> State GeneratorState (S.Set Internal.Function, Seq Instruction)
-function (IR.Function name parameters statements) = do
+function cfg (IR.Function name parameters statements) = do
     modify $ \s -> s { functionName = name }
 
-    let (registerParams, stackParams) = splitAt 6 parameters
+    let paramRegCount = length (parameterRegisters cfg)
+    let (registerParams, stackParams) = splitAt paramRegCount parameters
 
     for_ (zip [1..] registerParams) $ \(i, (ident, size)) -> do
         memoryTable <- gets memoryTable
-        let reg@(physicalReg, _) = parameter i size
+        let reg@(physicalReg, _) = parameter cfg i size
         modify $ \s -> s {
             memoryTable = M.insert ident (AtRegister reg) memoryTable,
             registerPool = S.insert physicalReg (registerPool s)
@@ -749,7 +731,7 @@ function (IR.Function name parameters statements) = do
             memoryTable = M.insert ident (AtParameterStack offset size) memoryTable
         }
 
-    statements' <- instructions statements
+    statements' <- instructions cfg statements
 
     stainedCalleeSaveRegs <- gets stainedCalleeSaveRegs
     maxStackSize <- gets maxStackSize
@@ -834,35 +816,35 @@ macro =
     EndIf
     ]
 
-program :: IR.Program IR.NoControlFlowStatement -> Seq Instruction
-program (IR.Program dataSegment functions) = let
+program :: Config -> IR.Program IR.NoControlFlowStatement -> Seq Instruction
+program cfg (IR.Program dataSegment functions) = let
 
-    (unzip -> (calledInternalFunctionsSets, functionsStatements)) =
-        (`evalState` initialState) . function <$> functions
+ (unzip -> (calledInternalFunctionsSets, functionsStatements)) =
+     (`evalState` initialState) . (function cfg) <$> functions
 
-    allCalledInternalFunctions = S.toList $ S.unions calledInternalFunctionsSets
-    internalFunctionsStatements =
-        (Internal.functions M.!) <$> allCalledInternalFunctions
+ allCalledInternalFunctions = S.toList $ S.unions calledInternalFunctionsSets
+ internalFunctionsStatements =
+     ((internalFunctions cfg) M.!) <$> allCalledInternalFunctions
 
-    dataSegmentStatements =
-        Sq.fromList (M.toList dataSegment) <&> \(name, number) ->
-            Sq.fromList
-                [ SectionReadOnly
-                , SectionLiteral4
-                , Int (length name)
-                , SectionCString
-                , Label ("str." ++ show number)
-                , AsciiZero name
-                ]
+ dataSegmentStatements =
+     Sq.fromList (M.toList dataSegment) <&> \(name, number) ->
+         Sq.fromList
+             [ SectionReadOnly
+             , SectionLiteral4
+             , Int (length name)
+             , SectionCString
+             , Label ("str." ++ show number)
+             , AsciiZero name
+             ]
 
-    addLineBreaks = intersperse (return EmptyLine)
+ addLineBreaks = intersperse (return EmptyLine)
 
-    in
+ in
 
-    (                    macro                        |> EmptyLine) ><
-    (asum (addLineBreaks functionsStatements        ) |> EmptyLine) ><
-    (asum (addLineBreaks internalFunctionsStatements) |> EmptyLine) ><
-    (asum                dataSegmentStatements        |> EmptyLine)
+ (                    macro                        |> EmptyLine) ><
+ (asum (addLineBreaks functionsStatements        ) |> EmptyLine) ><
+ (asum (addLineBreaks internalFunctionsStatements) |> EmptyLine) ><
+ (asum                dataSegmentStatements        |> EmptyLine)
 
 initialState :: GeneratorState
 initialState = GeneratorState {
@@ -877,5 +859,5 @@ initialState = GeneratorState {
     calledInternalFunctions = S.empty
 }
 
-generateX64 :: IR.Program IR.NoControlFlowStatement -> Seq Instruction
+generateX64 :: Config -> IR.Program IR.NoControlFlowStatement -> Seq Instruction
 generateX64 = program

@@ -233,20 +233,6 @@ data PhysicalRegister
     | RIP
     deriving (Enum, Eq, Ord, Show)
 
-{- Check if a register is caller-save. -}
-isCallerSave :: PhysicalRegister -> Bool
-isCallerSave = (`elem` callerSaveRegisters)
-callerSaveRegisters :: S.Set PhysicalRegister
-callerSaveRegisters = S.fromList
-    [RAX, RCX, RDX, RDI, RSI, RSP, R8, R9, R10, R11]
-
-{- Check if a register is callee-save. -}
-isCalleeSave :: PhysicalRegister -> Bool
-isCalleeSave = (`elem` calleeSaveRegisters)
-calleeSaveRegisters :: S.Set PhysicalRegister
-calleeSaveRegisters = S.fromList
-    [RBX, RBP, R12, R13, R14, R15]
-
 {- Enables using string literals as immediate labels in the assembly code. -}
 instance IsString Immediate where
     fromString :: String -> Immediate

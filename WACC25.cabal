@@ -72,11 +72,17 @@ library wacc25-lib
         WACC.IR.LiveRange,
         WACC.IR.Generate,
 
-        WACC.Backend.X64.Structure,
-        WACC.Backend.X64.Unix.Generate,
-        WACC.Backend.X64.ATnT,
         WACC.Backend.StackPool,
+        WACC.Backend.X64.Structure,
+        WACC.Backend.X64.ATnT,
+        WACC.Backend.X64.Config,
+        WACC.Backend.X64.Generate,
+        WACC.Backend.X64.Internal,
+
         WACC.Backend.X64.Unix.Internal,
+        WACC.Backend.X64.Unix.Config,
+        WACC.Backend.X64.Windows.Config,
+        WACC.Backend.X64.Windows.Internal,
 
         Text.AnsiEscape,
         Text.SourceCode,

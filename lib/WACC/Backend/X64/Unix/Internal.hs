@@ -1,50 +1,8 @@
 module WACC.Backend.X64.Unix.Internal where
 
 import qualified Data.Sequence as Sq
-import qualified Data.Map as M
 import WACC.Backend.X64.Structure
 import WACC.IR.Structure (Size(..))
-
-data Function
-    = PrintString
-    | PrintChar
-    | PrintInt
-    | PrintBool
-    | PrintLineBreak
-    | PrintPointer
-    | ErrorOutOfMemory
-    | ErrorNull
-    | ErrorDivideZero
-    | ErrorOverflow
-    | ErrorBadChar
-    | ErrorOutOfBounds
-    | SeekArrayElement1
-    | SeekArrayElement4
-    | SeekArrayElement8
-    | ReadInt
-    | ReadChar
-    deriving (Eq, Ord, Show)
-
-functions :: M.Map Function (Sq.Seq Instruction)
-functions = M.fromList
-    [ (PrintString, printString)
-    , (PrintChar, printChar)
-    , (PrintInt, printInt)
-    , (PrintBool, printBool)
-    , (PrintLineBreak, printLineBreak)
-    , (PrintPointer, printPointer)
-    , (ErrorOutOfMemory, errorOutOfMemory)
-    , (ErrorNull, errorNull)
-    , (ErrorDivideZero, errorDivideZero)
-    , (ErrorOverflow, errorOverFlow)
-    , (ErrorBadChar, errorBadChar)
-    , (ErrorOutOfBounds, errorOutOfBounds)
-    , (SeekArrayElement1, seekArrayElement1)
-    , (SeekArrayElement4, seekArrayElement4)
-    , (SeekArrayElement8, seekArrayElement8)
-    , (ReadInt, readInt)
-    , (ReadChar, readChar)
-    ]
 
 newFunction :: String
     -> [(String, String)]
