@@ -137,6 +137,9 @@ instance ATnT Instruction where
         DivideI a-> "idivl " ++ atnt a
         Multiply from to -> "imull " ++ combineTwoOp from to
 
+        Increase op -> "inc " ++ atnt op
+        Decrease op -> "dec " ++ atnt op
+
         And from to -> "and " ++ combineTwoOp from to
         Or from to -> "or " ++ combineTwoOp from to
 

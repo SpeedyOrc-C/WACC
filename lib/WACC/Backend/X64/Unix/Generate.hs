@@ -294,10 +294,21 @@ expression = \case
         use Internal.ErrorOverflow
         use Internal.PrintString
 
-        return $ Sq.fromList
-            [ Move op1 (Register (RAX, B4))
-            , add' op2 (Register (RAX, B4))
-            , JumpWhen Overflow "error_overflow"]
+        return $ Sq.fromList $ case (op1, op2) of
+            (reg@Register {}, Immediate (ImmediateInt 1)) ->
+                [ Move reg (Register (RAX, B4))
+                , Increase (Register (RAX, B4))
+                , JumpWhen Overflow "error_overflow"]
+
+            (Immediate (ImmediateInt 1), reg@Register {}) ->
+                [ Move reg (Register (RAX, B4))
+                , Increase (Register (RAX, B4))
+                , JumpWhen Overflow "error_overflow"]
+
+            _ ->
+                [ Move op1 (Register (RAX, B4))
+                , add' op2 (Register (RAX, B4))
+                , JumpWhen Overflow "error_overflow"]
 
     IR.Subtract s1 s2 -> do
         op1 <- scalar s1
@@ -306,10 +317,21 @@ expression = \case
         use Internal.ErrorOverflow
         use Internal.PrintString
 
-        return $ Sq.fromList
-            [ Move op1 (Register (RAX, B4))
-            , subtract' op2 (Register (RAX, B4))
-            , JumpWhen Overflow "error_overflow"]
+        return $ Sq.fromList $ case (op1, op2) of
+            (reg@Register {}, Immediate (ImmediateInt 1)) ->
+                [ Move reg (Register (RAX, B4))
+                , Decrease (Register (RAX, B4))
+                , JumpWhen Overflow "error_overflow"]
+
+            (Immediate (ImmediateInt 1), reg@Register {}) ->
+                [ Move reg (Register (RAX, B4))
+                , Decrease (Register (RAX, B4))
+                , JumpWhen Overflow "error_overflow"]
+
+            _ ->
+                [ Move op1 (Register (RAX, B4))
+                , subtract' op2 (Register (RAX, B4))
+                , JumpWhen Overflow "error_overflow"]
 
     IR.Multiply s1 s2 -> do
         op1 <- scalar s1
