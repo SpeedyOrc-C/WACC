@@ -33,5 +33,7 @@ config = Config {
     internalFunctions = M.fromList
         [ (PrintString, printString)
         , (PrintLineBreak, printLineBreak)
+        , (PrintInt, printInt)
+        , (ErrorOverflow, errorOverflow)
         ]
 }
