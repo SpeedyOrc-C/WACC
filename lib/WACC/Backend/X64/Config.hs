@@ -13,5 +13,6 @@ data Config = Config {
     calleeSaveRegisters :: Set PhysicalRegister,
     rankRegister :: PhysicalRegister -> Int,
     availableRegisters :: Set PhysicalRegister,
+    minSizeOfReservedStackForCallee :: Int,
     internalFunctions :: Map Internal.Function (Seq Instruction)
 }

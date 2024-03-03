@@ -26,7 +26,9 @@ config = Config {
         RBX -> 1; R12 -> 2;  R13 -> 3;  R14 -> 4
         R15 -> 5; R10 -> 6;  R11 -> 7;  R9  -> 8
         R8  -> 9; RCX -> 10; RSI -> 11; RDI -> 12
-        r -> error $ "Cannot use register " ++ show r,
+        r -> error $ "Cannot use register " ++ show r ++ " in Unix.",
+    
+    minSizeOfReservedStackForCallee = 0,
 
     internalFunctions = M.fromList
         [ (PrintString, printString)

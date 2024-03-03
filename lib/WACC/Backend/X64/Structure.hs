@@ -233,7 +233,10 @@ data PhysicalRegister
     | RIP
     deriving (Enum, Eq, Ord, Show)
 
-{- Enables using string literals as immediate labels in the assembly code. -}
+instance IsString Operand where
+    fromString :: String -> Operand
+    fromString = Immediate . fromString
+
 instance IsString Immediate where
     fromString :: String -> Immediate
     fromString = ImmediateLabel

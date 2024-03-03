@@ -491,7 +491,11 @@ expression cfg = \case
                 zip3 [1..paramRegCount] argsRegSizes argsReg <&> \(n, size, arg) -> do
                     move size arg (Register (parameter cfg n size))
 
-        let allocateArgsStack = downRSP . ceil16 $ sum (IR.sizeToInt <$> argsStackSizes)
+        let allocateArgsStackSize = max
+                (sum (IR.sizeToInt <$> argsStackSizes))
+                (minSizeOfReservedStackForCallee cfg)
+
+        let allocateArgsStack = downRSP . ceil16 $ allocateArgsStackSize
 
         let argsStackOffsets = scanl (+) 0 (IR.sizeToInt <$> argsStackSizes)
 
@@ -499,7 +503,7 @@ expression cfg = \case
                 zip3 argsStackOffsets argsStackSizes argsStack <&> \(offset, size, arg) -> do
                     move size arg (MemoryIndirect (Just (ImmediateInt offset)) (RSP, B8) Nothing)
 
-        let freeArgsStack = upRSP . ceil16 $ sum (IR.sizeToInt <$> argsStackSizes)
+        let freeArgsStack = upRSP . ceil16 $ allocateArgsStackSize
 
         (asum -> popCallerSave) <- traverse (pop . Just) (reverse callerSaveRegistersToBePushed)
 
@@ -669,6 +673,7 @@ singleStatement cfg = \case
             [Compare (Immediate $ ImmediateInt 0) op, JumpWhen Equal "error_null"]
             >< callFree
 
+    -- TODO: RDI is not saved before use.
     IR.FreeArray s -> useTemporary RDX $ do
         op <- scalar s
         call <- expression cfg (IR.Call B8 "free" [])
@@ -827,6 +832,16 @@ macro =
         Define "getchar" "getchar@PLT",
 
         Global "main",
+    EndIf,
+
+    EmptyLine,
+
+    IfDefined "_WIN64",
+    Define "section_read_only" ".section .rodata",
+    Define "section_literal4" "",
+    Define "section_cstring" "",
+    Define "section_text" ".text",
+    Global "main",
     EndIf
     ]
 
