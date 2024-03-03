@@ -24,10 +24,44 @@ reserveStack = Subtract (Immediate $ ImmediateInt 32) (Register (RSP, B8))
 releaseStack :: Instruction
 releaseStack = Add (Immediate $ ImmediateInt 32) (Register (RSP, B8))
 
+printChar :: Sq.Seq Instruction
+printChar =
+    string "format_char" "%c" ><
+    f "print_char" [
+        Move (Register (RCX, B4)) (Register (RDX, B4)),
+        leaLabel "format_char" (Register (RCX, B8)),
+        reserveStack,
+        Call "printf",
+        Move (Immediate $ ImmediateInt 0) (Register (RCX, B4)),
+        Call "fflush",
+        releaseStack
+    ]
+
+printBool :: Sq.Seq Instruction
+printBool =
+    string "bool_true" "true" ><
+    string "bool_false" "false" ><
+    f "print_bool" [
+        Compare (Immediate $ ImmediateInt 0) (Register (RCX, B1)),
+        JumpWhen Zero "print_bool_else",
+        leaLabel "bool_true" (Register (RDX, B8)),
+        Move (Immediate $ ImmediateInt 4) (Register (R8, B4)),
+        Jump "print_bool_fi",
+        Label "print_bool_else",
+        leaLabel "bool_false" (Register (RDX, B8)),
+        Move (Immediate $ ImmediateInt 5) (Register (R8, B4)),
+        Label "print_bool_fi",
+
+        Move (Immediate $ ImmediateInt 1) (Register (RCX, B8)),
+        reserveStack,
+        Call "write",
+        releaseStack
+    ]
+
 printInt :: Sq.Seq Instruction
 printInt = string "format_int" "%d" >< f "print_int" [
     Move (Register (RCX, B4)) (Register (RDX, B4)),
-    LoadAddress (MemoryIndirect (Just "format_int") (RIP, B8) Nothing) (Register (RCX, B8)),
+    leaLabel "format_int" (Register (RCX, B8)),
     reserveStack,
     Call "printf",
     Move (Immediate $ ImmediateInt 0) (Register (RCX, B4)),
@@ -50,7 +84,7 @@ printString = f "print_string" [
 printLineBreak :: Sq.Seq Instruction
 printLineBreak = string "line_break" "\r\n" >< f "print_line_break" [
     Move (Immediate $ ImmediateInt 1) (Register (RCX, B4)),
-    LoadAddress (MemoryIndirect (Just "line_break") (RIP, B8) Nothing) (Register (RDX, B8)),
+    leaLabel "line_break" (Register (RDX, B8)),
     Move (Immediate $ ImmediateInt 2) (Register (R8, B4)),
     reserveStack,
     Call "write",
@@ -67,9 +101,7 @@ runtimeError name message = Sq.fromList
     , Move (Register (RSP, B8)) (Register (RBP, B8))
 
     , Move (Immediate $ ImmediateInt 1) (Register (RCX, B4))
-    , LoadAddress
-        (MemoryIndirect (Just (ImmediateLabel $ "message_" ++ name)) (RIP, B8) Nothing)
-        (Register (RDX, B8))
+    , leaLabel ("message_" ++ name) (Register (RDX, B8))
     , Move (Immediate $ ImmediateInt (length message)) (Register (R8, B4))
     , reserveStack
     , Call "write"

@@ -34,6 +34,8 @@ config = Config {
         [ (PrintString, printString)
         , (PrintLineBreak, printLineBreak)
         , (PrintInt, printInt)
+        , (PrintChar, printChar)
+        , (PrintBool, printBool)
         , (ErrorOverflow, errorOverflow)
         ]
 }

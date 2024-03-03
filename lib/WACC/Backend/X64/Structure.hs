@@ -23,6 +23,11 @@ stringAddress :: String -> Operand
 stringAddress str
     = MemoryIndirect (Just (ImmediateLabel str)) (RIP, B8) Nothing
 
+leaLabel :: String -> Operand -> Instruction
+leaLabel label = LoadAddress (MemoryIndirect (Just (ImmediateLabel label)) (RIP, B8) Nothing)
+
+{- This is a function to generate a function definition. -}
+
 {- This is a function to generate move instructions
    between two operands, handling special cases. -}
 move :: Size -> Operand -> Operand -> Seq Instruction
@@ -38,10 +43,10 @@ move size from to = return $ MoveSize size from to
 
 moveSign :: Operand -> Operand -> Instruction
 moveSign _ (Immediate {}) = error "cannot have Immediate at right parameter"
-moveSign op op2 = MoveSign op op2 
+moveSign op op2 = MoveSign op op2
 moveZero :: Operand -> Operand -> Instruction
 moveZero _ (Immediate {}) = error "cannot have Immediate at right parameter"
-moveZero op op2 = MoveZero op op2 
+moveZero op op2 = MoveZero op op2
 moveSize :: Size -> Operand -> Operand -> Instruction
 moveSize _ _ (Immediate {}) = error "cannot have Immediate at right parameter"
 moveSize size op op2 = MoveSize size op op2
@@ -199,7 +204,7 @@ data Instruction
 type Register = (PhysicalRegister, Size)
 
 {- Operand types for instructions, it can be an immediate value,
-   a register, or a memory address. -}   
+   a register, or a memory address. -}
 data Operand
     = Immediate Immediate
     | Register Register
