@@ -325,7 +325,7 @@ expression cfg = \case
             , Multiply op2 (Register (RAX, B4))
             , JumpWhen Overflow "error_overflow" ]
 
-    IR.Divide a b -> useTemporary RSI $ do
+    IR.Divide a b -> useManyTemporary [RDX, RSI] $ do
         a' <- scalar a
         b' <- scalar b
 
@@ -333,16 +333,30 @@ expression cfg = \case
         use Internal.PrintString
 
         return $ Sq.fromList
-            [ Move a' (Register (RAX, B4))
+            [ Move (Immediate $ ImmediateInt 0) (Register (RDX, B8))
+            , Move a' (Register (RAX, B4))
             , Move b' (Register (RSI, B4))
             , Compare (Immediate $ ImmediateInt 0) (Register (RSI, B4))
             , JumpWhen Equal "error_divide_zero"
             , CLTD
             , DivideI (Register (RSI, B4))]
 
-    IR.Remainder s1 s2 -> do
-        result <- expression cfg (IR.Divide s1 s2)
-        return $ result |> Move (Register (RDX, B4)) (Register (RAX, B4))
+    IR.Remainder a b -> useManyTemporary [RDX, RSI] $ do
+        a' <- scalar a
+        b' <- scalar b
+
+        use Internal.ErrorDivideZero
+        use Internal.PrintString
+
+        return $ Sq.fromList
+            [ Move (Immediate $ ImmediateInt 0) (Register (RDX, B8))
+            , Move a' (Register (RAX, B4))
+            , Move b' (Register (RSI, B4))
+            , Compare (Immediate $ ImmediateInt 0) (Register (RSI, B4))
+            , JumpWhen Equal "error_divide_zero"
+            , CLTD
+            , DivideI (Register (RSI, B4))
+            , Move (Register (RDX, B4)) (Register (RAX, B4))]
 
     IR.GreaterEqual size s1 s2 -> do
         op1 <- scalar s1
