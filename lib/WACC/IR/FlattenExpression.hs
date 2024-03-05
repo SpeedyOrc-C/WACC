@@ -354,6 +354,7 @@ instance HasReference Scalar where
     reference = \case
         (Variable var@(Identifier {})) -> S.singleton var
         (Variable var@(Parameter {})) -> S.singleton var
+        (Variable var@(Temporary {})) -> S.singleton var
         _ -> S.empty
 
 instance HasReference Expression where

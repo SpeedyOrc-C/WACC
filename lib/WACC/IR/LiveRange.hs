@@ -14,6 +14,11 @@ initialFreeingVariableState :: FreeingVariableState
 initialFreeingVariableState = FreeingVariableState
     { freed = S.empty }
 
+hasSideEffect :: SingleStatement -> Bool
+hasSideEffect = \case
+    Assign _ _ (Call {}) -> True
+    _ -> False
+
 noControlFlowStatement :: NoControlFlowStatement
     -> State FreeingVariableState [NoControlFlowStatement]
 noControlFlowStatement = \case

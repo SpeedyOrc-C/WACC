@@ -84,6 +84,8 @@ library wacc25-lib
         WACC.Backend.X64.Windows.Config,
         WACC.Backend.X64.Windows.Internal,
 
+        WACC.IR.ConstantPropagation,
+
         Text.AnsiEscape,
         Text.SourceCode,
         Text.Parser

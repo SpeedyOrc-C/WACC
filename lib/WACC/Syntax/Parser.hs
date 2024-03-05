@@ -15,11 +15,11 @@ import WACC.Syntax.Structure
 import WACC.Syntax.Error
 import WACC.Syntax.Validation
 
-{- Define a SyntaxParser which can identify a SyntaxError 
+{- Define a SyntaxParser which can identify a SyntaxError
    within the range of our `WaccSyntaxErrorType`. -}
 type WaccParser a = Parser WaccSyntaxErrorType a
 
-{- It takes a constructor function, a parser, and returns a new parser. 
+{- It takes a constructor function, a parser, and returns a new parser.
    This parser modifies the result of parsing by applying the constructor
    to include a range information. -}
 addRange :: (info -> Range -> node) -> Parser error info -> Parser error node
@@ -31,17 +31,17 @@ addRange constructor parser = do
 (~) :: (info -> Range -> node) -> WaccParser info -> WaccParser node
 (~) = addRange
 
-{- It consumes a single character as long as 
+{- It consumes a single character as long as
    it is not a newline or a carriage return. -}
 nonLineBreak :: Parser error ()
 nonLineBreak = void $ charThat (`notElem` ['\r', '\n'])
 
-{- The white parser tries to parse either the whitespace characters 
+{- The white parser tries to parse either the whitespace characters
    (space, tab, carriage return, or newline) or the comment parser below. -}
 white :: Parser error ()
 white = void (asum $ char <$> [' ', '\t', '\r', '\n']) <|> comment
 
-{- The comment parser firstly parse `#` and ignore the result, 
+{- The comment parser firstly parse `#` and ignore the result,
    then it uses `nonLineBreak` parser to handle the rest of this line. -}
 comment :: Parser error ()
 comment = void $ char '#' *> many nonLineBreak
@@ -66,7 +66,7 @@ identifierTailChars :: [Char]
 identifierTailChars = '_' : ['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9']
 
 {- This parser checks if the identifier is valid and not a reserved keyword.
-   If it is invalid or it is a keyword, then it fails using empty. 
+   If it is invalid or it is a keyword, then it fails using empty.
    Otherwise, it returns the parsed identifier. -}
 identifierString :: Parser error String
 identifierString = do
@@ -85,7 +85,7 @@ identifierString = do
                 "skip", "read", "free", "return", "exit", "print", "println",
                 "int", "string", "pair", "char", "null", "newpair"]
 
-{- It is a parser that handles escaped characters in character literals 
+{- It is a parser that handles escaped characters in character literals
    and returns the corresponding Char. -}
 charEscaped :: WaccParser Char
 charEscaped = (
@@ -215,7 +215,7 @@ expressionBase = asum [
     expressionFunctionCall
     ]
 
-{- It takes a parser as parameter to parse the array expression. 
+{- It takes a parser as parameter to parse the array expression.
    Then, it iteratively parses indices inside square brackets. -}
 indexOperator :: WaccParser Expression -> WaccParser Expression
 indexOperator higherParser = do
@@ -292,7 +292,7 @@ expressionUnaryOperation =
    which can parse expressions with binary operators. -}
 binaryOperator ::
     WaccParser Expression
-    -> (Associativity, [(String, (Expression, Expression) 
+    -> (Associativity, [(String, (Expression, Expression)
     -> Range -> Expression)])
     -> WaccParser Expression
 binaryOperator higherParser (associativity, operators) = do
@@ -360,10 +360,10 @@ expression = expressionBinaryOperation
 
 {- It is a function which can detect if an identifier is a function call
    or not. -}
-identifierWithBracket :: WaccParser Expression 
-    -> WaccSyntaxErrorType 
+identifierWithBracket :: WaccParser Expression
+    -> WaccSyntaxErrorType
     -> WaccParser Expression
-identifierWithBracket parser error = Parser $ \input -> 
+identifierWithBracket parser error = Parser $ \input ->
     case parse parser input of
         result@(Right (Parsed _ (Identifier _ _) rest)) ->
             case parse (many white *> char '(') rest of
@@ -376,12 +376,12 @@ identifierWithBracket parser error = Parser $ \input ->
 leftValue :: WaccParser Expression
 leftValue = expression `that` isLeftValue
 
-{- It is a parser which parses a right value and 
+{- It is a parser which parses a right value and
    raises a "ExpectOneExpression" if there is no expression. -}
 rightValue :: WaccParser Expression
 rightValue = expression `that` isRightValue `syntaxError` ExpectOneExpression
             `identifierWithBracket` FunctionCallNoCall
-                
+
 
 {- It is a parser which strictly parses the expression, which means the
    expression must be parsed completely. -}
@@ -405,7 +405,7 @@ command keyword value = do
 
 {- It is a parser which parses read statements. -}
 statementRead :: WaccParser Statement
-statementRead = Read ~ command "read" 
+statementRead = Read ~ command "read"
                 (leftValue `syntaxError` InvalidLeftValue)
 
 {- It is a parser which parses free statements. -}
@@ -530,7 +530,7 @@ typeArray = do
 
     return $ foldl mergeArray t brackets
 
-{- It is a parser which parses an array type or a pair type and 
+{- It is a parser which parses an array type or a pair type and
    reports a syntax error if needed. -}
 type' :: WaccParser Type
 type' = typeArray `syntaxErrorWhen` (not . isType, \(_, t) -> findError t)
@@ -562,7 +562,7 @@ statementAssign = Assign ~ do
     right <- rightValue
     return (left, right)
 
-{- It is a parser which parses different kinds of statements, 
+{- It is a parser which parses different kinds of statements,
    it will try each statement parser in the list. -}
 statement :: WaccParser Statement
 statement = asum [
@@ -645,11 +645,11 @@ function = Function ~ do
                 Just {} ->
                     return (t, n, if null parameters then [] else fromJust parameters, body)
 
-{- It is a parser which parses a program with a 'begin' statement 
+{- It is a parser which parses a program with a 'begin' statement
    at the beginning and an 'end' statement at the end. -}
 program' :: WaccParser ([Function], [Statement])
 program' = do
-    _         <- surroundManyWhites (str "begin" `syntaxError` 
+    _         <- surroundManyWhites (str "begin" `syntaxError`
                                      ExpectProgramBegin)
     functions <- optional $ function `separatedBy` many white
     _         <- many white
@@ -670,7 +670,7 @@ program' = do
         Nothing ->
             return (if null functions then [] else fromJust functions, body)
 
-{- It is a parser which parses a program and 
+{- It is a parser which parses a program and
    detects any code after the 'end' statement. -}
 program :: WaccParser Program
 program = Program ~ Parser (\input -> do

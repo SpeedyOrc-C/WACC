@@ -154,11 +154,6 @@ scalar = \case
     IR.Immediate n -> return $
         Immediate (ImmediateInt n)
 
-    IR.Variable identifier@(IR.Temporary {}) -> do
-        memoryTable <- gets memoryTable
-        free identifier
-        operandFromMemoryLocation $ memoryTable M.! identifier
-
     IR.Variable identifier -> do
         memoryTable <- gets memoryTable
         operandFromMemoryLocation $ memoryTable M.! identifier

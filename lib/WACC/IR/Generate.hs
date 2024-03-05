@@ -8,15 +8,17 @@ import           Data.Foldable
 import qualified WACC.Semantics.Structure as Semantics
 import qualified WACC.IR.Structure as IR
 
-import           WACC.IR.LiteralString (createDataSegments)
-import           WACC.IR.FlattenExpression (flattenExpression)
-import           WACC.IR.FlattenControlFlow (flattenControlFlow)
-import           WACC.IR.LiveRange (analyseLiveRange)
+import WACC.IR.LiteralString       (createDataSegments)
+import WACC.IR.FlattenExpression   (flattenExpression)
+import WACC.IR.FlattenControlFlow  (flattenControlFlow)
+import WACC.IR.LiveRange           (analyseLiveRange)
+import WACC.IR.ConstantPropagation (propagateConstant)
 
 generateIR :: Semantics.Program -> IR.Program IR.NoControlFlowStatement
 generateIR =
         createDataSegments &&& id
     >>> flattenExpression
+    >>> propagateConstant
     >>> flattenControlFlow
     >>> analyseLiveRange
 
