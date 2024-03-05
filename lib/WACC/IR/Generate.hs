@@ -18,7 +18,7 @@ generateIR :: Semantics.Program -> IR.Program IR.NoControlFlowStatement
 generateIR =
         createDataSegments &&& id
     >>> flattenExpression
-    >>> propagateConstant
+    -- >>> propagateConstant
     >>> flattenControlFlow
     >>> analyseLiveRange
 
