@@ -14,14 +14,28 @@ initialFreeingVariableState :: FreeingVariableState
 initialFreeingVariableState = FreeingVariableState
     { freed = S.empty }
 
-hasSideEffect :: SingleStatement -> Bool
-hasSideEffect = \case
-    Assign _ _ (Call {}) -> True
-    _ -> False
+reducible :: Expression -> Bool
+reducible = \case
+    Call {} -> False
+    ReadInt -> False
+    ReadChar {} -> False
+    Character (Immediate n) -> 0 <= n && n <= 255
+    Divide _ (Immediate 0) -> False
+    Remainder _ (Immediate 0) -> False
+    _ -> True
 
 noControlFlowStatement :: NoControlFlowStatement
     -> State FreeingVariableState [NoControlFlowStatement]
 noControlFlowStatement = \case
+    NCF statement@(Assign _ var e) -> do
+        s <- get
+        if var `S.member` freed s && not (reducible e) then do
+            let toBeFreed = reference statement S.\\ freed s
+            put s {freed = freed s `S.union` toBeFreed}
+            return $ (FreeVariable <$> S.toList toBeFreed) ++ [NCF statement]
+        else
+            return []
+
     NCF statement -> do
         s <- get
         let toBeFreed = reference statement S.\\ freed s
