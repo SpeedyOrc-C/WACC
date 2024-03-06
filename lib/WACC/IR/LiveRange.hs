@@ -29,7 +29,7 @@ noControlFlowStatement :: NoControlFlowStatement
 noControlFlowStatement = \case
     NCF statement@(Assign _ var e) -> do
         s <- get
-        if var `S.member` freed s && not (reducible e) then do
+        if var `S.member` freed s || not (reducible e) then do
             let toBeFreed = reference statement S.\\ freed s
             put s {freed = freed s `S.union` toBeFreed}
             return $ (FreeVariable <$> S.toList toBeFreed) ++ [NCF statement]
