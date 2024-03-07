@@ -29,6 +29,19 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
         Syntax.LiteralChar     x _ -> Ok (Char           , LiteralChar x)
         Syntax.LiteralString   x _ -> Ok (String         , LiteralString x)
         Syntax.LiteralPairNull {}  -> Ok (Pair (Any, Any), LiteralPairNull)
+        Syntax.Address         x@(Syntax.Identifier name _) range -> 
+            case lookUp state name of 
+                    Just (_, t) -> Ok(Pointer t, Address t (Identifier t name))
+                    Nothing -> Log [SemanticError range (UndefinedIdentifier name)]
+        
+        Syntax.Address         x range ->
+            Log [SemanticError range (InvalidAddress x)]
+        
+        Syntax.Dereference     x range -> do
+            (type'', e) <- check state x
+            case type'' of
+                (Pointer t) -> Ok(t, Dereference t e)
+                _ -> Log [SemanticError range (PointerError type'')]
 
         -- if left handside is a indentifer which must be in the state
         Syntax.Identifier name range ->
@@ -109,6 +122,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 Any -> Ok (Any, PairSecond Any pair')
                 _ -> Log [SemanticError (expressionRange pair) $
                             InvalidPair pairType]
+
 
         Syntax.Less xy _ -> checkComparison xy Less
         Syntax.LessEqual xy _ -> checkComparison xy LessEqual

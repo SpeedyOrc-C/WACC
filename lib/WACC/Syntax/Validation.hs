@@ -62,6 +62,7 @@ typeRange = \case
     String _ r -> r
     Array _ r -> r
     Pair _ r -> r
+    Pointer _ r -> r
 
 {- Checks whether the given expression is a left value. -}
 isLeftValue :: Expression -> Bool
@@ -134,6 +135,16 @@ isFunctionCall = \case
     FunctionCall (_, a) _ -> all isExpression a
     _ -> False
 
+isAddress :: Expression -> Bool
+isAddress = \case
+    Address _ _ -> True
+    _ -> False
+
+isDereference :: Expression -> Bool
+isDereference = \case
+    Dereference _ _ -> True
+    _ -> False
+
 {- Checks whether the given expression is a right value. -}
 isRightValue :: Expression -> Bool
 isRightValue e = or [
@@ -141,7 +152,9 @@ isRightValue e = or [
     isLiteralArray e,
     isLiteralPair e,
     isPairElement e,
-    isFunctionCall e
+    isFunctionCall e,
+    isAddress e,
+    isDereference e
     ]
 
 {- Checks whether the given type is a valid type in WACC. -}

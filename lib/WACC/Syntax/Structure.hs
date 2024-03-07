@@ -34,6 +34,7 @@ data Type
     | String () Range
     | Array Type Range
     | Pair (Maybe (Type, Type)) Range
+    | Pointer Type Range
     deriving (Show, Eq)
 
 -- Unary operators have one operand.
@@ -52,6 +53,8 @@ data Expression
     | LiteralPair (Expression, Expression) Range
     | LiteralPairNull () Range
     | ArrayElement (Expression, Expression) Range
+    | Address Expression Range
+    | Dereference Expression Range
     | Not Unary Range
     | Negate Unary Range
     | Length Unary Range

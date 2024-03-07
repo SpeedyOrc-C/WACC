@@ -60,6 +60,7 @@ data Type
     | String
     | Array Type
     | Pair (Type, Type)
+    | Pointer Type
     deriving Eq
 
 instance Show Type where
@@ -71,6 +72,7 @@ instance Show Type where
         String -> "string"
         Array t -> show t ++ "[]"
         Pair (a, b) -> "pair(" ++ show a ++ ", " ++ show b ++ ")"
+        Pointer t -> show t ++ "*"
 
 data ComparisonType = CompareChar | CompareInt deriving (Show, Eq)
 
@@ -83,6 +85,8 @@ data Expression
     | LiteralArray Type [Expression]
     | LiteralPair (Type, Type) (Expression, Expression)
     | LiteralPairNull
+    | Dereference Type Expression
+    | Address Type Expression
 
     | ArrayElement Type Expression Expression
 

@@ -61,7 +61,23 @@ expression = \case
     SM.Identifier _ name -> do
         identifier <- gets $ lookUp name . mappingStack
         return (Variable identifier, [])
+    SM.Dereference t x -> do
+        (result, evaluate) <- expression x
+        tmp <- newTemporary
+        return (Variable tmp,
+            evaluate ++
+            [Assign (getSize t) tmp (Dereference (getSize t) result)])
 
+    SM.Address t x -> do
+        (result, evaluate) <- expression x
+        case result of
+            (Variable x') -> do
+                tmp <- newTemporary
+                return (Variable tmp,
+                    evaluate ++
+                    [Assign B8 tmp (Address x')])
+            _ ->
+                error "should only address on variable"
     SM.LiteralBool bool ->
         return (Immediate (if bool then 1 else 0), [])
 

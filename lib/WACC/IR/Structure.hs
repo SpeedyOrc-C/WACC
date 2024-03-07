@@ -85,6 +85,7 @@ data Expression
     | SeekPairSecond Scalar
 
     | Dereference Size Scalar
+    | Address Identifier
 
     | Call Size String [(Size, Scalar)]
     | ReadInt
@@ -131,6 +132,7 @@ instance HasSize SM.Type where
         SM.String -> B8
         SM.Array {} -> B8
         SM.Pair {} -> B8
+        SM.Pointer {} -> B8
         -- will happen when left hand side is type of Any
         -- and right hand side being []
         SM.Any -> B1

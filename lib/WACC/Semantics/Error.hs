@@ -1,6 +1,7 @@
 module WACC.Semantics.Error where
 
 import WACC.Semantics.Structure
+import qualified WACC.Syntax.Structure as Syntax
 
 data OperandDirection = OperandLeft | OperandRight deriving Show
 
@@ -35,6 +36,8 @@ data WaccSemanticsErrorType
     | InvalidLogical Type
     | BothSideAnyAssignment
     | InvalidExit Type
+    | InvalidAddress Syntax.Expression
+    | PointerError Type
 
 {- Define 'Show' for all kinds of semantic error types. -}
 instance Show WaccSemanticsErrorType where
@@ -104,3 +107,8 @@ instance Show WaccSemanticsErrorType where
     show (InvalidReturn validType invalidType) =
         "This function should return " ++ show validType ++ ". " ++
         "Actual: " ++ show invalidType
+    show (PointerError t) =
+        "Tried to dereference " ++ show t ++ 
+        " but which is not a pointer variable"
+    show (InvalidAddress t) =
+        "Tried get the address of " ++ show t ++ ", which is not a identifier"

@@ -121,6 +121,7 @@ fromSyntaxType = \case
     Syntax.Array t _            -> Array (fromSyntaxType t)
     Syntax.Pair Nothing _       -> Pair (Any, Any)
     Syntax.Pair (Just (a, b)) _ -> Pair (fromSyntaxType a, fromSyntaxType b)
+    Syntax.Pointer t _          -> Pointer (fromSyntaxType t)
 
 -- | Given that two types are compatible with each other,
 --   find the common type between two types. This can find the type of an array.

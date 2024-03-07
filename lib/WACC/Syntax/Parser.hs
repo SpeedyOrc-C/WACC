@@ -284,7 +284,9 @@ expressionUnaryOperation =
         ("snd", PairSecond)
     ],[
         ("!", Not),
-        ("-", Negate)
+        ("-", Negate),
+        ("*", Dereference),
+        ("&", Address)
     ]) `identifierWithBracket` FunctionCallNoCall
 
 {- It is a function which takes a parser and two lists of operators.
@@ -502,9 +504,9 @@ typePair = Pair ~ do
     optional $ do
         _ <- many white
         _ <- char '('
-        a <- typeArray
+        a <- typeArrayOrPointer
         _ <- surroundManyWhites (char ',')
-        b <- typeArray
+        b <- typeArrayOrPointer
         _ <- many white
         _ <- char ')'
         return (a, b)
@@ -519,21 +521,28 @@ baseType = asum [
     typePair
     ]
 
+
+
 {- It is a parser which parses an array type. -}
-typeArray :: WaccParser Type
-typeArray = do
+typeIdent :: (WaccParser a, Type -> Range -> Type) ->  WaccParser Type
+typeIdent (parser, ident) = do
     ((from, _), t) <- getRangeA baseType
-    brackets <- many $ getRangeA $ void $
-        surroundManyWhites (char '[') >> char ']'
+    brackets <- many $ getRangeA $ void $ parser *> many white
 
-    let mergeArray x ((_, to), _) = Array x (from, to)
+    let mergeIdent x ((_, to), _) = ident x (from, to)
+    return $ foldl mergeIdent t brackets
 
-    return $ foldl mergeArray t brackets
+typeArrayOrPointer :: WaccParser Type
+typeArrayOrPointer =
+    asum (map typeIdent 
+    [(surroundManyWhites (char '[') >> char ']', Array),
+     (surroundManyWhites (char '*')            , Pointer)])
+
 
 {- It is a parser which parses an array type or a pair type and
    reports a syntax error if needed. -}
 type' :: WaccParser Type
-type' = typeArray `syntaxErrorWhen` (not . isType, \(_, t) -> findError t)
+type' = typeArrayOrPointer `syntaxErrorWhen` (not . isType, \(_, t) -> findError t)
     where
     findError = \case
         Array (Pair Nothing (from, _)) _ ->

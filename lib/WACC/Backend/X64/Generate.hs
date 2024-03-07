@@ -42,7 +42,8 @@ data GeneratorState = GeneratorState {
     tmpStackOffset :: Int,
     tmpPushedRegs :: [Maybe PhysicalRegister],
     functionName :: String,
-    calledInternalFunctions :: S.Set Internal.Function
+    calledInternalFunctions :: S.Set Internal.Function,
+    addressVaribles :: S.Set Identifier
 } deriving (Show)
 
 use :: Internal.Function -> State GeneratorState ()
@@ -255,6 +256,7 @@ expression cfg = \case
         op <- scalar s
         let size = IR.getSize op
         return $ move size op (Register (RAX, IR.getSize op))
+    
 
     IR.Not s -> do
         op <- scalar s
