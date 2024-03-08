@@ -36,6 +36,7 @@ expressionRange expr = case expr of
     And _ r -> r
     Or _ r -> r
     FunctionCall _ r -> r
+    Field _ r -> r
 
 {- Extracts the range from the statement. -}
 statementRange :: Statement -> Range
@@ -62,11 +63,13 @@ typeRange = \case
     String _ r -> r
     Array _ r -> r
     Pair _ r -> r
+    Struct _ r -> r
 
 {- Checks whether the given expression is a left value. -}
 isLeftValue :: Expression -> Bool
 isLeftValue = \case
     Identifier _ _ -> True
+    Field {} -> True
     a@ArrayElement {} -> isArrayElement a
     PairFirst e _ -> isLeftValue e
     PairSecond e _ -> isLeftValue e
@@ -134,6 +137,11 @@ isFunctionCall = \case
     FunctionCall (_, a) _ -> all isExpression a
     _ -> False
 
+isField :: Expression -> Bool
+isField = \case
+    Field{} -> True
+    _ -> False
+
 {- Checks whether the given expression is a right value. -}
 isRightValue :: Expression -> Bool
 isRightValue e = or [
@@ -141,7 +149,8 @@ isRightValue e = or [
     isLiteralArray e,
     isLiteralPair e,
     isPairElement e,
-    isFunctionCall e
+    isFunctionCall e,
+    isField e
     ]
 
 {- Checks whether the given type is a valid type in WACC. -}
@@ -155,6 +164,7 @@ isTypeBase = \case
     Bool {} -> True
     Char {} -> True
     String {} -> True
+    Struct {} -> True
     _ -> False
 
 {- Checks whether the given type is an array type. -}

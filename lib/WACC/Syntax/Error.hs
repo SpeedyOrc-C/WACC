@@ -44,6 +44,7 @@ data WaccSyntaxErrorType
     | ExpectOneExpression
     | IntegerOverflow Int
     | ExpectFunctionEnd
+    | ExpectStructEnd
     | ExpectProgramBegin
     | ExpectProgramEnd
     | FunctionDoesNotReturn Name
@@ -54,6 +55,7 @@ data WaccSyntaxErrorType
     | FunctionMissingType
     | FunctionMissingIs
     | MainTrailingFunctions
+    | ExpectIdentifierInStruct
     deriving Eq
 
 {- Makes WaccSyntaxErrorType an instance of type class Show to display helpful
@@ -143,6 +145,8 @@ instance Show WaccSyntaxErrorType where
         "It should be between -2^31 and 2^31-1"
     show ExpectFunctionEnd =
         "Expect \"end\" keyword at the end of function.\n" ++ extendStatements
+    show ExpectStructEnd =
+        "Expect \"end\" keyword at the end of structure declare.\n"
     show ExpectProgramBegin =
         "Expect \"begin\" keyword at the beginning of program."
     show ExpectProgramEnd =
@@ -166,6 +170,8 @@ instance Show WaccSyntaxErrorType where
         "Function call may not appear in expressions."
     show MainTrailingFunctions =
         "Functions definitions should not be after the main program."
+    show ExpectIdentifierInStruct =
+        "Expect identifier after struct"
 
 {- The smallest allowed integer literal. -}
 intLowerBound :: Int
