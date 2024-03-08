@@ -266,11 +266,16 @@ statement = \case
         possibleFreeVariables <- gets $
             S.fromList . map snd . concatMap M.toList . mappingStack
         modify $ \s -> s { mappingStack = tail $ mappingStack s }
-        return [While preWhile body'
-                ((reference condition' `S.union`
-                  reference evaluateCondition `S.union`
-                  reference body')
-                    `S.intersection` possibleFreeVariables)]
+
+        return [While preWhile body' WhileInfo  {
+            possibleFreeVars = possibleFreeVariables,
+            referencedFreeVariables =
+                S.unions [
+                    reference condition',
+                    reference evaluateCondition,
+                    reference body'
+                ] `S.intersection` possibleFreeVariables
+        }]
 
     SM.Scope b -> do
         b' <- block b
@@ -402,7 +407,7 @@ instance HasReference SingleStatement where
     reference = \case
         Assign _ var@(Identifier {}) e -> var `S.insert` reference e
         Assign _ _ e -> reference e
-        AssignIndirect _ _ e -> reference e
+        AssignIndirect _ address e -> address `S.insert` reference e
         Return _ e -> reference e
         Exit e -> reference e
         Free e -> reference e

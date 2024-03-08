@@ -9,6 +9,11 @@ data Program s = Program (Map String Int) [Function s] deriving Show
 
 data Function s = Function String [(Identifier, Size)] [s] deriving Show
 
+data WhileInfo = WhileInfo {
+    possibleFreeVars :: Set Identifier,
+    referencedFreeVariables :: Set Identifier
+} deriving Show
+
 data NoExpressionStatement
     = NE SingleStatement
     | If Scalar [NoExpressionStatement] [NoExpressionStatement]
@@ -17,7 +22,7 @@ data NoExpressionStatement
     -- as they might be referenced again.
     -- References might only be freed after the loop.
     | While (Scalar, [SingleStatement]) [NoExpressionStatement]
-            (Set Identifier)
+            WhileInfo
     deriving Show
 
 data NoControlFlowStatement

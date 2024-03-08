@@ -34,7 +34,7 @@ noExpressionStatement = \case
             elseClause' ++
             [Label fiLabel]
 
-    While (condition, evaluateCondition) body refs -> do
+    While (condition, evaluateCondition) body info -> do
         whileLabel <- ("while." ++) <$> newLabel
         body' <- noExpressionStatements body
         doneLabel <- ("done." ++) <$> newLabel
@@ -46,7 +46,7 @@ noExpressionStatement = \case
             [Label doneLabel] ++
             map NCF evaluateCondition ++
             [GotoIf condition whileLabel] ++
-            [WhileReference refs]
+            [WhileReference $ referencedFreeVariables info]
 
 noExpressionStatements ::
     [NoExpressionStatement] -> State FlattenerState [NoControlFlowStatement]
