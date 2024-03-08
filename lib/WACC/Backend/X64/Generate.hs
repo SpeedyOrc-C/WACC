@@ -104,20 +104,22 @@ free name = do
     stackPool <- gets stackPool
     registerPool <- gets registerPool
 
-    case memoryTable M.! name of
-        AtRegister (physicalRegister, _) -> do
+    case memoryTable M.!? name of
+        Just (AtRegister (physicalRegister, _)) -> do
             modify $ \s -> s {
                 registerPool = S.delete physicalRegister registerPool,
                 memoryTable = M.delete name memoryTable
             }
 
-        AtStack offset _ -> do
+        Just (AtStack offset _) -> do
             modify $ \s -> s {
                 stackPool = freeStack offset stackPool,
                 memoryTable = M.delete name memoryTable
             }
 
-        _ -> return ()
+        Just {} -> return ()
+
+        Nothing -> error $ "Cannot free " ++ show name
 
 {- Given a 'MemoryLocation', this function generates an 'Operand'. -}
 operandFromMemoryLocation :: MemoryLocation -> State GeneratorState Operand
@@ -605,12 +607,12 @@ singleStatement cfg = \case
         memoryTable <- gets memoryTable
         evaluate <- expression cfg from
 
-        case memoryTable M.! to of
-            AtRegister reg ->
+        case memoryTable M.!? to of
+            Just (AtRegister reg) ->
                 return $ evaluate ><
                     move size (Register (RAX, size)) (MemoryIndirect Nothing reg Nothing)
 
-            AtStack offset _ -> useTemporary RDX $ do
+            Just (AtStack offset _) -> useTemporary RDX $ do
                 tmpStackOffset <- gets tmpStackOffset
                 return $ evaluate ><
                     move size (MemoryIndirect
@@ -620,12 +622,14 @@ singleStatement cfg = \case
                         (Register (RDX, B8)) ><
                     move size (Register (RAX, size)) (MemoryIndirect Nothing (RDX, B8) Nothing)
 
-            AtParameterStack offset _ -> useTemporary RDX $
+            Just (AtParameterStack offset _) -> useTemporary RDX $
                 return $ evaluate ><
                     move size (MemoryIndirect
                             (Just (ImmediateInt (offset + 16))) (RBP, B8) Nothing)
                         (Register (RDX, B8)) ><
                     move size (Register (RAX, size)) (MemoryIndirect Nothing (RDX, B8) Nothing)
+
+            Nothing -> error $ "Cannot assign to " ++ show to
 
     IR.PrintString s -> do
         use Internal.PrintString
