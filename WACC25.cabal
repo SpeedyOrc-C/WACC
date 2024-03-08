@@ -86,6 +86,8 @@ library wacc25-lib
 
         WACC.IR.ConstantPropagation,
 
+        WACC.Graph,
+
         Text.AnsiEscape,
         Text.SourceCode,
         Text.Parser
