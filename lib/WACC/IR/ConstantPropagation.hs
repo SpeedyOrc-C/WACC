@@ -293,12 +293,13 @@ statement = \case
                 body' <- statementWhile evaluateCondition body info
                 return [While (condition, evaluateCondition) body' info]
 
-function :: Function NoExpressionStatement
-    -> State PropagatorState (Function NoExpressionStatement)
+function :: Function NoExpressionStatement -> Function NoExpressionStatement
 function (Function name params statements) =
-    Function name params . concat <$> traverse statement statements
+    Function name params . concat $
+        evalState (traverse statement statements) $
+            PropagatorState (M.fromList [(var, Nothing) | (var, _) <- params])
 
-propagateConstant :: Program NoExpressionStatement
-    -> Program NoExpressionStatement
-propagateConstant (Program dataSegment functions) = Program dataSegment $
-    evalState (traverse function functions) (PropagatorState M.empty)
+propagateConstant ::
+    Program NoExpressionStatement -> Program NoExpressionStatement
+propagateConstant (Program dataSegment functions) =
+    Program dataSegment (function <$> functions)
