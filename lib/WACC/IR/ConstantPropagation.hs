@@ -192,6 +192,31 @@ instance HasDependency NoExpressionStatement where
                 Variable var -> map (second (S.insert var)) innerDependencies
                 _ -> innerDependencies
 
+class HasDependencyOnInput a where
+    getDependencyOnInput :: a -> S.Set Identifier
+
+instance HasDependencyOnInput a => HasDependencyOnInput [a] where
+    getDependencyOnInput :: HasDependencyOnInput a => [a] -> S.Set Identifier
+    getDependencyOnInput = S.unions . map getDependencyOnInput
+
+instance HasDependencyOnInput SingleStatement where
+    getDependencyOnInput :: SingleStatement -> S.Set Identifier
+    getDependencyOnInput = \case
+        Assign _ var ReadInt -> S.singleton var
+        Assign _ var ReadChar {} -> S.singleton var
+        _ -> S.empty
+
+instance HasDependencyOnInput NoExpressionStatement where
+    getDependencyOnInput :: NoExpressionStatement -> S.Set Identifier
+    getDependencyOnInput = \case
+        NE s -> getDependencyOnInput s
+
+        If _ thenClause elseClause ->
+            getDependencyOnInput thenClause `S.union`
+            getDependencyOnInput elseClause
+
+        While _ body _ -> getDependencyOnInput body
+
 statementWhile ::
     [SingleStatement] -> [NoExpressionStatement] -> WhileInfo
     -> State PropagatorState [NoExpressionStatement]
@@ -210,6 +235,8 @@ statementWhile evaluateCondition body info = do
                 ((dependencies G.! var) `S.intersection` changedFreeVars))
             `S.filter` changedVars
 
+    let changedVarsDependOnInput = getDependencyOnInput body
+
     -- Changing the free variables creates a side effect when their values
     -- depends on other changed free variables.
     -- These variables' values are unknown.
@@ -218,7 +245,9 @@ statementWhile evaluateCondition body info = do
 
     let insideWhileMapping =
             foldl (\m var -> M.insert var Nothing m)
-                beforeWhileMapping changedVarsDependOnChangedFreeVars
+                beforeWhileMapping $ S.union
+                    changedVarsDependOnChangedFreeVars
+                    changedVarsDependOnInput
 
     modify $ \s -> s { constantMapping = insideWhileMapping }
 
@@ -230,7 +259,9 @@ statementWhile evaluateCondition body info = do
 
     let afterWhileMapping =
             foldl (\m var -> M.insert var Nothing m)
-                beforeWhileMapping changedVars
+                beforeWhileMapping $ S.union
+                    changedVars
+                    changedVarsDependOnInput
 
     modify $ \s -> s { constantMapping = afterWhileMapping }
 
