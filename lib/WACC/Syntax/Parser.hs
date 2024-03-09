@@ -215,8 +215,8 @@ expressionBase = asum [
     expressionFunctionCall
     ]
 
-indexOperator' :: WaccParser (Range, Expression) 
-    -> ((Expression, Expression)-> Range -> Expression) 
+indexOperator' :: WaccParser (Range, a) 
+    -> ((Expression, a)-> Range -> Expression) 
     -> WaccParser Expression -> WaccParser Expression
 indexOperator' doblock type'' higherParser
     = do
@@ -240,7 +240,7 @@ indexOperator higherParser = asum [
         higherParser,
     indexOperator' (do
         _ <- surroundManyWhites (char '.')
-        getRangeA expression
+        getRangeA name
         )
         Field
         higherParser
