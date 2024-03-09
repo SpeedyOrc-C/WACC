@@ -15,7 +15,7 @@ instance HasLiteralStrings a => HasLiteralStrings [a] where
 
 instance HasLiteralStrings Program where
     getLiteralStrings :: Program -> S.Set String
-    getLiteralStrings (Program fs (Block ss)) =
+    getLiteralStrings (Program _ fs (Block ss)) =
         getLiteralStrings (S.toList fs) `S.union` getLiteralStrings ss
 
 instance HasLiteralStrings Function where

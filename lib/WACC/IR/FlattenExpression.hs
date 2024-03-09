@@ -458,7 +458,7 @@ functions :: [SM.Function] -> State FlattenerState
 functions = traverse function
 
 program :: SM.Program -> State FlattenerState (Program NoExpressionStatement)
-program (SM.Program fs main) = do
+program (SM.Program _ fs main) = do
     dataSegment <- gets dataSegment
     let allFunctions
             = SM.Function SM.Int "main" [] main
