@@ -22,6 +22,8 @@ reducible = \case
     Character (Immediate n) -> 0 <= n && n <= 255
     Divide _ (Immediate 0) -> False
     Remainder _ (Immediate 0) -> False
+    SeekPairFirst {} -> False
+    SeekPairSecond {} -> False
     _ -> True
 
 noControlFlowStatement :: NoControlFlowStatement
