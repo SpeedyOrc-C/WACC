@@ -5,6 +5,7 @@ import Prelude hiding (error)
 import qualified Prelude  as P
 import qualified Data.Map as M
 import qualified Data.Set as S
+import qualified Data.List as L
 import qualified Data.List.NonEmpty as NE
 
 import qualified WACC.Syntax.Structure as Syntax
@@ -12,6 +13,8 @@ import           WACC.Semantics.Error
 import           WACC.Semantics.Structure
 import           WACC.Semantics.Utils
 import           WACC.Syntax.Validation
+import Text.Parser (Range)
+import Data.Traversable (for)
 
 class CheckSemantics syntaxTree result
     | syntaxTree -> result, result -> syntaxTree where
@@ -59,6 +62,22 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                     getCommonTypes commonType [] = Ok
                         (Array commonType, LiteralArray commonType expressions)
                         where expressions = snd <$> typesAndExpressions
+        -- the case of struct.field
+        Syntax.Field (struct, Syntax.Name fieldName fieldRange) range -> do
+            let structRange = expressionRange struct
+            (expType, struct') <- check state struct
+            case expType of
+                (Struct structName) -> do
+                    let structure = M.lookup structName (structures state)
+                    case structure of
+                        Nothing -> Log [SemanticError range $ UndefinedStructure structName]
+                        Just (Structure _ variables) -> do
+                            let fieldType = L.lookup fieldName variables
+                            case fieldType of
+                                Nothing -> Log [SemanticError fieldRange 
+                                    $ UndefinedField structName fieldName]
+                                Just x  -> Ok (x, Field x struct' fieldName)
+                _ -> Log [SemanticError structRange ShouldBeStruct]
 
         -- the case of array[index]
         Syntax.ArrayElement (array, index) _ -> do
@@ -79,7 +98,6 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 -- if index type is not compatible to int
                 Log [SemanticError (expressionRange index) $
                         InvalidIndex indexType]
-
         -- case of newpair
         Syntax.LiteralPair (left, right) _ -> do
             -- using check to get the type of left and right
@@ -238,12 +256,14 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
 instance CheckSemantics Syntax.Statement Statement where
     check state = \case
         -- firstly use fromSyntaxType to the type of the declare
-        Syntax.Declare (fromSyntaxType -> declaredType, name, value) range
-            -> case check state value of
-            Ok (computedType, newValue) ->
-                -- if the type at the right hand side can be compatible to the left
-                -- hand side, then it is fine else return error
-                if (isLiter value && (declaredType <? computedType))
+        Syntax.Declare (t, name, value) range
+            -> do 
+            declaredType <- fromSyntaxType state t
+            case check state value of
+                Ok (computedType, newValue) ->
+                    -- if the type at the right hand side can be compatible to the left
+                    -- hand side, then it is fine else return error
+                    if (isLiter value && (declaredType <? computedType))
                       || (declaredType <| computedType)
                     -- the name of the identifier must not appear in the inner most layer
                     -- of the stack of variable tables
@@ -258,7 +278,7 @@ instance CheckSemantics Syntax.Statement Statement where
                     else Log [SemanticError range $
                             IncompatibleAssignment declaredType computedType]
 
-            Log x -> Log x
+                Log x -> Log x
 
         Syntax.Assign (left, right) _ -> do
             ((leftType, left'), (rightType, right')) <-
@@ -354,16 +374,17 @@ instance CheckSemantics [Syntax.Statement] Block where
     check state = \case
         [] -> Ok $ Block []
 
-        (s@(Syntax.Declare (fromSyntaxType -> declaredType, name, _) range) : ss) ->
+        (s@(Syntax.Declare (t, name, _) range) : ss) -> do
+            declaredType <- fromSyntaxType state t
             let state' = state {
                 mappingStack = case mappingStack state of
                     m : ms -> M.insert name (range, declaredType) m : ms
                     _ -> P.error "Mapping stack is empty."
                 }
-            in
-            (\s' (Block ss') -> Block (s' : ss'))
-            <$> check state s
-            <*> check state' ss
+                in
+                (\s' (Block ss') -> Block (s' : ss'))
+                <$> check state s
+                <*> check state' ss
 
         (Syntax.Skip {} : ss) -> check state ss
 
@@ -382,28 +403,46 @@ findRepetition entries =
     where
     groups = NE.groupBy (\x y -> fst x == fst y) entries
 
+checkRepeat :: forall k a. (Ord k, Eq a) => 
+    [(k, (Range, a))] 
+    -> (k ->  WaccSemanticsErrorType) 
+    -> LogEither SemanticError [(k,(Range, a))]
+checkRepeat xs err = do
+    -- Find repeated parameter definitions.
+    let (maybeRepeated, result) =
+            findRepetition xs
+
+    case maybeRepeated of
+        [] -> Ok ()
+         -- Any of two parameters cannot have identical names.
+        paramsRepeated -> Log
+            [SemanticError range $ err key
+                | (key, (range, _)) <- paramsRepeated]
+    return result
+
+checkFieldParameters :: 
+    [(Syntax.Name, Syntax.Type)] 
+    -> CheckerState 
+    -> (String -> WaccSemanticsErrorType) 
+    -> LogEither SemanticError [(String, (Range, Type))]
+checkFieldParameters xs state repeatError 
+    = do
+        xsWithRange <- for xs (\(Syntax.Name param range, t) -> do
+                t'  <- fromSyntaxType state t
+                return (param, (range, t'))
+            )
+        xsNoRepeat <- checkRepeat xsWithRange repeatError
+        Ok xsNoRepeat
+
 instance CheckSemantics Syntax.Function Function where
     check state (Syntax.Function
-                    (fromSyntaxType -> returnType,
+                    (rt,
                     Syntax.Name functionName _,
                     params,
                     body)
                 _) = do
-        let paramsWithRange = [(param, (range, fromSyntaxType t))
-                                | (Syntax.Name param range, t) <- params]
-
-        -- Find repeated parameter definitions.
-        let (maybeParamsRepeated, paramsNoRepeat) =
-                findRepetition paramsWithRange
-
-        case maybeParamsRepeated of
-            [] -> Ok ()
-            -- Any of two parameters cannot have identical names.
-            paramsRepeated -> Log
-                [SemanticError range $ RedefinedParameter name
-                    | (name, (range, _)) <- paramsRepeated]
-
-        let paramsMapping = paramsNoRepeat
+        returnType <- fromSyntaxType state rt
+        paramsMapping <- checkFieldParameters params state RedefinedParameter 
 
         let state' = state {
                 mappingStack =
@@ -424,26 +463,41 @@ instance CheckSemantics Syntax.Function Function where
 
         Function returnType functionName paramsMappingWithoutRange <$> body'
 
+instance CheckSemantics Syntax.Structure Structure where
+    check state (Syntax.Structure (Syntax.Name structureName _, fields) _) = do
+        (map (\(x,(_,z)) -> (x,z)) -> fieldsMapping) 
+            <- checkFieldParameters fields state (RedefinedField structureName)
+        return $ Structure structureName fieldsMapping
+
+checkStructure :: CheckerState -> [Syntax.Structure] -> LogEither SemanticError ([(String, (Range, Structure))], CheckerState)
+checkStructure state [] = Ok ([], state)
+checkStructure state (s@(Syntax.Structure (Syntax.Name name _, _) range):ss) = do
+    s' <- check state s
+    let sMap   = structures state
+        state' = state{
+            structures = M.insert name s' sMap
+        }
+    (ss', state'') <- checkStructure state' ss
+    return ((name, (range, s')):ss', state'')
+
+
 instance CheckSemantics Syntax.Program Program where
-    check state (Syntax.Program (functions, body) _) = do
-        let functionsWithRange = [(name, (range, (paramsTypes, returnType)))
-                | Syntax.Function (
-                    fromSyntaxType -> returnType,
+    check state'' (Syntax.Program (structures, functions, body) _) = do
+        (structures', state) <- checkStructure state'' structures
+
+        functionsWithRange <- 
+            for functions (\(Syntax.Function (
+                    returnType,
                     Syntax.Name name range,
-                    map (fromSyntaxType . snd) -> paramsTypes,
+                    paramsTypes,
                     _
-                    ) _ <- functions]
+                    ) _ ) -> do
+                    returnType' <- fromSyntaxType state returnType
+                    paramsTypes' <- for paramsTypes (fromSyntaxType state. snd)
+                    return (name, (range, (paramsTypes', returnType'))))
 
-        -- Find repeated function definitions.
-        let (maybeFunctionsRepeated, functionsNoRepeat) =
-                findRepetition functionsWithRange
-
-        case maybeFunctionsRepeated of
-            [] -> Ok ()
-            -- Any of two functions cannot have identical names.
-            functionsRepeated -> Log
-                [SemanticError range $ RedefinedFunction name
-                    | (name, range) <- (fst <$>) <$> functionsRepeated]
+        structures'' <- checkRepeat structures' RedefinedStruct
+        functionsNoRepeat <- checkRepeat functionsWithRange RedefinedFunction
 
         let state' = state {
                 -- In both main program and functions' body
@@ -451,10 +505,11 @@ instance CheckSemantics Syntax.Program Program where
                 functionMapping = M.fromList ((snd <$>) <$> functionsNoRepeat)
             }
         let functions' = S.fromList <$> check state' `mapM` functions
+        let structures''' = S.fromList $ map (snd.snd) structures''
         let body'      =                check state'        body
 
-        Program <$> functions' <*> body'
+        Program <$> Ok structures''' <*> functions' <*> body'
 
 checkProgram :: CheckSemantics syntaxTree result
     => syntaxTree -> LogEither SemanticError result
-checkProgram = check $ CheckerState Nothing M.empty [M.empty]
+checkProgram = check $ CheckerState Nothing M.empty [M.empty] M.empty
