@@ -59,6 +59,9 @@ scalar = \case
 
     _ -> return Nothing
 
+waccMod :: Int -> Int -> Int
+waccMod x y = signum x * (abs x `mod` abs y)
+
 expression :: Expression -> State PropagatorState (Maybe Int)
 expression = \case
     Scalar s -> scalar s
@@ -74,7 +77,7 @@ expression = \case
             (\x y -> let n = x * y in intLowerBound <= n && n <= intUpperBound)
 
     Divide a b -> evaluateBinary' a b div (\_ y -> y /= 0)
-    Remainder a b -> evaluateBinary' a b mod (\_ y -> y /= 0)
+    Remainder a b -> evaluateBinary' a b waccMod (\_ y -> y /= 0)
 
     Greater      _ a b -> evaluateBinary a b (\x y -> if x > y  then 1 else 0)
     GreaterEqual _ a b -> evaluateBinary a b (\x y -> if x >= y then 1 else 0)
