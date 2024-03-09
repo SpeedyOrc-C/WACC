@@ -19,7 +19,7 @@ reducible = \case
     Call {} -> False
     ReadInt -> False
     ReadChar {} -> False
-    Character (Immediate n) -> 0 <= n && n <= 255
+    Character (Immediate n) -> 0 <= n && n <= 127
     Divide _ (Immediate 0) -> False
     Remainder _ (Immediate 0) -> False
     SeekPairFirst {} -> False
