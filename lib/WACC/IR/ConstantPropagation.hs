@@ -64,7 +64,7 @@ expression = \case
     Scalar s -> scalar s
 
     Order e -> scalar e
-    Character c -> evaluateUnary' c fromEnum (\x -> 0 <= x && x <= 255)
+    Character c -> evaluateUnary' c fromEnum (\x -> 0 <= x && x <= 127)
 
     Add a b -> evaluateBinary' a b (+)
             (\x y -> let n = x + y in intLowerBound <= n && n <= intUpperBound)
