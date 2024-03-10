@@ -752,7 +752,7 @@ function cfg (IR.Function name parameters statements) = do
     statements' <- instructions cfg statements
 
     stainedCalleeSaveRegs <- gets stainedCalleeSaveRegs
-    maxStackSize <- gets maxStackSize
+    (ceil16 -> maxStackSize) <- gets maxStackSize
 
     let needAlignStack = odd $ length stainedCalleeSaveRegs
     let maybeAlignDownRSP = if needAlignStack then downRSP 8 else Sq.empty
