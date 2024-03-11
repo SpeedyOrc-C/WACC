@@ -6,6 +6,7 @@ import qualified Data.Set as S
 import qualified Data.Sequence as Sq
 import Data.Sequence (Seq)
 import WACC.IR.Structure (Size(..), HasSize (..))
+import qualified WACC.IR.Structure as IR
 
 {- A program is made up of a list of instructions. -}
 newtype Program = Program {
@@ -35,6 +36,37 @@ move _ from@(Register _) to = return $ Move from to
 move _ from@(MemoryIndirect (Just (ImmediateLabel _)) (RIP, B8) Nothing) to =
     loadAddress from to
 move _ from to@(Register _) = return $ Move from to
+move (B size) from@(MemoryIndirect {}) to@(MemoryIndirect {}) =
+
+    Sq.fromList $ concat [[ Move (addToIndirect from off) (Register (RAX, x))
+        , Move (Register (RAX, x)) (addToIndirect from off)]| (x, off) <- 
+            sizes `zip` scanl (+) 0 (map IR.sizeToInt sizes)]
+        where 
+            (n, m) = size `divMod` 8
+            n' = n + if m == 0 then 0 else 1
+            sizes = replicate (n' - 1) B8 ++(getSizeHelper (size -(n' - 1) * 8) 8)
+            intToSize     :: Int -> Size
+            intToSize 1 = B1
+            intToSize 2 = B2
+            intToSize 4 = B4
+            intToSize 8 = B8
+            intToSize x = B x
+            getSizeHelper :: Int -> Int -> [Size]
+            getSizeHelper _ 0 
+                = error "should pass in size of smaller than 8 bytes in"
+            getSizeHelper 0 _
+                = []
+            getSizeHelper x s
+                |x >= s = intToSize s: getSizeHelper (x - s) (s `div` 2)
+                |otherwise = getSizeHelper x (s `div` 2)
+            
+            addToIndirect :: Operand -> Int -> Operand
+            addToIndirect (MemoryIndirect Nothing x y) z 
+                = MemoryIndirect (Just $ ImmediateInt z) x y
+            addToIndirect (MemoryIndirect (Just (ImmediateInt h)) x y) z 
+                = MemoryIndirect (Just $ ImmediateInt (h+z)) x y
+            addToIndirect _ _
+                = error "tried to add to an non indirect address"
 move size from@(MemoryIndirect {}) to@(MemoryIndirect {}) =
     Sq.fromList [ Move from (Register (RAX, size))
     , Move (Register (RAX, size)) to]
