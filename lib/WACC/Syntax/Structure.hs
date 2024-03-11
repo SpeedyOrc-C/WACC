@@ -2,12 +2,15 @@ module WACC.Syntax.Structure where
 
 import Text.Parser ( Range )
 
-data Program = Program ([Function], [Statement]) Range
+data Program = Program ([Structure], [Function], [Statement]) Range
     deriving Show
 
 {- Defines Function to include a return type, a function name, a list of
   parameters, and a list of statements. -}
 data Function = Function (Type, Name, [(Name, Type)], [Statement]) Range
+    deriving Show
+
+data Structure = Structure (Name, [(Name, Type)]) Range
     deriving Show
 
 data Name = Name String Range deriving (Show, Eq)
@@ -34,6 +37,7 @@ data Type
     | String () Range
     | Array Type Range
     | Pair (Maybe (Type, Type)) Range
+    | Struct String Range
     deriving (Show, Eq)
 
 -- Unary operators have one operand.
@@ -51,6 +55,8 @@ data Expression
     | LiteralArray [Expression] Range
     | LiteralPair (Expression, Expression) Range
     | LiteralPairNull () Range
+    | Field (Expression, Name) Range
+    | NewStruct Range
     | ArrayElement (Expression, Expression) Range
     | Not Unary Range
     | Negate Unary Range

@@ -61,8 +61,8 @@ allocate cfg var size = do
     stackPool <- gets stackPool
     stainedCalleeSaveRegs <- gets stainedCalleeSaveRegs
     maxStackSize <- gets maxStackSize
-
-    if S.size registerPool < S.size (availableRegisters cfg) then do
+    if (case size of (B _) -> False; _ -> True) 
+        && S.size registerPool < S.size (availableRegisters cfg) then do
         -- There are free registers.
         let freeRegisters = availableRegisters cfg S.\\ registerPool
         let freeRegister = minimumBy (compare `on` rankRegister cfg) $ S.toList freeRegisters
@@ -257,7 +257,11 @@ expression cfg = \case
         op <- scalar s
         let size = IR.getSize op
         return $ move size op (Register (RAX, IR.getSize op))
-
+    IR.GetField num s -> do
+        op <- scalar s
+        return $ Sq.fromList
+            [ Add (Immediate $ ImmediateInt num) op] 
+                >< move B8 op (Register (RAX, B8))
     IR.Not s -> do
         op <- scalar s
         return $ Sq.fromList
@@ -598,7 +602,7 @@ singleStatement cfg = \case
                 to' <- operandFromMemoryLocation location
                 return $ evaluate >< move size (Register (RAX, size)) to'
 
-            Nothing -> do
+            Nothing -> do        
                 location <- allocate cfg to size
                 to' <- operandFromMemoryLocation location
                 return $ evaluate >< move size (Register (RAX, size)) to'

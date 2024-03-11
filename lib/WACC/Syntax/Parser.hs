@@ -215,22 +215,36 @@ expressionBase = asum [
     expressionFunctionCall
     ]
 
+indexOperator' :: WaccParser (Range, a) 
+    -> ((Expression, a)-> Range -> Expression) 
+    -> WaccParser Expression -> WaccParser Expression
+indexOperator' doblock type'' higherParser
+    = do
+    ((from, _), array) <- getRangeA higherParser
+    ss <- many $ do doblock
+    let mergeElement x ((_, to), y) = type'' (x, y) (from, to)
+    return $ foldl mergeElement array ss
+
 {- It takes a parser as parameter to parse the array expression.
    Then, it iteratively parses indices inside square brackets. -}
 indexOperator :: WaccParser Expression -> WaccParser Expression
-indexOperator higherParser = do
-    ((from, _), array) <- getRangeA higherParser
-    indices <- many $ do
+indexOperator higherParser = asum [
+    indexOperator' (do
         _     <- many white
         _     <- char '['
         index <- getRangeA $ surroundManyWhites expression `syntaxError`
                     ExpectIndexInBracket
         _     <- char ']' `syntaxError` UnmatchedSquareBracket
-        return index
-
-    let mergeArrayElement x ((_, to), y) = ArrayElement (x, y) (from, to)
-
-    return $ foldl mergeArrayElement array indices
+        return index)
+        ArrayElement
+        higherParser,
+    indexOperator' (do
+        _ <- surroundManyWhites (char '.')
+        getRangeA name
+        )
+        Field
+        higherParser
+    ]
 
 {- It is a parser which parse an array element. -}
 expressionArrayElement :: WaccParser Expression
@@ -495,6 +509,12 @@ typeChar = Char ~ void (str "char")
 typeString :: WaccParser Type
 typeString = String ~ void (str "string")
 
+typeStructure :: WaccParser Type
+typeStructure = Struct ~ do
+    _ <- str "struct"
+    _ <- some white
+    identifierString `syntaxError` ExpectIdentifierInStruct
+
 {- It is a parser which parses a pair type. -}
 typePair :: WaccParser Type
 typePair = Pair ~ do
@@ -516,7 +536,8 @@ baseType = asum [
     typeBool,
     typeChar,
     typeString,
-    typePair
+    typePair,
+    typeStructure
     ]
 
 {- It is a parser which parses an array type. -}
@@ -562,6 +583,13 @@ statementAssign = Assign ~ do
     right <- rightValue
     return (left, right)
 
+statementNewStructure = Declare ~ do
+    _ <- str "struct" *> some white
+    name <- identifierString <* some white
+    n     <- identifierString `syntaxError` ExpectIdentifierInStructInitialization
+    return (Struct name (0,0), n, NewStruct (0,0))
+
+
 {- It is a parser which parses different kinds of statements,
    it will try each statement parser in the list. -}
 statement :: WaccParser Statement
@@ -577,6 +605,7 @@ statement = asum [
     statementWhile,
     statementScope,
     statementDeclare,
+
     statementAssign
     ] `syntaxError` ExpectOneStatement
 
@@ -645,12 +674,31 @@ function = Function ~ do
                 Just {} ->
                     return (t, n, if null parameters then [] else fromJust parameters, body)
 
+structField :: WaccParser (Name, Type)
+structField = do
+    t <- type' <* some white
+    n <- name
+    return (n, t)
+
+structure :: WaccParser Structure
+structure = Structure ~ do
+    _      <- str "struct" <* some white
+    n@(Name name' _)
+            <- name `syntaxError` ExpectIdentifierInStruct
+    _       <- str "is" <* some white
+    fields  <- (structField `syntaxError` ExpectOneField name') 
+                `separatedBy` statementSep 
+    _       <- many white
+    _       <- str "end" `syntaxError` ExpectFunctionEnd
+    return (n, fields)
+
 {- It is a parser which parses a program with a 'begin' statement
    at the beginning and an 'end' statement at the end. -}
-program' :: WaccParser ([Function], [Statement])
+program' :: WaccParser ([Structure], [Function], [Statement])
 program' = do
     _         <- surroundManyWhites (str "begin" `syntaxError`
                                      ExpectProgramBegin)
+    structures <- optional $ structure `separatedBy` many white
     functions <- optional $ function `separatedBy` many white
     _         <- many white
     body      <- statements
@@ -668,7 +716,8 @@ program' = do
             failWith (const $ SyntaxError
                 (inputPosition trailingFunctionPosition) MainTrailingFunctions)
         Nothing ->
-            return (if null functions then [] else fromJust functions, body)
+            return (if null structures then [] else fromJust structures, 
+                if null functions then [] else fromJust functions, body)
 
 {- It is a parser which parses a program and
    detects any code after the 'end' statement. -}

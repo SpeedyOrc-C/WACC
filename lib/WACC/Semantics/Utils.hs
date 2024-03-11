@@ -4,8 +4,8 @@ import qualified Data.Map as M
 
 import qualified WACC.Syntax.Structure as Syntax
 import Text.Parser (Range)
-import WACC.Semantics.Error (WaccSemanticsErrorType)
-import WACC.Semantics.Structure (Type (..))
+import WACC.Semantics.Error (WaccSemanticsErrorType (UndefinedStructure))
+import WACC.Semantics.Structure (Type (..), Structure)
 
 data SemanticError = SemanticError Range WaccSemanticsErrorType
 
@@ -52,7 +52,8 @@ data CheckerState = CheckerState {
     -- All functions' types of parameters and return value
     functionMapping :: String `M.Map` ([Type], Type),
     -- All variables' types and where they are declared
-    mappingStack :: [String `M.Map` (Range, Type)]
+    mappingStack :: [String `M.Map` (Range, Type)],
+    structures :: String `M.Map` Structure
 }
 
 addScope :: CheckerState -> CheckerState
@@ -112,15 +113,25 @@ isPair :: Type -> Bool
 isPair (Pair(_, _)) = True
 isPair _            = False
 
-fromSyntaxType :: Syntax.Type -> Type
-fromSyntaxType = \case
-    Syntax.Int {}               -> Int
-    Syntax.Bool {}              -> Bool
-    Syntax.Char {}              -> Char
-    Syntax.String {}            -> String
-    Syntax.Array t _            -> Array (fromSyntaxType t)
-    Syntax.Pair Nothing _       -> Pair (Any, Any)
-    Syntax.Pair (Just (a, b)) _ -> Pair (fromSyntaxType a, fromSyntaxType b)
+fromSyntaxType :: CheckerState -> Syntax.Type -> LogEither SemanticError Type
+fromSyntaxType state = \case
+    Syntax.Int {}               -> Ok Int
+    Syntax.Bool {}              -> Ok Bool
+    Syntax.Char {}              -> Ok Char
+    Syntax.String {}            -> Ok String
+    Syntax.Array t _            -> do 
+        t' <- fromSyntaxType state t
+        Ok (Array t')
+    Syntax.Pair Nothing _       -> Ok (Pair (Any, Any))
+    Syntax.Pair (Just (a, b)) _ -> do
+        a' <- fromSyntaxType state a
+        b' <- fromSyntaxType state b
+        Ok (Pair (a', b'))
+    Syntax.Struct str range -> do
+        let structures' = structures state
+        case M.lookup str structures' of
+            Nothing -> Log [SemanticError range (UndefinedStructure str)]
+            _ -> return (Struct str)
 
 -- | Given that two types are compatible with each other,
 --   find the common type between two types. This can find the type of an array.

@@ -2,17 +2,25 @@
 module WACC.Semantics.Structure where
 
 import Data.Set (Set)
+import Text.Parser (Range)
 
 {-
 All constructors no longer have a range, as they're only needed in
 syntactic and semantic analysis.
 -}
 
-data Program = Program (Set Function) Block
+data Program = Program (Set Structure) (Set Function) Block
     deriving Show
 
 data Function = Function Type String [(String, Type)] Block
     deriving (Show, Eq)
+
+data Structure = Structure String [(String, Type)]
+    deriving (Show, Eq)
+
+instance Ord Structure where
+    Structure name1 _ `compare` Structure name2 _ =
+        name1 `compare` name2
 
 instance Ord Function where
     Function _ name1 _ _ `compare` Function _ name2 _ _ =
@@ -60,6 +68,7 @@ data Type
     | String
     | Array Type
     | Pair (Type, Type)
+    | Struct String
     deriving Eq
 
 instance Show Type where
@@ -71,6 +80,7 @@ instance Show Type where
         String -> "string"
         Array t -> show t ++ "[]"
         Pair (a, b) -> "pair(" ++ show a ++ ", " ++ show b ++ ")"
+        Struct str -> "struct " ++ str
 
 data ComparisonType = CompareChar | CompareInt deriving (Show, Eq)
 
@@ -84,6 +94,8 @@ data Expression
     | LiteralPair (Type, Type) (Expression, Expression)
     | LiteralPairNull
 
+    | NewStruct
+    | Field Type Expression String 
     | ArrayElement Type Expression Expression
 
     | Not Expression

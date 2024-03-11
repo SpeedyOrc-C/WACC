@@ -5,18 +5,18 @@ import Data.Functor.Identity
 
 import WACC.IR.Structure
 
-{- This FlattenerState is different from that in FlattenExpression.hs -}
-newtype FlattenerState = FlattenerState { labelCounter :: Int }
+{- This FlattenerState' is different from that in FlattenExpression.hs -}
+newtype FlattenerState' = FlattenerState' { labelCounter :: Int }
 
-initialState :: FlattenerState
-initialState = FlattenerState { labelCounter = 1 }
+initialState' :: FlattenerState'
+initialState' = FlattenerState' { labelCounter = 1 }
 
-newLabel :: State FlattenerState String
+newLabel :: State FlattenerState' String
 newLabel = state $ \s ->
     (show (labelCounter s), s {labelCounter = labelCounter s + 1})
 
 noExpressionStatement ::
-    NoExpressionStatement -> State FlattenerState [NoControlFlowStatement]
+    NoExpressionStatement -> State FlattenerState' [NoControlFlowStatement]
 noExpressionStatement = \case
     NE statement ->
         return [NCF statement]
@@ -49,27 +49,27 @@ noExpressionStatement = \case
             [WhileReference $ referencedFreeVariables info]
 
 noExpressionStatements ::
-    [NoExpressionStatement] -> State FlattenerState [NoControlFlowStatement]
+    [NoExpressionStatement] -> State FlattenerState' [NoControlFlowStatement]
 noExpressionStatements xs = concat <$> traverse noExpressionStatement xs
 
 functionNoExpressionStatement ::
     Function NoExpressionStatement
-    -> State FlattenerState (Function NoControlFlowStatement)
+    -> State FlattenerState' (Function NoControlFlowStatement)
 functionNoExpressionStatement (Function name params statements) =
     Function name params <$> noExpressionStatements statements
 
 functionsNoExpressionStatement ::
     [Function NoExpressionStatement]
-    -> State FlattenerState [Function NoControlFlowStatement]
+    -> State FlattenerState' [Function NoControlFlowStatement]
 functionsNoExpressionStatement = traverse functionNoExpressionStatement
 
 programNoExpressionStatement ::
     Program NoExpressionStatement
-    -> State FlattenerState (Program NoControlFlowStatement)
+    -> State FlattenerState' (Program NoControlFlowStatement)
 programNoExpressionStatement (Program dataSegment functions) =
     Program dataSegment <$> functionsNoExpressionStatement functions
 
 flattenControlFlow ::
     Program NoExpressionStatement -> Program NoControlFlowStatement
 flattenControlFlow program = runIdentity $ evalStateT
-    (programNoExpressionStatement program) initialState
+    (programNoExpressionStatement program) initialState'

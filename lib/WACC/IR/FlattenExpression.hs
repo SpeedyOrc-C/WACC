@@ -16,18 +16,6 @@ lookUp :: Ord k => k -> [M.Map k a] -> a
 lookUp _ [] = error "Semantic check has failed!"
 lookUp k (m:ms) = lookUp k ms `fromMaybe` (m M.!? k)
 
-data FlattenerState = FlattenerState {
-    mappingStack :: [String `M.Map` Identifier],
-    variableCounter :: Int,
-    dataSegment :: String `M.Map` Int
-} deriving Show
-
-initialState :: String `M.Map` Int -> FlattenerState
-initialState ds = FlattenerState {
-    mappingStack = [],
-    variableCounter = M.size ds + 1,
-    dataSegment = ds
-}
 
 nextVariable :: FlattenerState -> FlattenerState
 nextVariable s = s { variableCounter = variableCounter s + 1 }
@@ -74,45 +62,52 @@ expression = \case
     SM.LiteralString str -> do
         number <- gets $ (M.! str) . dataSegment
         return (String number, [])
-
+    SM.NewStruct -> do
+        tmp <- newTemporary
+        return (Variable tmp, [])
     SM.LiteralArray t xs -> do
         (scalars, evaluate) <- expressions xs
         tmp <- newTemporary
+        t' <- getSize' t
         return (Variable tmp,
             evaluate ++
-            [Assign B8 tmp (NewArray (getSize t) scalars)])
-
+            [Assign B8 tmp (NewArray t' scalars)])
+    
     e@(SM.ArrayElement t _ _) -> do
         (result, evaluate) <- indirectExpression e
         tmp <- newTemporary
+        t'  <- getSize' t
         return (Variable tmp,
             evaluate ++
-            [Assign (getSize t) tmp (Dereference (getSize t) result)])
+            [Assign t' tmp (Dereference t' result)])
 
     SM.LiteralPairNull ->
         return (Immediate 0, [])
-
-    SM.LiteralPair (getSize -> sizeA, getSize -> sizeB) (a, b) -> do
+    SM.LiteralPair (sizeA, sizeB) (a, b) -> do
         (a', evaluateA) <- expression a
         (b', evaluateB) <- expression b
         tmp <- newTemporary
+        sizeA' <- getSize' sizeA
+        sizeB' <- getSize' sizeB
         return (Variable tmp,
             evaluateA ++ evaluateB ++
-            [Assign B8 tmp (NewPair (sizeA, sizeB) (a', b'))])
+            [Assign B8 tmp (NewPair (sizeA', sizeB') (a', b'))])
 
     e@(SM.PairFirst t _) -> do
         (pair, evaluatePair) <- indirectExpression e
         tmp <- newTemporary
+        t'  <- getSize' t
         return (Variable tmp,
             evaluatePair ++
-            [Assign (getSize t) tmp (Dereference (getSize t) pair)])
-
+            [Assign t' tmp (Dereference t' pair)])
+    
     e@(SM.PairSecond t _) -> do
         (pair, evaluatePair) <- indirectExpression e
         tmp <- newTemporary
+        t' <- getSize' t
         return (Variable tmp,
             evaluatePair ++
-            [Assign (getSize t) tmp (Dereference (getSize t) pair)])
+            [Assign t' tmp (Dereference t' pair)])
 
     SM.Not       e -> unary B1 Not       e
     SM.Negate    e -> binary B4 Subtract (SM.LiteralInt 0) e
@@ -135,20 +130,41 @@ expression = \case
     SM.GreaterEqual SM.CompareChar a b -> binary B1 (GreaterEqual B1) a b
     SM.Less         SM.CompareChar a b -> binary B1 (Less         B1) a b
     SM.LessEqual    SM.CompareChar a b -> binary B1 (LessEqual    B1) a b
-
-    SM.Equal    t a b -> binary B1 (Equal    (getSize t)) a b
-    SM.NotEqual t a b -> binary B1 (NotEqual (getSize t)) a b
-
+    SM.Field    (SM.Struct structName) op name' -> do
+        (op', evaluateOp) <- expression op
+        tmp <- newTemporary
+        structures <- gets structures
+        let
+            struct = M.lookup structName structures
+        case struct of
+            (Just (Structure _ _ struct')) -> do
+                let field = M.lookup name' struct'
+                case field of
+                    (Just (offset, s)) -> return (Variable tmp,
+                        evaluateOp ++ [Assign s tmp (GetField offset op')])
+                    Nothing           ->error "Unfound field after semantic check"
+            _ -> error "Unfound struct after semantic check"
+    SM.Field {} -> error "Should not happen try to find the field of\
+    \ nonstruct type after semantic check"
+    SM.Equal    t a b -> do
+        t' <- getSize' t
+        binary B1 (Equal  t') a b
+    SM.NotEqual t a b -> do
+        t' <- getSize' t
+        binary B1 (NotEqual t') a b
+    
     SM.And a b -> binary B1 And a b
     SM.Or  a b -> binary B1 Or  a b
 
     SM.FunctionCall t f (unzip -> (ts, args)) -> do
         (scalars, evaluate) <- expressions args
         tmp <- newTemporary
+        t' <- getSize' t
+        ts' <-forM ts (\z ->do getSize' z)
         return (Variable tmp,
             evaluate ++
-            [Assign (getSize t) tmp (Call (getSize t) ("fn_" ++ f)
-            ((getSize <$> ts) `zip` scalars))])
+            [Assign t' tmp (Call t' ("fn_" ++ f)
+            (ts' `zip` scalars))])
     where
     unary :: Size -> (Scalar -> Expression) -> SM.Expression
                 -> State FlattenerState (Scalar, [SingleStatement])
@@ -177,20 +193,22 @@ indirectExpression = \case
         (index', evaluateIndex) <- expression index
         (array', evaluateElementAddress) <- indirectExpression array
         tmp <- newTemporary
+        t' <- getSize' t
         return (Variable tmp,
             evaluateIndex ++ evaluateElementAddress ++
-            [Assign B8 tmp (SeekArrayElement (getSize t) array' index')])
+            [Assign B8 tmp (SeekArrayElement t' array' index')])
 
     SM.ArrayElement t array index -> do
         (index', evaluateIndex) <- expression index
         (array', evaluateElementAddress) <- indirectExpression array
         value <- newTemporary
         tmp <- newTemporary
+        t' <- getSize' t
         return (Variable tmp,
             evaluateIndex ++ evaluateElementAddress ++
             [ Assign B8 value (Dereference B8 array')
             , Assign B8 tmp
-                (SeekArrayElement (getSize t) (Variable value) index')])
+                (SeekArrayElement t' (Variable value) index')])
 
     SM.PairFirst _ pair@(SM.Identifier {}) -> do
         (pair', evaluatePair) <- indirectExpression pair
@@ -235,21 +253,24 @@ statement = \case
             mappingStack = M.insert name identifier
                 (head (mappingStack s)) : tail (mappingStack s)
         }
+        t' <- getSize' t
         return $ map NE evaluation ++
-            [NE $ Assign (getSize t) identifier (Scalar result)]
+            [NE $ Assign t' identifier (Scalar result)]
 
     SM.Assign _ (SM.Identifier t name) rightValue -> do
         identifier <- gets $ lookUp name . mappingStack
         (result, evaluation) <- expression rightValue
+        t' <- getSize' t
         return $ map NE evaluation ++
-            [NE $ Assign (getSize t) identifier (Scalar result)]
+            [NE $ Assign t' identifier (Scalar result)]
 
     SM.Assign t leftValue rightValue -> do
         (result, evaluateRight) <- expression rightValue
         (scalar, evaluateLeft) <- indirectExpression leftValue
+        t' <- getSize' t
         let Variable identifier = scalar
         return $ map NE evaluateRight ++ map NE evaluateLeft ++
-            [NE $ AssignIndirect (getSize t) identifier (Scalar result)]
+            [NE $ AssignIndirect t' identifier (Scalar result)]
 
     SM.If condition thenClause elseClause -> do
         (condition', evaluateCondition) <- expression condition
@@ -284,8 +305,9 @@ statement = \case
 
     SM.Return t e -> do
         (result, evaluateExpression) <- expression e
+        t' <- getSize' t
         return $ map NE evaluateExpression ++
-            [NE $ Return (getSize t) result]
+            [NE $ Return t' result]
 
     SM.Exit e -> do
         (result, evaluateExpression) <- expression e
@@ -305,13 +327,15 @@ statement = \case
     SM.Read _ ident@(SM.Identifier t name) -> do
         var <- gets $ lookUp name . mappingStack
         (ident', _) <- expression ident
-        return [NE $ Assign (getSize t) var (readByType ident' t)]
+        t' <- getSize' t
+        return [NE $ Assign t' var (readByType ident' t)]
 
     SM.Read t e -> do
         (scalar, evaluateExpression) <- indirectExpression e
+        t' <- getSize' t
         let Variable identifier = scalar
         return $ map NE evaluateExpression ++
-            [NE $ AssignIndirect (getSize t) identifier (readByType scalar t)]
+            [NE $ AssignIndirect t' identifier (readByType scalar t)]
 
     SM.Free SM.Array {} e -> do
         (scalar, evaluateExpression) <- indirectExpression e
@@ -366,7 +390,7 @@ instance HasReference Expression where
     reference :: Expression -> S.Set Identifier
     reference = \case
         Scalar s -> reference s
-
+        GetField _ s -> reference s
         Not a -> reference a
         Length a -> reference a
         Order a -> reference a
@@ -443,19 +467,20 @@ function (SM.Function _ functionName params@(unzip -> (names, types)) b) = do
 
     (map fst -> identifiers) <- forM params $ \(name, t) -> do
         identifier <- newParameter name
-        return (identifier, getSize t)
+        return (identifier, getSize' t)
 
     modify $ \s -> s {
         mappingStack = M.fromList (names `zip` identifiers) : mappingStack s
     }
 
     b' <- block b
+    ts' <- forM types (\x -> do getSize' x) 
 
     put oldState
 
     return $ Function
         functionName
-        (identifiers `zip` map getSize types)
+        (identifiers `zip` ts')
         b'
 
 functions :: [SM.Function] -> State FlattenerState
@@ -463,7 +488,7 @@ functions :: [SM.Function] -> State FlattenerState
 functions = traverse function
 
 program :: SM.Program -> State FlattenerState (Program NoExpressionStatement)
-program (SM.Program fs main) = do
+program (SM.Program _ fs main) = do
     dataSegment <- gets dataSegment
     let allFunctions
             = SM.Function SM.Int "main" [] main
@@ -474,7 +499,7 @@ program (SM.Program fs main) = do
     functions' <- functions allFunctions
     return $ Program dataSegment functions'
 
-flattenExpression :: (String `M.Map` Int, SM.Program) ->
+flattenExpression :: ((String `M.Map` Int, SM.Program), [SM.Structure]) ->
                         Program NoExpressionStatement
-flattenExpression (dataSegment, p) = runIdentity $ evalStateT
-    (program p) (initialState dataSegment)
+flattenExpression ((dataSegment, p),xs) = runIdentity $ evalStateT
+    (program p) (initialState dataSegment xs)

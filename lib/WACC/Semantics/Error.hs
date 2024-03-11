@@ -8,6 +8,9 @@ data OperandDirection = OperandLeft | OperandRight deriving Show
 data WaccSemanticsErrorType
     = UndefinedIdentifier String
     | UndefinedFunction String
+    | UndefinedStructure String
+    | UndefinedField String String
+    | ShouldBeStruct
     | RedefinedIdentifier String Int
     | RedefinedFunction String
     | ArgumentNumberMismatch String Int Int
@@ -15,6 +18,8 @@ data WaccSemanticsErrorType
     | IncompatibleAssignment Type Type
     | IncompatibleArgument Type Type
     | RedefinedParameter String
+    | RedefinedField String String
+    | RedefinedStruct String
     | InvalidRead Type
     | InvalidFree Type
     | InvalidReturn Type Type
@@ -39,14 +44,25 @@ data WaccSemanticsErrorType
 {- Define 'Show' for all kinds of semantic error types. -}
 instance Show WaccSemanticsErrorType where
     show :: WaccSemanticsErrorType -> String
+    show ShouldBeStruct =
+        "Should be a struct type to allow getting field"
     show (UndefinedIdentifier identifier) =
         "Variable \"" ++ identifier ++ "\" is not declared."
     show (UndefinedFunction function) =
         "Function \"" ++ function ++ "\" is not declared."
+    show (UndefinedStructure struct) =
+        "Struct \"" ++ struct ++ "\" is not declared."
+        
+    show (UndefinedField struct field) = 
+        "Field \"" ++ field ++ "\" is not declared in the Struct \"" ++ struct ++ "\"."
     show (RedefinedIdentifier identifier _) =
         "Variable \"" ++ identifier ++ "\" is declared again."
     show (RedefinedFunction function) =
         "Function \"" ++ function ++ "\" is defined again."
+    show (RedefinedStruct struct) =
+        "Struct \"" ++ struct ++ "\" is defined again."
+    show (RedefinedField structure field) =
+        "Field \"" ++ field ++ "\" is defined again at struct " ++ structure ++ "."
     show (ArgumentNumberMismatch name expect actual) =
         "Function \"" ++ name ++ "\" takes " ++ show expect ++
         " argument" ++ (if expect > 1 then "s" else "") ++ ". " ++
