@@ -216,23 +216,13 @@ class HasSize a where
 
 getSize' :: SM.Type -> State FlattenerState Size
 getSize' = \case
-    SM.Bool -> return B1
-    SM.Char -> return B1
-    SM.Int -> return B4
-    SM.String -> return B8
-    SM.Array {} -> return B8
-    SM.Pair {} -> return B8
-    -- will happen when left hand side is type of Any
-    -- and right hand side being []
-    SM.Any -> return B1
-    (SM.Struct str) -> do
+    SM.Struct name -> do
         structures <- gets structures
-        let struct = M.lookup str structures
-        case struct of
-            (Just (Structure _ size _)) -> return $ B size
-            _
-                -> error "(should never happen) cannot find structure"
+        case structures M.!? name of
+            Just (Structure _ size _) -> return $ B size
+            _ -> error "(should never happen) cannot find structure"
 
+    t -> return $ getSize t
 
 instance HasSize SM.Type where
     getSize :: SM.Type -> Size

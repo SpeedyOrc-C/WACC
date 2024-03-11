@@ -14,13 +14,9 @@ import WACC.IR.FlattenControlFlow  (flattenControlFlow)
 import WACC.IR.LiveRange           (analyseLiveRange)
 import WACC.IR.ConstantPropagation (propagateConstant)
 
-getStructsFromProgram :: SM.Program -> [SM.Structure]
-getStructsFromProgram (SM.Program xs _ _)
-    = toList xs
-
 generateIR :: SM.Program -> IR.Program IR.NoControlFlowStatement
 generateIR =
-        (createDataSegments &&& id) &&& getStructsFromProgram
+        createDataSegments &&& id
     >>> flattenExpression
     >>> propagateConstant
     >>> flattenControlFlow

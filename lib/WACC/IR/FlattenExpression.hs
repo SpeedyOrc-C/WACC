@@ -72,7 +72,7 @@ expression = \case
         return (Variable tmp,
             evaluate ++
             [Assign B8 tmp (NewArray t' scalars)])
-    
+
     e@(SM.ArrayElement t _ _) -> do
         (result, evaluate) <- indirectExpression e
         tmp <- newTemporary
@@ -100,7 +100,7 @@ expression = \case
         return (Variable tmp,
             evaluatePair ++
             [Assign t' tmp (Dereference t' pair)])
-    
+
     e@(SM.PairSecond t _) -> do
         (pair, evaluatePair) <- indirectExpression e
         tmp <- newTemporary
@@ -152,7 +152,7 @@ expression = \case
     SM.NotEqual t a b -> do
         t' <- getSize' t
         binary B1 (NotEqual t') a b
-    
+
     SM.And a b -> binary B1 And a b
     SM.Or  a b -> binary B1 Or  a b
 
@@ -474,7 +474,7 @@ function (SM.Function _ functionName params@(unzip -> (names, types)) b) = do
     }
 
     b' <- block b
-    ts' <- forM types (\x -> do getSize' x) 
+    ts' <- traverse getSize' types
 
     put oldState
 
@@ -483,23 +483,19 @@ function (SM.Function _ functionName params@(unzip -> (names, types)) b) = do
         (identifiers `zip` ts')
         b'
 
-functions :: [SM.Function] -> State FlattenerState
-                [Function NoExpressionStatement]
-functions = traverse function
-
-program :: SM.Program -> State FlattenerState (Program NoExpressionStatement)
-program (SM.Program _ fs main) = do
+program :: S.Set SM.Function -> SM.Block
+    -> State FlattenerState (Program NoExpressionStatement)
+program fs main = do
     dataSegment <- gets dataSegment
-    let allFunctions
-            = SM.Function SM.Int "main" [] main
-                : map
-                    (\(SM.Function ret name param b) ->
-                        SM.Function ret ("fn_" ++ name) param b)
-                    (S.toList fs)
-    functions' <- functions allFunctions
+    let allFunctions =
+            SM.Function SM.Int "main" [] main :
+            [SM.Function ret ("fn_" ++ name) param b
+                | SM.Function ret name param b <- S.toList fs]
+    functions' <- traverse function allFunctions
     return $ Program dataSegment functions'
 
-flattenExpression :: ((String `M.Map` Int, SM.Program), [SM.Structure]) ->
+flattenExpression :: (String `M.Map` Int, SM.Program) ->
                         Program NoExpressionStatement
-flattenExpression ((dataSegment, p),xs) = runIdentity $ evalStateT
-    (program p) (initialState dataSegment xs)
+flattenExpression (dataSegment, SM.Program structures fs main) =
+    runIdentity $ evalStateT (program fs main)
+        (initialState dataSegment (S.toList structures))
