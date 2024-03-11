@@ -5,7 +5,7 @@ import Control.Arrow
 import qualified Data.Map as M
 import           Data.Foldable
 
-import qualified WACC.Semantics.Structure as Semantics
+import qualified WACC.Semantics.Structure as SM
 import qualified WACC.IR.Structure as IR
 
 import WACC.IR.LiteralString       (createDataSegments)
@@ -14,10 +14,15 @@ import WACC.IR.FlattenControlFlow  (flattenControlFlow)
 import WACC.IR.LiveRange           (analyseLiveRange)
 import WACC.IR.ConstantPropagation (propagateConstant)
 
-generateIR :: Semantics.Program -> IR.Program IR.NoControlFlowStatement
+getStructsFromProgram :: SM.Program -> [SM.Structure]
+getStructsFromProgram (SM.Program xs _ _)
+    = toList xs
+
+generateIR :: SM.Program -> IR.Program IR.NoControlFlowStatement
 generateIR =
-        createDataSegments &&& id
-    >>> flattenExpression
+        (createDataSegments &&& id) &&& getStructsFromProgram
+    >>> flattenExpression 
+    -- >>> 
     -- >>> propagateConstant
     >>> flattenControlFlow
     >>> analyseLiveRange

@@ -1,13 +1,99 @@
 module WACC.IR.Structure where
 
 import Data.Set (Set)
-import Data.Map (Map)
+import qualified Data.Map as M
 
 import qualified WACC.Semantics.Structure as SM
+import           Control.Monad.Trans.State.Lazy
 
-data Program s = Program (Map String Int) [Function s] deriving Show
+turnStructures :: String `M.Map` Size -> SM.Structure -> Structure
+turnStructures preStruct (SM.Structure name fields) =
+    Structure name size fields'
+    where
+        (size, fields') = turnStructures' 0 B1 fields
+        roundSizeStruct :: Int -> Int -> Int
+        roundSizeStruct y x
+            = if x `mod` y == 0
+                then y
+                else roundSizeStruct (y `div` 2) x
+        floorUpSize :: Int -> Size -> Int
+        floorUpSize offset s
+            = case r of
+                0 -> n * size'
+                _ -> (n + 1) * size'
+            where
+                size'  = case s of 
+                    (B k) -> roundSizeStruct 8 k
+                    _     -> sizeToInt s
+                (n, r) = offset `divMod` size'
+
+        turnStructures' :: 
+            Int
+            -> Size
+            -> [(String, SM.Type)] 
+            -> (Int, String `M.Map` (Int, Size))
+        turnStructures' offset s []
+            = (totS, M.empty)
+                where
+                    totS = floorUpSize offset s
+        turnStructures' offset maximumSize ((f, SM.Struct name'):fs) =
+            case ft of
+                (Just ft') -> (offset'', M.insert f (offset', ft') xs)
+                    where
+                        offset' = floorUpSize offset ft'
+                        maximumSize'
+                            = if sizeToInt maximumSize > sizeToInt ft'
+                                then maximumSize
+                                else ft'
+                        (offset'', xs) 
+                            = turnStructures' (offset' + sizeToInt ft') 
+                            maximumSize' fs
+                Nothing  -> error "should never occur (struct field with type \
+                    \ struct must be defined in previous struct)"
+            where 
+                ft  = M.lookup name' preStruct
+
+        turnStructures' offset maximumSize ((f, ft):fs) 
+            = (offset'', M.insert f (offset', ft') xs)
+                where 
+                    ft' = getSize ft
+                    offset' = floorUpSize offset ft'
+                    maximumSize'
+                        = if sizeToInt maximumSize > sizeToInt ft'
+                            then maximumSize
+                            else ft'
+                    (offset'', xs) 
+                        = turnStructures' (offset' + sizeToInt ft') 
+                            maximumSize' fs
+
+initialStructures :: String `M.Map` Size -> [SM.Structure] -> [(String,Structure)]
+initialStructures _ [] = []
+initialStructures mmap (x:xs)
+    = (name, x') :initialStructures map' xs
+        where
+            x'@(Structure name size' _) = turnStructures mmap x
+            map' = M.insert name (B size') mmap
+
+data FlattenerState = FlattenerState {
+    mappingStack :: [String `M.Map` Identifier],
+    variableCounter :: Int,
+    dataSegment :: String `M.Map` Int,
+    structures :: String `M.Map` Structure
+} deriving Show
+
+initialState :: String `M.Map` Int -> [SM.Structure] -> FlattenerState
+initialState ds structs = FlattenerState {
+    mappingStack = [],
+    variableCounter = M.size ds + 1,
+    dataSegment = ds,
+    structures = M.fromList $ initialStructures M.empty structs
+}
+
+data Program s = Program (M.Map String Int) [Function s] deriving Show
 
 data Function s = Function String [(Identifier, Size)] [s] deriving Show
+
+data Structure = Structure String Int (String `M.Map` (Int, Size)) deriving Show
 
 data NoExpressionStatement
     = NE SingleStatement
@@ -50,7 +136,7 @@ data SingleStatement
     | PrintLineBreak
     deriving (Show, Eq)
 
-data Size = B1 | B2 | B4 | B8 deriving (Show, Eq, Ord)
+data Size = B1 | B2 | B4 | B8 | B Int deriving (Show, Eq, Ord)
 
 data Expression
     = Scalar Scalar
@@ -73,6 +159,7 @@ data Expression
 
     | Equal Size Scalar Scalar
     | NotEqual Size Scalar Scalar
+    | GetField Int Scalar
 
     | And Scalar Scalar
     | Or Scalar Scalar
@@ -122,18 +209,40 @@ instance Ord Identifier where
 class HasSize a where
     getSize :: a -> Size
 
+getSize' :: SM.Type -> State FlattenerState Size
+getSize' = \case
+    SM.Bool -> return B1
+    SM.Char -> return B1
+    SM.Int -> return B4
+    SM.String -> return B8
+    SM.Array {} -> return B8
+    SM.Pair {} -> return B8
+    -- will happen when left hand side is type of Any
+    -- and right hand side being []
+    SM.Any -> return B1
+    (SM.Struct str) -> do
+        structures <- gets structures
+        let struct = M.lookup str structures 
+        case struct of
+            (Just (Structure _ size _)) -> return $ B size
+            _                           
+                -> error "(should never happen) cannot find structure"
+        
+
 instance HasSize SM.Type where
     getSize :: SM.Type -> Size
     getSize = \case
         SM.Bool -> B1
         SM.Char -> B1
-        SM.Int -> B4
+        SM.Int ->  B4
         SM.String -> B8
         SM.Array {} -> B8
         SM.Pair {} -> B8
         -- will happen when left hand side is type of Any
         -- and right hand side being []
         SM.Any -> B1
+        SM.Struct {} -> error "should not use getSize' to get the size of the struct"
+        
 
 sizeToInt :: Size -> Int
-sizeToInt = \case B1 -> 1; B2 -> 2; B4 -> 4; B8 -> 8
+sizeToInt = \case B1 -> 1; B2 -> 2; B4 -> 4; B8 -> 8; (B i) -> i
