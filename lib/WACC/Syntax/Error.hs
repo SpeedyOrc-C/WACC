@@ -19,6 +19,7 @@ data WaccSyntaxErrorType
     | NonAsciiChar Char
     | UnmatchedSingleQuote
     | ExpectOneCharacter
+    | ExpectOneField String
     | UnmatchedDoubleQuote
     | ExpectConditionIf
     | ExpectThen
@@ -37,6 +38,7 @@ data WaccSyntaxErrorType
     | PairTypeInPairTypeNotErased
     | UnknownType
     | ExpectIdentifierInDeclaration
+    | ExpectIdentifierInStructInitialization
     | InvalidLeftValue
     | ExpectOneStatement
     | ExpectAssignEqualSign
@@ -70,6 +72,8 @@ instance Show WaccSyntaxErrorType where
         "Cannot find \")\"."
     show ExpectIndexInBracket =
         "Expect an index in bracket."
+    show (ExpectOneField name) =
+        "Expect a field in declare of structure " ++ name
     show UnmatchedSquareBracket =
         "Unmatched square bracket in index."
     show MissingEscapedChar =
@@ -125,6 +129,8 @@ instance Show WaccSyntaxErrorType where
         "Unknown type."
     show ExpectIdentifierInDeclaration =
         "Expect an identifier in declaration."
+    show ExpectIdentifierInStructInitialization =
+        "Expect an identifier in struct initialization."
     show InvalidLeftValue =
         "Invalid left value."
     show ExpectOneStatement =

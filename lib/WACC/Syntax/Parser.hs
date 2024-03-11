@@ -583,6 +583,13 @@ statementAssign = Assign ~ do
     right <- rightValue
     return (left, right)
 
+statementNewStructure = Declare ~ do
+    _ <- str "struct" *> some white
+    name <- identifierString <* some white
+    n     <- identifierString `syntaxError` ExpectIdentifierInStructInitialization
+    return (Struct name (0,0), n, NewStruct (0,0))
+
+
 {- It is a parser which parses different kinds of statements,
    it will try each statement parser in the list. -}
 statement :: WaccParser Statement
@@ -598,6 +605,7 @@ statement = asum [
     statementWhile,
     statementScope,
     statementDeclare,
+
     statementAssign
     ] `syntaxError` ExpectOneStatement
 
@@ -675,11 +683,13 @@ structField = do
 structure :: WaccParser Structure
 structure = Structure ~ do
     _      <- str "struct" <* some white
-    n      <- name `syntaxError` ExpectIdentifierInStruct
-    _      <- str "is" <* some white
-    fields <- structField `separatedBy` statementSep
-    _      <- many white
-    _      <- str "end" `syntaxError` ExpectFunctionEnd
+    n@(Name name' _)
+            <- name `syntaxError` ExpectIdentifierInStruct
+    _       <- str "is" <* some white
+    fields  <- (structField `syntaxError` ExpectOneField name') 
+                `separatedBy` statementSep 
+    _       <- many white
+    _       <- str "end" `syntaxError` ExpectFunctionEnd
     return (n, fields)
 
 {- It is a parser which parses a program with a 'begin' statement

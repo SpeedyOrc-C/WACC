@@ -37,6 +37,7 @@ expressionRange expr = case expr of
     Or _ r -> r
     FunctionCall _ r -> r
     Field _ r -> r
+    NewStruct r -> r
 
 {- Extracts the range from the statement. -}
 statementRange :: Statement -> Range
