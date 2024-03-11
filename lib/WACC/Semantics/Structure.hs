@@ -94,7 +94,8 @@ data Expression
     | LiteralPair (Type, Type) (Expression, Expression)
     | LiteralPairNull
 
-    | Field Type Expression String
+    | NewStruct
+    | Field Type Expression String 
     | ArrayElement Type Expression Expression
 
     | Not Expression
