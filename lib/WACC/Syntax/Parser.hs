@@ -216,40 +216,34 @@ expressionBase = asum [
     expressionFunctionCall
     ]
 
-indexOperator' :: WaccParser (Range, a)
-    -> ((Expression, a)-> Range -> Expression)
-    -> WaccParser Expression -> WaccParser Expression
-indexOperator' doblock type'' higherParser
-    = do
-    ((from, _), array) <- getRangeA higherParser
-    ss <- many $ do doblock
-    let mergeElement x ((_, to), y) = type'' (x, y) (from, to)
-    return $ foldl mergeElement array ss
+postfixOperator
+    :: WaccParser Expression -> [WaccParser (Expression -> Range -> Expression)]
+    -> WaccParser Expression
+postfixOperator higherParser operators = do
+    ((from, _), base) <- getRangeA higherParser
+    constructors <- many $ asum $ map getRangeA operators
+    let merge x ((_, to), constructor) = constructor x (from, to)
+    return $ foldl merge base constructors
 
-{- It takes a parser as parameter to parse the array expression.
-   Then, it iteratively parses indices inside square brackets. -}
-indexOperator :: WaccParser Expression -> WaccParser Expression
-indexOperator higherParser = asum [
-    indexOperator' (do
+expressionPostfixOperation :: WaccParser Expression
+expressionPostfixOperation = postfixOperator expressionBase
+    [fieldOperator, indexOperator]
+
+fieldOperator :: WaccParser (Expression -> Range -> Expression)
+fieldOperator = do
+    field <- surroundManyWhites (char '.') >> name
+    return $ \base range -> Field (base, field) range
+
+indexOperator :: WaccParser (Expression -> Range -> Expression)
+indexOperator = do
+    index <- do
         _     <- many white
         _     <- char '['
-        index <- getRangeA $ surroundManyWhites expression `syntaxError`
+        index <- surroundManyWhites expression `syntaxError`
                     ExpectIndexInBracket
         _     <- char ']' `syntaxError` UnmatchedSquareBracket
-        return index)
-        ArrayElement
-        higherParser,
-    indexOperator' (do
-        _ <- surroundManyWhites (char '.')
-        getRangeA name
-        )
-        Field
-        higherParser
-    ]
-
-{- It is a parser which parse an array element. -}
-expressionArrayElement :: WaccParser Expression
-expressionArrayElement = indexOperator expressionBase
+        return index
+    return $ \base range -> ArrayElement (base, index) range
 
 {- It is a function which takes a parser and two lists of operators.
    The operators must be unary operator. It then form a new parser
@@ -291,7 +285,7 @@ unaryOperator higherParser (wordOperators, symbolOperators) = do
 {- It is a parser which parses expressions with unary operators. -}
 expressionUnaryOperation :: WaccParser Expression
 expressionUnaryOperation =
-    unaryOperator expressionArrayElement ([
+    unaryOperator expressionPostfixOperation ([
         ("len", Length),
         ("ord", Order),
         ("chr", Character),
@@ -307,8 +301,8 @@ expressionUnaryOperation =
    which can parse expressions with binary operators. -}
 binaryOperator ::
     WaccParser Expression
-    -> (Associativity, [(String, (Expression, Expression)
-    -> Range -> Expression)])
+    -> ( Associativity
+       , [(String, (Expression, Expression) -> Range -> Expression)])
     -> WaccParser Expression
 binaryOperator higherParser (associativity, operators) = do
     firstExpression <- getRangeA higherParser
@@ -509,6 +503,9 @@ typeChar = Char ~ void (str "char")
 typeString :: WaccParser Type
 typeString = String ~ void (str "string")
 
+typeReference :: WaccParser Type
+typeReference = Reference ~ type' <* many white <* char '&'
+
 typeStructure :: WaccParser Type
 typeStructure = Struct ~ do
     _ <- str "struct"
@@ -565,6 +562,11 @@ type' = typeArray `syntaxErrorWhen` (not . isType, \(_, t) -> findError t)
             SyntaxError from PairTypeInPairTypeNotErased
         _ -> P.error "unreachable"
 
+paramType :: WaccParser Type
+paramType = asum [
+    typeReference,
+    type'
+    ]
 {- It is a parser which parses different kinds of declaration statements. -}
 statementDeclare :: WaccParser Statement
 statementDeclare = Declare ~ do
@@ -590,8 +592,8 @@ expressionNewStructure = NewStruct ~ do
                 `separatedBy` void (surroundManyWhites (char ','))
     _ <- many white
     _ <- char '}' `syntaxError` ExpectRightCurleyBracket
-    undefined
 
+    return fields
 
 {- It is a parser which parses different kinds of statements,
    it will try each statement parser in the list. -}
@@ -627,7 +629,7 @@ name = Name ~ identifierString
 {- It is a parser which parses parameters in function headers. -}
 parameter :: WaccParser (Name, Type)
 parameter = do
-    t <- type'
+    t <- paramType
     _ <- some white
     p <- name
     return (p, t)
@@ -701,6 +703,7 @@ program' = do
     _         <- surroundManyWhites (str "begin" `syntaxError`
                                      ExpectProgramBegin)
     structures <- optional $ structure `separatedBy` many white
+    _         <- many white
     functions <- optional $ function `separatedBy` many white
     _         <- many white
     body      <- statements

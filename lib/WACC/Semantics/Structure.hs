@@ -3,6 +3,7 @@ module WACC.Semantics.Structure where
 
 import Data.Set (Set)
 import Text.Parser (Range)
+import Data.List (intercalate)
 
 {-
 All constructors no longer have a range, as they're only needed in
@@ -68,7 +69,7 @@ data Type
     | String
     | Array Type
     | Pair (Type, Type)
-    | Struct String
+    | Struct String [Type]
     deriving Eq
 
 instance Show Type where
@@ -80,7 +81,7 @@ instance Show Type where
         String -> "string"
         Array t -> show t ++ "[]"
         Pair (a, b) -> "pair(" ++ show a ++ ", " ++ show b ++ ")"
-        Struct str -> "struct " ++ str
+        Struct str ts -> str ++ "(" ++ intercalate ", " (show <$> ts) ++ ")"
 
 data ComparisonType = CompareChar | CompareInt deriving (Show, Eq)
 
@@ -95,7 +96,7 @@ data Expression
     | LiteralPairNull
 
     | NewStruct
-    | Field Type Expression String 
+    | Field Type Expression String
     | ArrayElement Type Expression Expression
 
     | Not Expression

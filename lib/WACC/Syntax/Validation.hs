@@ -65,6 +65,7 @@ typeRange = \case
     Array _ r -> r
     Pair _ r -> r
     Struct _ r -> r
+    Reference _ r -> r
 
 {- Checks whether the given expression is a left value. -}
 isLeftValue :: Expression -> Bool
