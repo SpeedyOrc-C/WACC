@@ -6,6 +6,7 @@ import qualified Data.Map as M
 import qualified WACC.Semantics.Structure as SM
 import           Control.Monad.Trans.State.Lazy
 
+
 turnStructures :: String `M.Map` Size -> SM.Structure -> Structure
 turnStructures preStruct (SM.Structure name fields) =
     Structure name size fields'
@@ -36,7 +37,7 @@ turnStructures preStruct (SM.Structure name fields) =
             = (totS, M.empty)
                 where
                     totS = floorUpSize offset s
-        turnStructures' offset maximumSize ((f, SM.Struct name'):fs) =
+        turnStructures' offset maximumSize ((f, SM.Struct name' _):fs) =
             case ft of
                 (Just ft') -> (offset'', M.insert f (offset', ft') xs)
                     where
@@ -176,6 +177,7 @@ data Expression
     | SeekPairFirst Scalar
     | SeekPairSecond Scalar
 
+    | Reference Scalar
     | Dereference Size Scalar
 
     | Call Size String [(Size, Scalar)]
@@ -216,7 +218,7 @@ class HasSize a where
 
 getSize' :: SM.Type -> State FlattenerState Size
 getSize' = \case
-    SM.Struct name -> do
+    SM.Struct name _ -> do
         structures <- gets structures
         case structures M.!? name of
             Just (Structure _ size _) -> return $ B size

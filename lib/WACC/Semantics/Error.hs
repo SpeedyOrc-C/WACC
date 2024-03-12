@@ -11,6 +11,7 @@ data WaccSemanticsErrorType
     | UndefinedStructure String
     | UndefinedField String String
     | ShouldBeStruct
+    | OnlyAcceptIdentifier
     | RedefinedIdentifier String Int
     | RedefinedFunction String
     | ArgumentNumberMismatch String Int Int
@@ -44,6 +45,8 @@ data WaccSemanticsErrorType
 {- Define 'Show' for all kinds of semantic error types. -}
 instance Show WaccSemanticsErrorType where
     show :: WaccSemanticsErrorType -> String
+    show OnlyAcceptIdentifier =
+        "Only accept identifier for passing in a reference"
     show ShouldBeStruct =
         "Should be a struct type to allow getting field"
     show (UndefinedIdentifier identifier) =
@@ -52,8 +55,8 @@ instance Show WaccSemanticsErrorType where
         "Function \"" ++ function ++ "\" is not declared."
     show (UndefinedStructure struct) =
         "Struct \"" ++ struct ++ "\" is not declared."
-        
-    show (UndefinedField struct field) = 
+
+    show (UndefinedField struct field) =
         "Field \"" ++ field ++ "\" is not declared in the Struct \"" ++ struct ++ "\"."
     show (RedefinedIdentifier identifier _) =
         "Variable \"" ++ identifier ++ "\" is declared again."
@@ -109,7 +112,7 @@ instance Show WaccSemanticsErrorType where
         "Can only compare the same type as " ++ show expect ++ ". " ++
         "Actual: " ++ show actual
     show (InvalidEquality expect actual) =
-        "Can only check the equality of the same type as " ++ show expect 
+        "Can only check the equality of the same type as " ++ show expect
         ++ ". " ++ "Actual: " ++ show actual
     show (InvalidLogical invalidType) =
         "Logical operators are only for bool. Actual: " ++ show invalidType

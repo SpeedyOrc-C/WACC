@@ -67,14 +67,14 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
             let structRange = expressionRange struct
             (expType, struct') <- check state struct
             case expType of
-                (Struct structName) -> do
+                (Struct structName _) -> do
                     let structure = M.lookup structName (structures state)
                     case structure of
                         Nothing -> Log [SemanticError range $ UndefinedStructure structName]
                         Just (Structure _ variables) -> do
                             let fieldType = L.lookup fieldName variables
                             case fieldType of
-                                Nothing -> Log [SemanticError fieldRange 
+                                Nothing -> Log [SemanticError fieldRange
                                     $ UndefinedField structName fieldName]
                                 Just x  -> Ok (x, Field x struct' fieldName)
                 _ -> Log [SemanticError structRange ShouldBeStruct]
@@ -150,7 +150,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
 
         Syntax.And xy _ -> checkLogical xy And
         Syntax.Or xy _ -> checkLogical xy Or
-        Syntax.NewStruct exps _ -> do 
+        Syntax.NewStruct exps _ -> do
             exps' <- for exps (check state)
             undefined
 
@@ -161,26 +161,28 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 Nothing -> Log [SemanticError range $ UndefinedFunction name]
                 Just (paramsTypes, returnType) -> do
                     -- get the type of each arguments
-                    (unzip -> (argsTypes, args')) <- check state `traverse` args
+                    args'@(unzip -> (_, args'')) <- check state `traverse` args
 
                     -- check if the argument type being compatible of the parameter
                     -- type
-                    let checkParamsArgsTypes paramType argType range' =
-                            if paramType <| argType
-                            then Ok paramType
-                            else Log [SemanticError range' $
-                                        IncompatibleArgument paramType argType]
+                    let checkParamsArgsTypes (paramType, (argType, arg), range')
+                          | isRefType argType && not (isIdentifier arg)
+                            = Log [SemanticError range' OnlyAcceptIdentifier]
+                          | paramType <| argType = Ok paramType
+                          | otherwise = Log [SemanticError range' $
+                                    IncompatibleArgument paramType argType]
+
 
                     -- using the checkParamsArgTypes to check if the type of each
                     -- arguments is compatible to the type of the coresponding parameter
-                    sequence_ $ zipWith3 checkParamsArgsTypes
-                        paramsTypes
-                        argsTypes
-                        (expressionRange <$> args)
+                    argsType <-
+                        for (zip3 paramsTypes args' (map expressionRange args))
+                        checkParamsArgsTypes
 
                     -- check if the number of parameters the same as the arguments number
                     case compare (length args) (length paramsTypes) of
-                        EQ -> Ok (returnType, FunctionCall returnType name (argsTypes `zip` args'))
+                        EQ -> Ok (returnType, FunctionCall returnType name
+                            (argsType `zip` args''))
                         _ -> Log [SemanticError range $ ArgumentNumberMismatch
                                     name (length paramsTypes) (length args)]
 
@@ -260,7 +262,7 @@ instance CheckSemantics Syntax.Statement Statement where
     check state = \case
         -- firstly use fromSyntaxType to the type of the declare
         Syntax.Declare (t, name, value) range
-            -> do 
+            -> do
             declaredType <- fromSyntaxType state t
             case check state value of
                 Ok (computedType, newValue) ->
@@ -406,9 +408,9 @@ findRepetition entries =
     where
     groups = NE.groupBy (\x y -> fst x == fst y) entries
 
-checkRepeat :: forall k a. (Ord k, Eq a) => 
-    [(k, (Range, a))] 
-    -> (k ->  WaccSemanticsErrorType) 
+checkRepeat :: forall k a. (Ord k, Eq a) =>
+    [(k, (Range, a))]
+    -> (k ->  WaccSemanticsErrorType)
     -> LogEither SemanticError [(k,(Range, a))]
 checkRepeat xs err = do
     -- Find repeated parameter definitions.
@@ -423,12 +425,12 @@ checkRepeat xs err = do
                 | (key, (range, _)) <- paramsRepeated]
     return result
 
-checkFieldParameters :: 
-    [(Syntax.Name, Syntax.Type)] 
-    -> CheckerState 
-    -> (String -> WaccSemanticsErrorType) 
+checkFieldParameters ::
+    [(Syntax.Name, Syntax.Type)]
+    -> CheckerState
+    -> (String -> WaccSemanticsErrorType)
     -> LogEither SemanticError [(String, (Range, Type))]
-checkFieldParameters xs state repeatError 
+checkFieldParameters xs state repeatError
     = do
         xsWithRange <- for xs (\(Syntax.Name param range, t) -> do
                 t'  <- fromSyntaxType state t
@@ -445,7 +447,7 @@ instance CheckSemantics Syntax.Function Function where
                     body)
                 _) = do
         returnType <- fromSyntaxType state rt
-        paramsMapping <- checkFieldParameters params state RedefinedParameter 
+        paramsMapping <- checkFieldParameters params state RedefinedParameter
 
         let state' = state {
                 mappingStack =
@@ -468,7 +470,7 @@ instance CheckSemantics Syntax.Function Function where
 
 instance CheckSemantics Syntax.Structure Structure where
     check state (Syntax.Structure (Syntax.Name structureName _, fields) _) = do
-        (map (\(x,(_,z)) -> (x,z)) -> fieldsMapping) 
+        (map (\(x,(_,z)) -> (x,z)) -> fieldsMapping)
             <- checkFieldParameters fields state (RedefinedField structureName)
         return $ Structure structureName fieldsMapping
 
@@ -488,7 +490,7 @@ instance CheckSemantics Syntax.Program Program where
     check state'' (Syntax.Program (structures, functions, body) _) = do
         (structures', state) <- checkStructure state'' structures
 
-        functionsWithRange <- 
+        functionsWithRange <-
             for functions (\(Syntax.Function (
                     returnType,
                     Syntax.Name name range,

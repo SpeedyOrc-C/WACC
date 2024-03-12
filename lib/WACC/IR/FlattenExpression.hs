@@ -130,7 +130,7 @@ expression = \case
     SM.GreaterEqual SM.CompareChar a b -> binary B1 (GreaterEqual B1) a b
     SM.Less         SM.CompareChar a b -> binary B1 (Less         B1) a b
     SM.LessEqual    SM.CompareChar a b -> binary B1 (LessEqual    B1) a b
-    SM.Field    (SM.Struct structName) op name' -> do
+    SM.Field    (SM.Struct structName _) op name' -> do
         (op', evaluateOp) <- expression op
         tmp <- newTemporary
         structures <- gets structures

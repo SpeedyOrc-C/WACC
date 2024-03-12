@@ -5,7 +5,7 @@ import qualified Data.Map as M
 import qualified WACC.Syntax.Structure as Syntax
 import Text.Parser (Range)
 import WACC.Semantics.Error (WaccSemanticsErrorType (UndefinedStructure))
-import WACC.Semantics.Structure (Type (..), Structure)
+import WACC.Semantics.Structure (Type (..), Structure(..))
 
 data SemanticError = SemanticError Range WaccSemanticsErrorType
 
@@ -88,6 +88,8 @@ a <~ b                     = a == b
 (<|) :: Type -> Type -> Bool
 Any <| Any                  = False
 Any <| _                    = True
+(RefType a) <| x            = a <| x
+x <| (RefType a)            = x <| a
 _ <| Any                    = True
 String <| Array Char        = True
 String <| Array Any         = True
@@ -115,11 +117,14 @@ isPair _            = False
 
 fromSyntaxType :: CheckerState -> Syntax.Type -> LogEither SemanticError Type
 fromSyntaxType state = \case
+    Syntax.RefType t _          -> do
+        t' <- fromSyntaxType state t
+        Ok $ RefType t'
     Syntax.Int {}               -> Ok Int
     Syntax.Bool {}              -> Ok Bool
     Syntax.Char {}              -> Ok Char
     Syntax.String {}            -> Ok String
-    Syntax.Array t _            -> do 
+    Syntax.Array t _            -> do
         t' <- fromSyntaxType state t
         Ok (Array t')
     Syntax.Pair Nothing _       -> Ok (Pair (Any, Any))
@@ -131,7 +136,8 @@ fromSyntaxType state = \case
         let structures' = structures state
         case M.lookup str structures' of
             Nothing -> Log [SemanticError range (UndefinedStructure str)]
-            _ -> return (Struct str)
+            Just (Structure name (map snd -> types)) ->
+                return (Struct name types)
 
 -- | Given that two types are compatible with each other,
 --   find the common type between two types. This can find the type of an array.

@@ -37,6 +37,7 @@ data Type
     | String () Range
     | Array Type Range
     | Pair (Maybe (Type, Type)) Range
+    | RefType Type Range
     | Struct String Range
     deriving (Show, Eq)
 
