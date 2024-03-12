@@ -184,6 +184,7 @@ isTypePair = \case
 isTypePairElement :: Type -> Bool
 isTypePairElement = \case
     Pair Nothing _ -> True
+    Pair (Just (a, b)) _ -> isTypePairElement a && isTypePairElement b
     t -> isTypeBase t || isTypeArray t
 
 {- Checks whether the statement can exit a function properly. -}

@@ -559,10 +559,6 @@ type' = typeArray `syntaxErrorWhen` (not . isType, \(_, t) -> findError t)
     findError = \case
         Array (Pair Nothing (from, _)) _ ->
             SyntaxError from PairTypeErased
-        Pair (Just (Pair (Just {}) (from, _), _)) _ ->
-            SyntaxError from PairTypeInPairTypeNotErased
-        Pair (Just (_, Pair (Just {}) (from, _))) _ ->
-            SyntaxError from PairTypeInPairTypeNotErased
         _ -> P.error "unreachable"
 
 {- It is a parser which parses different kinds of declaration statements. -}
