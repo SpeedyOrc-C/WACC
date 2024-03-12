@@ -159,8 +159,6 @@ testPairSecondIdentifier = do
                    (Dereference B4 (Variable (Temporary "var" 1)))])
     testExpression expr expected s
 
-testEvaluateUnary :: IO Bool
-
 irUnitTests :: IO [Bool]
 irUnitTests = sequence [
     testLiteralBool,
