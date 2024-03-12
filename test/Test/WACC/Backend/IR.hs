@@ -8,6 +8,7 @@ import WACC.IR.FlattenExpression as FE
 import Text.AnsiEscape
 import WACC.IR.ConstantPropagation as CP
 
+
 {- Helper function for testing expressions -}
 testExpression :: SM.Expression -> (Scalar, [SingleStatement])
                     -> FlattenerState -> IO Bool
@@ -23,9 +24,9 @@ testExpression expr (s, ss) fs =
                 return False
 
 {- Helper function for testing Constant Propagation functions. -}
-testConstantPropagation :: Expression -> Maybe Int
+testCP :: Expression -> Maybe Int
                     -> PropagatorState -> IO Bool
-testConstantPropagation expr value fs =
+testCP expr value fs =
     case runIdentity (evalStateT (CP.expression expr) fs) of
         value' -> do
             if value == value'
@@ -159,6 +160,24 @@ testPairSecondIdentifier = do
                    (Dereference B4 (Variable (Temporary "var" 1)))])
     testExpression expr expected s
 
+testScalar :: IO Bool
+testScalar = testCP (Scalar $ Immediate 3) (Just 3) state2
+
+testChar :: IO Bool
+testChar = testCP (Character $ Immediate 55) (Just 55) state2
+
+testSubtract :: IO Bool
+testSubtract = testCP (Subtract (Immediate 5) (Immediate 3)) (Just 2) state2
+
+testMultiply :: IO Bool
+testMultiply = testCP (Multiply (Immediate 5) (Immediate 3)) (Just 15) state2
+
+testNormalDivide :: IO Bool
+testNormalDivide = testCP (Divide (Immediate 5) (Immediate 3)) (Just 1) state2
+
+testDivideByzero :: IO Bool
+testDivideByzero = testCP (Divide (Immediate 5) (Immediate 0)) Nothing state2
+
 irUnitTests :: IO [Bool]
 irUnitTests = sequence [
     testLiteralBool,
@@ -174,5 +193,11 @@ irUnitTests = sequence [
     testIndirectIdentifier,
     testArrayElementIdentifier,
     testPairFirstIdentifier,
-    testPairSecondIdentifier
+    testPairSecondIdentifier,
+    testScalar,
+    testChar,
+    testSubtract,
+    testMultiply,
+    testNormalDivide,
+    testDivideByzero
   ]
