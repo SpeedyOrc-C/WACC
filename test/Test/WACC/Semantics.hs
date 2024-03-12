@@ -12,7 +12,7 @@ testValid :: CheckSemantics syntaxTree result =>
 testValid testName input parser =
     case parseString parser input of
         Right (Parsed _ result (_, [])) ->
-            case check (CheckerState Nothing M.empty [M.empty]) result of
+            case check (CheckerState Nothing M.empty [M.empty] M.empty) result of
                 Ok {} -> do
                     putStrLn $ green "    * " ++ testName
                     return True
@@ -28,7 +28,7 @@ testInvalid :: CheckSemantics syntaxTree result =>
 testInvalid testName input parser =
     case parseString parser input of
         Right (Parsed _ result (_, [])) ->
-            case check (CheckerState Nothing M.empty [M.empty]) result of
+            case check (CheckerState Nothing M.empty [M.empty] M.empty) result of
                 Log {} -> do
                     putStrLn $ green "    * " ++ testName
                     return True
