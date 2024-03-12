@@ -1,10 +1,9 @@
-# pair types cannot be nested
+# pair types can be nested
 
 # Output:
-# #syntax_error#
 
 # Exit:
-# 100
+# 0
 
 # Program:
 

@@ -443,10 +443,13 @@ testType4
 
 testType5 :: IO Bool
 testType5
-  = shouldFailSyntaxError "error non-erased pair type in pair type"
+  = shouldSucceed "normal full nested pair type in pair type"
     "pair(pair(int, char), pair(int[], char[]))"
     type'
-    PairTypeInPairTypeNotErased
+    (\case (Pair (Just (
+                Pair (Just (Int () _, Char () _)) _,
+                Pair (Just (Array (Int () _) _, Array (Char () _) _)) _
+            )) _) -> True ; _ -> False)
 
 testDeclare1 :: IO Bool
 testDeclare1
