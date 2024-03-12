@@ -4,17 +4,32 @@ import Control.Monad.Trans.State.Lazy
 import Data.Map as M
 import qualified WACC.Semantics.Structure as SM
 import WACC.IR.Structure
-import WACC.IR.FlattenExpression
+import WACC.IR.FlattenExpression as FE
 import Text.AnsiEscape
+import WACC.IR.ConstantPropagation as CP
 
 {- Helper function for testing expressions -}
 testExpression :: SM.Expression -> (Scalar, [SingleStatement])
                     -> FlattenerState -> IO Bool
 testExpression expr (s, ss) fs =
-    case runIdentity (evalStateT (expression expr) fs) of
+    case runIdentity (evalStateT (FE.expression expr) fs) of
         (s', ss') -> do
             if s == s' && ss == ss'
-            then do 
+            then do
+                putStrLn $ green "    * " ++ show expr
+                return True
+            else do
+                putStrLn $ red "    ! " ++ show expr
+                return False
+
+{- Helper function for testing Constant Propagation functions. -}
+testConstantPropagation :: Expression -> Maybe Int
+                    -> PropagatorState -> IO Bool
+testConstantPropagation expr value fs =
+    case runIdentity (evalStateT (CP.expression expr) fs) of
+        value' -> do
+            if value == value'
+            then do
                 putStrLn $ green "    * " ++ show expr
                 return True
             else do
@@ -31,6 +46,9 @@ state1 = FlattenerState {
     dataSegment = M.empty,
     structures = M.empty
 }
+
+state2 :: PropagatorState
+state2 = PropagatorState { constantMapping = M.empty }
 
 {- Tests for expressions. -}
 testLiteralBool :: IO Bool
@@ -114,32 +132,34 @@ testArrayElementIdentifier = do
     let indexExpr = SM.LiteralInt 2
     let expr = SM.ArrayElement SM.Int arrayExpr indexExpr
     let expected = (Variable (Temporary "var" 2),[Assign B8 (Temporary "var" 1)
-                   (SeekArrayElement B4 (Variable (Identifier "x" 1)) 
-                   (Immediate 2)),Assign B4 (Temporary "var" 2) 
+                   (SeekArrayElement B4 (Variable (Identifier "x" 1))
+                   (Immediate 2)),Assign B4 (Temporary "var" 2)
                    (Dereference B4 (Variable (Temporary "var" 1)))])
     testExpression expr expected s
 
 testPairFirstIdentifier :: IO Bool
 testPairFirstIdentifier = do
     let s = state1
-    let pairExpr = SM.Identifier (SM.Pair(SM.Int, SM.Char)) "x"
+    let pairExpr = SM.Identifier (SM.Pair (SM.Int, SM.Char)) "x"
     let expr = SM.PairFirst SM.Int pairExpr
     let expected = (Variable (Temporary "var" 2),[Assign B8 (Temporary "var" 1)
                    (SeekPairFirst (Variable (Identifier "x" 1))),
-                   Assign B4 (Temporary "var" 2) 
+                   Assign B4 (Temporary "var" 2)
                    (Dereference B4 (Variable (Temporary "var" 1)))])
     testExpression expr expected s
 
 testPairSecondIdentifier :: IO Bool
 testPairSecondIdentifier = do
     let s = state1
-    let pairExpr = SM.Identifier (SM.Pair(SM.Int, SM.Char)) "x"
+    let pairExpr = SM.Identifier (SM.Pair (SM.Int, SM.Char)) "x"
     let expr = SM.PairSecond SM.Int pairExpr
     let expected = (Variable (Temporary "var" 2),[Assign B8 (Temporary "var" 1)
                    (SeekPairSecond (Variable (Identifier "x" 1))),
-                   Assign B4 (Temporary "var" 2) 
+                   Assign B4 (Temporary "var" 2)
                    (Dereference B4 (Variable (Temporary "var" 1)))])
     testExpression expr expected s
+
+testEvaluateUnary :: IO Bool
 
 irUnitTests :: IO [Bool]
 irUnitTests = sequence [

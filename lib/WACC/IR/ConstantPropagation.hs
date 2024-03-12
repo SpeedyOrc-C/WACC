@@ -20,7 +20,7 @@ newtype PropagatorState = PropagatorState {
 }
 
 {- |
-Evaluate a unary operation without any condition on the oprand. 
+Evaluate a unary operation without any condition on the operand. 
 -}
 evaluateUnary :: Scalar -> (Int -> Int) -> State PropagatorState (Maybe Int)
 evaluateUnary a f = do
@@ -30,7 +30,7 @@ evaluateUnary a f = do
         _ -> return Nothing
 
 {- |
-Evaluate a unary operation with a condition on the oprand. 
+Evaluate a unary operation with a condition on the operand. 
 -}
 evaluateUnary' :: Scalar -> (Int -> Int) -> (Int -> Bool)
     -> State PropagatorState (Maybe Int)
@@ -41,7 +41,7 @@ evaluateUnary' a f condition = do
         _ -> return Nothing
 
 {- |
-Evaluate a binary operation without any condition on the oprands. 
+Evaluate a binary operation without any condition on the operands. 
 -}
 evaluateBinary :: Scalar -> Scalar -> (Int -> Int -> Int)
     -> State PropagatorState (Maybe Int)
@@ -53,7 +53,7 @@ evaluateBinary a b f = do
         _ -> return Nothing
 
 {- |
-Evaluate a binary operation with a condition on the oprand. 
+Evaluate a binary operation with a condition on the operand. 
 -}
 evaluateBinary' :: Scalar -> Scalar
     -> (Int -> Int -> Int) -> (Int -> Int -> Bool)
