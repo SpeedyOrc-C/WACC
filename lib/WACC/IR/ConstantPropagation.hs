@@ -11,10 +11,17 @@ import           WACC.IR.Structure
 import           WACC.Syntax.Error (intLowerBound, intUpperBound)
 import           WACC.IR.FlattenExpression (HasReference(reference))
 
+{- |
+This defines the state used during constant propagation. 
+It contains a mapping from identifiers to maybe constant integer values. 
+-}
 newtype PropagatorState = PropagatorState {
     constantMapping :: Identifier `M.Map` Maybe Int
 }
 
+{- |
+Evaluate a unary operation without any condition on the oprand. 
+-}
 evaluateUnary :: Scalar -> (Int -> Int) -> State PropagatorState (Maybe Int)
 evaluateUnary a f = do
     a' <- scalar a
@@ -22,6 +29,9 @@ evaluateUnary a f = do
         Just x -> return $ Just $ f x
         _ -> return Nothing
 
+{- |
+Evaluate a unary operation with a condition on the oprand. 
+-}
 evaluateUnary' :: Scalar -> (Int -> Int) -> (Int -> Bool)
     -> State PropagatorState (Maybe Int)
 evaluateUnary' a f condition = do
@@ -30,6 +40,9 @@ evaluateUnary' a f condition = do
         Just x | condition x -> return $ Just $ f x
         _ -> return Nothing
 
+{- |
+Evaluate a binary operation without any condition on the oprands. 
+-}
 evaluateBinary :: Scalar -> Scalar -> (Int -> Int -> Int)
     -> State PropagatorState (Maybe Int)
 evaluateBinary a b f = do
@@ -39,6 +52,9 @@ evaluateBinary a b f = do
         (Just x, Just y) -> return $ Just $ f x y
         _ -> return Nothing
 
+{- |
+Evaluate a binary operation with a condition on the oprand. 
+-}
 evaluateBinary' :: Scalar -> Scalar
     -> (Int -> Int -> Int) -> (Int -> Int -> Bool)
     -> State PropagatorState (Maybe Int)
@@ -49,6 +65,9 @@ evaluateBinary' a b f condition = do
         (Just x, Just y) | condition x y -> return $ Just $ f x y
         _ -> return Nothing
 
+{- |
+A helper function which extracts the value from a scalar. 
+-}
 scalar :: Scalar -> State PropagatorState (Maybe Int)
 scalar = \case
     Immediate x -> return $ Just x
@@ -59,9 +78,15 @@ scalar = \case
 
     _ -> return Nothing
 
+-- | Function for evaluating a mod function.
 waccMod :: Int -> Int -> Int
 waccMod x y = signum x * (abs x `mod` abs y)
 
+{- |
+This function evaluates expressions, such as arithmetic operations,
+comparisons, logical operations, etc., and returns possibly 
+constant integer values. 
+-}
 expression :: Expression -> State PropagatorState (Maybe Int)
 expression = \case
     Scalar s -> scalar s
@@ -92,6 +117,9 @@ expression = \case
 
     _ -> return Nothing
 
+{- |
+This helper function simplifies a scalar to a single statement. 
+-}
 simplifyStatement :: (Scalar -> SingleStatement)
     -> Scalar -> State PropagatorState SingleStatement
 simplifyStatement constructor s = do
@@ -100,6 +128,10 @@ simplifyStatement constructor s = do
         Just c -> return $ constructor $ Immediate c
         _ -> return $ constructor s
 
+{- |
+This function processes single statements by 
+replacing scalar values with constants if possible. 
+-}
 singleStatement :: SingleStatement
     -> State PropagatorState SingleStatement
 singleStatement = \case
@@ -126,6 +158,10 @@ singleStatement = \case
 
     s -> return s
 
+{- |
+This function handles if statements, evaluating conditions 
+and propagating constants through both the then and else clauses. 
+-}
 statementIf :: Scalar -> [NoExpressionStatement] -> [NoExpressionStatement]
     -> State PropagatorState [NoExpressionStatement]
 statementIf condition thenClause elseClause = do
@@ -155,6 +191,10 @@ statementIf condition thenClause elseClause = do
 
     return [If condition (concat thenClause') (concat elseClause')]
 
+{- |
+This class defines functions to extract dependencies 
+between variables and statements.
+-}
 class HasDependency a where
     getDependency :: a -> [(Identifier, S.Set Identifier)]
 
@@ -220,6 +260,10 @@ instance HasDependencyOnInput NoExpressionStatement where
 
         While _ body _ -> getDependencyOnInput body
 
+{- |
+This function handles while loops, evaluating loop conditions 
+and propagating constants through the loop body. 
+-}
 statementWhile ::
     [SingleStatement] -> [NoExpressionStatement] -> WhileInfo
     -> State PropagatorState [NoExpressionStatement]
@@ -270,6 +314,9 @@ statementWhile evaluateCondition body info = do
 
     return body'
 
+{- |
+This helper function applies constant propagation to a statement.
+-}
 statement :: NoExpressionStatement
     -> State PropagatorState [NoExpressionStatement]
 statement = \case
@@ -293,12 +340,19 @@ statement = \case
                 body' <- statementWhile evaluateCondition body info
                 return [While (condition, evaluateCondition) body' info]
 
+{- |
+This function applies constant propagation to a function's body.
+-}
 function :: Function NoExpressionStatement -> Function NoExpressionStatement
 function (Function name params statements) =
     Function name params . concat $
         evalState (traverse statement statements) $
             PropagatorState (M.fromList [(var, Nothing) | (var, _) <- params])
 
+{- |
+This is the main function that applies constant propagation 
+to an entire program.
+-}
 propagateConstant ::
     Program NoExpressionStatement -> Program NoExpressionStatement
 propagateConstant (Program dataSegment functions) =
