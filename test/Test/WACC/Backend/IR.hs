@@ -22,13 +22,14 @@ testExpression expr (s, ss) fs =
                 return False
 
 emptyState :: FlattenerState
-emptyState = initialState M.empty
+emptyState = initialState M.empty []
 
 state1 :: FlattenerState
 state1 = FlattenerState {
     mappingStack = [M.fromList [("x", Identifier "x" 1)]],
     variableCounter = M.size M.empty + 1,
-    dataSegment = M.empty
+    dataSegment = M.empty,
+    structures = M.empty
 }
 
 {- Tests for expressions. -}
@@ -51,7 +52,7 @@ testLiteralPairNull  = testExpression SM.LiteralPairNull (Immediate 0, [])
 testLiteralString :: IO Bool
 testLiteralString = do
     let ds = M.fromList [("test_string", 123)]
-    let s = initialState ds
+    let s = initialState ds []
     let expected = (String 123, [])
     testExpression (SM.LiteralString "test_string") expected s
 

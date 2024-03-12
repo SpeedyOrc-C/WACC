@@ -520,7 +520,7 @@ testProgram1
   = shouldSucceed "normal program"
     "begin int foo(int a) is a = 0; return a end \n\n int x = call foo(10)  end"
     program
-    (\case (Program ([Function (Int () (6, 9), Name "foo" (10, 13),
+    (\case (Program ([], [Function (Int () (6, 9), Name "foo" (10, 13),
             [(Name "a" (18, 19), Int () (14, 17))],
             [Assign (Identifier "a" (24, 25), LiteralInt 0 (28, 29)) (24, 29),
             Return (Identifier "a" (38, 39)) (31, 39)]) (6, 43)],
