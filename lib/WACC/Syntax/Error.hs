@@ -58,6 +58,7 @@ data WaccSyntaxErrorType
     | FunctionMissingIs
     | MainTrailingFunctions
     | ExpectIdentifierInStruct
+    | ExpectRightCurleyBracket
     deriving Eq
 
 {- Makes WaccSyntaxErrorType an instance of type class Show to display helpful
@@ -178,6 +179,8 @@ instance Show WaccSyntaxErrorType where
         "Functions definitions should not be after the main program."
     show ExpectIdentifierInStruct =
         "Expect identifier after struct"
+    show ExpectRightCurleyBracket =
+        "Expect the right curley bracket at the end of the declaration of struct"
 
 {- The smallest allowed integer literal. -}
 intLowerBound :: Int

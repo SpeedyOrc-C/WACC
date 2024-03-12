@@ -205,6 +205,7 @@ expressionBase :: WaccParser Expression
 expressionBase = asum [
     expressionWithBrackets,
     expressionIdentifier,
+    expressionNewStructure,
     expressionLiteralBool,
     expressionLiteralInt,
     expressionLiteralChar,
@@ -215,8 +216,8 @@ expressionBase = asum [
     expressionFunctionCall
     ]
 
-indexOperator' :: WaccParser (Range, a) 
-    -> ((Expression, a)-> Range -> Expression) 
+indexOperator' :: WaccParser (Range, a)
+    -> ((Expression, a)-> Range -> Expression)
     -> WaccParser Expression -> WaccParser Expression
 indexOperator' doblock type'' higherParser
     = do
@@ -447,7 +448,6 @@ expressionCondition :: WaccParser Expression
 expressionCondition = expression `syntaxErrorWhen` (not . isExpression,
     \((from, _), _) -> SyntaxError from ConditionHasSideEffect
     )
-
 {- It is a parser which parses a if statement and return the condition,
    contents in 'then' clause and contents in 'else' clause. -}
 statementIf :: WaccParser Statement
@@ -583,11 +583,14 @@ statementAssign = Assign ~ do
     right <- rightValue
     return (left, right)
 
-statementNewStructure = Declare ~ do
-    _ <- str "struct" *> some white
-    name <- identifierString <* some white
-    n     <- identifierString `syntaxError` ExpectIdentifierInStructInitialization
-    return (Struct name (0,0), n, NewStruct (0,0))
+expressionNewStructure :: WaccParser Expression
+expressionNewStructure = NewStruct ~ do
+    _ <- char '{'
+    fields  <- expression `syntaxError` ExpectOneExpression
+                `separatedBy` void (surroundManyWhites (char ','))
+    _ <- many white
+    _ <- char '}' `syntaxError` ExpectRightCurleyBracket
+    undefined
 
 
 {- It is a parser which parses different kinds of statements,
@@ -605,7 +608,6 @@ statement = asum [
     statementWhile,
     statementScope,
     statementDeclare,
-
     statementAssign
     ] `syntaxError` ExpectOneStatement
 
@@ -684,10 +686,10 @@ structure :: WaccParser Structure
 structure = Structure ~ do
     _      <- str "struct" <* some white
     n@(Name name' _)
-            <- name `syntaxError` ExpectIdentifierInStruct
+            <- name `syntaxError` ExpectIdentifierInStruct <* some white
     _       <- str "is" <* some white
-    fields  <- (structField `syntaxError` ExpectOneField name') 
-                `separatedBy` statementSep 
+    fields  <- (structField `syntaxError` ExpectOneField name')
+                `separatedBy` statementSep
     _       <- many white
     _       <- str "end" `syntaxError` ExpectFunctionEnd
     return (n, fields)
@@ -716,7 +718,7 @@ program' = do
             failWith (const $ SyntaxError
                 (inputPosition trailingFunctionPosition) MainTrailingFunctions)
         Nothing ->
-            return (if null structures then [] else fromJust structures, 
+            return (if null structures then [] else fromJust structures,
                 if null functions then [] else fromJust functions, body)
 
 {- It is a parser which parses a program and

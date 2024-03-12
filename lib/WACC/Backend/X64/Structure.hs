@@ -36,7 +36,7 @@ move _ from@(Register _) to = return $ Move from to
 move _ from@(MemoryIndirect (Just (ImmediateLabel _)) (RIP, B8) Nothing) to =
     loadAddress from to
 move _ from to@(Register _) = return $ Move from to
-move (B size) from@(MemoryIndirect {}) to@(MemoryIndirect {}) =
+move (B size) from to =
 
     Sq.fromList $ concat [[ Move (addToIndirect from off) (Register (RAX, x))
         , Move (Register (RAX, x)) (addToIndirect from off)]| (x, off) <- 
@@ -65,8 +65,11 @@ move (B size) from@(MemoryIndirect {}) to@(MemoryIndirect {}) =
                 = MemoryIndirect (Just $ ImmediateInt z) x y
             addToIndirect (MemoryIndirect (Just (ImmediateInt h)) x y) z 
                 = MemoryIndirect (Just $ ImmediateInt (h+z)) x y
+            addToIndirect (Register reg) z
+                = MemoryIndirect (Just $ ImmediateInt z) reg Nothing
             addToIndirect _ _
-                = error "tried to add to an non indirect address"
+                = error "the address of struct must be in \
+                    \either register or indirect address"
 move size from@(MemoryIndirect {}) to@(MemoryIndirect {}) =
     Sq.fromList [ Move from (Register (RAX, size))
     , Move (Register (RAX, size)) to]

@@ -37,7 +37,7 @@ expressionRange expr = case expr of
     Or _ r -> r
     FunctionCall _ r -> r
     Field _ r -> r
-    NewStruct r -> r
+    NewStruct _ r -> r
 
 {- Extracts the range from the statement. -}
 statementRange :: Statement -> Range
@@ -143,6 +143,11 @@ isField = \case
     Field{} -> True
     _ -> False
 
+isPrimStruct :: Expression -> Bool
+isPrimStruct = \case
+    NewStruct{} -> True
+    _ -> False
+
 {- Checks whether the given expression is a right value. -}
 isRightValue :: Expression -> Bool
 isRightValue e = or [
@@ -151,7 +156,8 @@ isRightValue e = or [
     isLiteralPair e,
     isPairElement e,
     isFunctionCall e,
-    isField e
+    isField e,
+    isPrimStruct e
     ]
 
 {- Checks whether the given type is a valid type in WACC. -}

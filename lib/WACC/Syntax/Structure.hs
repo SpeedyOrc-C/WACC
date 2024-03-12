@@ -56,7 +56,7 @@ data Expression
     | LiteralPair (Expression, Expression) Range
     | LiteralPairNull () Range
     | Field (Expression, Name) Range
-    | NewStruct Range
+    | NewStruct [Expression] Range
     | ArrayElement (Expression, Expression) Range
     | Not Unary Range
     | Negate Unary Range
