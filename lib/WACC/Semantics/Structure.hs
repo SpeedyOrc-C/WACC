@@ -70,6 +70,7 @@ data Type
     | Array Type
     | Pair (Type, Type)
     | Struct String [Type]
+    | RefType Type
     deriving Eq
 
 instance Show Type where
@@ -82,6 +83,7 @@ instance Show Type where
         Array t -> show t ++ "[]"
         Pair (a, b) -> "pair(" ++ show a ++ ", " ++ show b ++ ")"
         Struct str ts -> str ++ "(" ++ intercalate ", " (show <$> ts) ++ ")"
+        RefType t -> show t ++ "&"
 
 data ComparisonType = CompareChar | CompareInt deriving (Show, Eq)
 
@@ -125,3 +127,11 @@ data Expression
 
     | FunctionCall Type String [(Type, Expression)]
     deriving (Show, Eq)
+
+isIdentifier :: Expression -> Bool
+isIdentifier (Identifier _ _) = True
+isIdentifier _ = False
+
+isRefType :: Type -> Bool
+isRefType (RefType _) = True
+isRefType _ = False

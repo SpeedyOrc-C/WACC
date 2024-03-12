@@ -177,6 +177,7 @@ data Expression
     | SeekPairFirst Scalar
     | SeekPairSecond Scalar
 
+    | Reference Scalar
     | Dereference Size Scalar
 
     | Call Size String [(Size, Scalar)]

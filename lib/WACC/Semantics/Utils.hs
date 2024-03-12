@@ -88,6 +88,8 @@ a <~ b                     = a == b
 (<|) :: Type -> Type -> Bool
 Any <| Any                  = False
 Any <| _                    = True
+(RefType a) <| x            = a <| x
+x <| (RefType a)            = x <| a
 _ <| Any                    = True
 String <| Array Char        = True
 String <| Array Any         = True
@@ -115,6 +117,9 @@ isPair _            = False
 
 fromSyntaxType :: CheckerState -> Syntax.Type -> LogEither SemanticError Type
 fromSyntaxType state = \case
+    Syntax.RefType t _          -> do
+        t' <- fromSyntaxType state t
+        Ok $ RefType t'
     Syntax.Int {}               -> Ok Int
     Syntax.Bool {}              -> Ok Bool
     Syntax.Char {}              -> Ok Char

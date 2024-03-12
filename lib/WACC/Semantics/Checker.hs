@@ -161,26 +161,28 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 Nothing -> Log [SemanticError range $ UndefinedFunction name]
                 Just (paramsTypes, returnType) -> do
                     -- get the type of each arguments
-                    (unzip -> (argsTypes, args')) <- check state `traverse` args
+                    args'@(unzip -> (_, args'')) <- check state `traverse` args
 
                     -- check if the argument type being compatible of the parameter
                     -- type
-                    let checkParamsArgsTypes paramType argType range' =
-                            if paramType <| argType
-                            then Ok paramType
-                            else Log [SemanticError range' $
-                                        IncompatibleArgument paramType argType]
+                    let checkParamsArgsTypes (paramType, (argType, arg), range')
+                          | isRefType argType && not (isIdentifier arg)
+                            = Log [SemanticError range' OnlyAcceptIdentifier]
+                          | paramType <| argType = Ok paramType
+                          | otherwise = Log [SemanticError range' $
+                                    IncompatibleArgument paramType argType]
+
 
                     -- using the checkParamsArgTypes to check if the type of each
                     -- arguments is compatible to the type of the coresponding parameter
-                    sequence_ $ zipWith3 checkParamsArgsTypes
-                        paramsTypes
-                        argsTypes
-                        (expressionRange <$> args)
+                    argsType <-
+                        for (zip3 paramsTypes args' (map expressionRange args))
+                        checkParamsArgsTypes
 
                     -- check if the number of parameters the same as the arguments number
                     case compare (length args) (length paramsTypes) of
-                        EQ -> Ok (returnType, FunctionCall returnType name (argsTypes `zip` args'))
+                        EQ -> Ok (returnType, FunctionCall returnType name
+                            (argsType `zip` args''))
                         _ -> Log [SemanticError range $ ArgumentNumberMismatch
                                     name (length paramsTypes) (length args)]
 

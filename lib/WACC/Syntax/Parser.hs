@@ -504,7 +504,7 @@ typeString :: WaccParser Type
 typeString = String ~ void (str "string")
 
 typeReference :: WaccParser Type
-typeReference = Reference ~ type' <* many white <* char '&'
+typeReference = RefType ~ type' <* many white <* char '&'
 
 typeStructure :: WaccParser Type
 typeStructure = Struct ~ do
