@@ -150,7 +150,10 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
 
         Syntax.And xy _ -> checkLogical xy And
         Syntax.Or xy _ -> checkLogical xy Or
-        Syntax.NewStruct _ -> Ok (Any, NewStruct)
+        Syntax.NewStruct exps _ -> do 
+            exps' <- for exps (check state)
+            undefined
+
         Syntax.FunctionCall (name, args) range -> do
             -- firstly check if the function appears in the function mapping,
             -- which contains all functions name in the current program
