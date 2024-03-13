@@ -57,43 +57,52 @@ use f = modify $ \s -> s {
 allocate :: Config -> Identifier -> Size -> State GeneratorState MemoryLocation
 allocate cfg var size = do
     registerPool <- gets registerPool
+    if (case size of (B _) -> False; _ -> True)
+        && S.size registerPool < S.size (availableRegisters cfg)
+    then allocateOnRegister cfg var size
+    else allocateOnStack var size
+
+allocateOnRegister :: Config -> Identifier -> Size -> State GeneratorState MemoryLocation
+allocateOnRegister cfg var size = do
+    registerPool <- gets registerPool
+    memoryTable <- gets memoryTable
+    stainedCalleeSaveRegs <- gets stainedCalleeSaveRegs
+
+    let freeRegisters = availableRegisters cfg S.\\ registerPool
+    let freeRegister = minimumBy (compare `on` rankRegister cfg) $ S.toList freeRegisters
+
+    let location = AtRegister (freeRegister, size)
+
+    modify $ \s -> s {
+        registerPool = S.insert freeRegister registerPool,
+        memoryTable = M.insert var location memoryTable
+    }
+
+    when (freeRegister `elem` calleeSaveRegisters cfg) $
+        modify $ \s -> s {
+            stainedCalleeSaveRegs =
+                S.insert freeRegister stainedCalleeSaveRegs
+        }
+
+    return location
+
+allocateOnStack :: Identifier -> Size -> State GeneratorState MemoryLocation
+allocateOnStack var size = do
     memoryTable <- gets memoryTable
     stackPool <- gets stackPool
-    stainedCalleeSaveRegs <- gets stainedCalleeSaveRegs
     maxStackSize <- gets maxStackSize
-    if (case size of (B _) -> False; _ -> True) 
-        && S.size registerPool < S.size (availableRegisters cfg) then do
-        -- There are free registers.
-        let freeRegisters = availableRegisters cfg S.\\ registerPool
-        let freeRegister = minimumBy (compare `on` rankRegister cfg) $ S.toList freeRegisters
 
-        let location = AtRegister (freeRegister, size)
+    let (offset, stackPool') = allocateStack (IR.sizeToInt size) var stackPool
+    let location = AtStack offset size
 
-        modify $ \s -> s {
-            registerPool = S.insert freeRegister registerPool,
-            memoryTable = M.insert var location memoryTable
-        }
+    modify $ \s -> s {
+        stackPool = stackPool',
+        memoryTable = M.insert var location memoryTable,
+        maxStackSize = max maxStackSize (offset + IR.sizeToInt size)
+    }
 
-        when (freeRegister `elem` calleeSaveRegisters cfg) $
-            modify $ \s -> s {
-                stainedCalleeSaveRegs =
-                    S.insert freeRegister stainedCalleeSaveRegs
-            }
+    return location
 
-        return location
-
-    else do
-        -- All registers are in use, allocate on the stack.
-        let (offset, stackPool') = allocateStack (IR.sizeToInt size) var stackPool
-        let location = AtStack offset size
-
-        modify $ \s -> s {
-            stackPool = stackPool',
-            memoryTable = M.insert var location memoryTable,
-            maxStackSize = max maxStackSize (offset + IR.sizeToInt size)
-        }
-
-        return location
 
 {- This function frees the resources associated with the given identifier.
    It removes the identifier's entry from the memory table and releases
@@ -260,7 +269,7 @@ expression cfg = \case
     IR.GetField num s -> do
         op <- scalar s
         return $ Sq.fromList
-            [ Add (Immediate $ ImmediateInt num) op] 
+            [ Add (Immediate $ ImmediateInt num) op]
                 >< move B8 op (Register (RAX, B8))
     IR.Not s -> do
         op <- scalar s
@@ -602,7 +611,7 @@ singleStatement cfg = \case
                 to' <- operandFromMemoryLocation location
                 return $ evaluate >< move size (Register (RAX, size)) to'
 
-            Nothing -> do        
+            Nothing -> do
                 location <- allocate cfg to size
                 to' <- operandFromMemoryLocation location
                 return $ evaluate >< move size (Register (RAX, size)) to'
