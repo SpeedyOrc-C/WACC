@@ -262,6 +262,8 @@ malloc cfg size = expression cfg (IR.Call B8 "malloc" [(B4, IR.Immediate size)])
 
 expression :: Config -> IR.Expression -> State GeneratorState (Seq Instruction)
 expression cfg = \case
+    IR.Reference s -> undefined
+    
     IR.Scalar s -> do
         op <- scalar s
         let size = IR.getSize op
@@ -271,6 +273,7 @@ expression cfg = \case
         return $ Sq.fromList
             [ Add (Immediate $ ImmediateInt num) op]
                 >< move B8 op (Register (RAX, B8))
+    IR.NewStruct -> return Sq.empty
     IR.Not s -> do
         op <- scalar s
         return $ Sq.fromList

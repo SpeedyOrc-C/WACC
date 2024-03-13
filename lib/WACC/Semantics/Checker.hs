@@ -76,7 +76,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                             case fieldType of
                                 Nothing -> Log [SemanticError fieldRange
                                     $ UndefinedField structName fieldName]
-                                Just x  -> Ok (x, Field x struct' fieldName)
+                                Just x  -> Ok (x, Field expType struct' fieldName)
                 _ -> Log [SemanticError structRange ShouldBeStruct]
 
         -- the case of array[index]

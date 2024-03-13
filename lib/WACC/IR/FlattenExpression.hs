@@ -135,22 +135,14 @@ expression = \case
     SM.GreaterEqual SM.CompareChar a b -> binary B1 (GreaterEqual B1) a b
     SM.Less         SM.CompareChar a b -> binary B1 (Less         B1) a b
     SM.LessEqual    SM.CompareChar a b -> binary B1 (LessEqual    B1) a b
-    SM.Field    (SM.Struct structName _) op name' -> do
-        (op', evaluateOp) <- expression op
+    op@(SM.Field t _ _) -> do
+        (op', evaluateOp) <- indirectExpression op
         tmp <- newTemporary
-        structures <- gets structures
-        let
-            struct = M.lookup structName structures
-        case struct of
-            (Just (Structure _ _ struct')) -> do
-                let field = lookup name' struct'
-                case field of
-                    (Just (offset, s)) -> return (Variable tmp,
-                        evaluateOp ++ [Assign s tmp (GetField offset op')])
-                    Nothing           ->error "Unfound field after semantic check"
-            _ -> error "Unfound struct after semantic check"
-    SM.Field {} -> error "Should not happen try to find the field of\
-    \ nonstruct type after semantic check"
+        t'  <- getSize' t
+        return (Variable tmp,
+            evaluateOp ++
+            [Assign t' tmp (Dereference t' op')])
+            
     SM.Equal    t a b -> do
         t' <- getSize' t
         binary B1 (Equal  t') a b
@@ -229,6 +221,39 @@ indirectExpression = \case
             evaluatePair ++
             [Assign B8 tmp (SeekPairSecond pair')])
 
+    SM.Field t op@(SM.Identifier (SM.Struct structName _) _) name' -> do
+        (op', evaluateOp) <- indirectExpression op
+        tmp <- newTemporary
+        structures <- gets structures
+        let
+            struct = M.lookup structName structures
+        case struct of
+            (Just (Structure _ _ struct')) -> do
+                let field = lookup name' struct'
+                case field of
+                    (Just (offset, s)) -> return (Variable tmp,
+                        evaluateOp ++ [Assign s tmp (GetField offset op')])
+                    Nothing           ->error "Unfound field after semantic check"
+            _ -> error "Unfound struct after semantic check"
+
+    SM.Field (SM.Struct structName _) op name' -> do
+        (address, evaluateOp) <- indirectExpression op
+        value <- newTemporary
+        tmp <- newTemporary
+        structures <- gets structures
+        let
+            struct = M.lookup structName structures
+        case struct of
+            (Just (Structure _ _ struct')) -> do
+                let field = lookup name' struct'
+                case field of
+                    (Just (offset, _)) -> return (Variable tmp,
+                        evaluateOp ++  
+                            [ Assign B8 value (Dereference B8 address)
+                            , Assign B8 tmp (GetField offset (Variable value))])
+                    Nothing           ->error "Unfound field after semantic check"
+            _ -> error "Unfound struct after semantic check"
+
     SM.PairFirst _ pair -> do
         (address, evaluatePair) <- indirectExpression pair
         value <- newTemporary
@@ -246,23 +271,35 @@ indirectExpression = \case
             evaluatePair ++
             [ Assign B8 value (Dereference B8 address)
             , Assign B8 tmp (SeekPairSecond (Variable value))])
-    _ -> error "Semantic check has failed."
+    
+    x -> error $ "Semantic check has failed." ++ show x
 
 statement :: SM.Statement -> State FlattenerState [NoExpressionStatement]
 statement = \case
-    SM.Declare t@(SM.Struct structName fields) name (SM.NewStruct exps) -> do
+    SM.Declare t@(SM.Struct structName _) name (SM.NewStruct exps) -> do
         structures <- gets structures
+        identifier <- newVariable name
+        modify $ \s -> s {
+            mappingStack = M.insert name identifier
+                (head (mappingStack s)) : tail (mappingStack s)
+        }
         t' <- getSize' t
         let
             struct = M.lookup structName structures
             declareFields :: (String, (Int, Size)) -> SM.Expression
-                -> [NoExpressionStatement]
-            declareFields (name, (off, size)) exp =
-                undefined
+                -> State FlattenerState [SingleStatement]
+            declareFields (_, (off, size)) exp' = do
+                (s, exp'') <- expression exp'
+                tmp <- newTemporary
+                return $ exp'' ++ 
+                    [Assign B8 tmp (GetField off (Variable identifier)),
+                        AssignIndirect size tmp (Scalar s)]
+                        
         case struct of
             (Just (Structure _ _ struct')) -> do
-                undefined
-        undefined
+                (concat -> assigns) <- forM (zip struct' exps) (uncurry declareFields)
+                return $ NE (Assign t' identifier NewStruct): map NE assigns
+            _ -> error "should not happen not found struct at declaring"
 
     SM.Declare t name rightValue -> do
         (result, evaluation) <- expression rightValue
@@ -421,7 +458,7 @@ instance HasReference Expression where
         Order a -> reference a
         Character a -> reference a
         Reference a -> reference a
-
+        NewStruct -> S.empty
         Multiply a b -> reference a `S.union` reference b
         Divide a b -> reference a `S.union` reference b
         Remainder a b -> reference a `S.union` reference b
