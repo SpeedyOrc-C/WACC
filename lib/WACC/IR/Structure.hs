@@ -32,14 +32,14 @@ turnStructures preStruct (SM.Structure name fields) =
             Int
             -> Size
             -> [(String, SM.Type)]
-            -> (Int, String `M.Map` (Int, Size))
+            -> (Int, [(String,(Int, Size))])
         turnStructures' offset s []
-            = (totS, M.empty)
+            = (totS, [])
                 where
                     totS = floorUpSize offset s
         turnStructures' offset maximumSize ((f, SM.Struct name' _):fs) =
             case ft of
-                (Just ft') -> (offset'', M.insert f (offset', ft') xs)
+                (Just ft') -> (offset'', (f,(offset', ft')):xs)
                     where
                         offset' = floorUpSize offset ft'
                         maximumSize'
@@ -55,7 +55,7 @@ turnStructures preStruct (SM.Structure name fields) =
                 ft  = M.lookup name' preStruct
 
         turnStructures' offset maximumSize ((f, ft):fs)
-            = (offset'', M.insert f (offset', ft') xs)
+            = (offset'', (f,(offset', ft')):xs)
                 where
                     ft' = getSize ft
                     offset' = floorUpSize offset ft'
@@ -94,7 +94,7 @@ data Program s = Program (M.Map String Int) [Function s] deriving Show
 
 data Function s = Function String [(Identifier, Size)] [s] deriving Show
 
-data Structure = Structure String Int (String `M.Map` (Int, Size)) deriving Show
+data Structure = Structure String Int [(String,(Int, Size))] deriving Show
 
 data WhileInfo = WhileInfo {
     possibleFreeVars :: Set Identifier,
@@ -147,6 +147,7 @@ data Size = B1 | B2 | B4 | B8 | B Int deriving (Show, Eq, Ord)
 data Expression
     = Scalar Scalar
 
+    | NewStruct
     | Not Scalar
     | Length Scalar
     | Order Scalar

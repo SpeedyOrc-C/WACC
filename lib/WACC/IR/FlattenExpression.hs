@@ -62,7 +62,7 @@ expression = \case
     SM.LiteralString str -> do
         number <- gets $ (M.! str) . dataSegment
         return (String number, [])
-    SM.NewStruct -> do
+    SM.NewStruct x -> do
         tmp <- newTemporary
         return (Variable tmp, [])
     SM.LiteralArray t xs -> do
@@ -138,7 +138,7 @@ expression = \case
             struct = M.lookup structName structures
         case struct of
             (Just (Structure _ _ struct')) -> do
-                let field = M.lookup name' struct'
+                let field = lookup name' struct'
                 case field of
                     (Just (offset, s)) -> return (Variable tmp,
                         evaluateOp ++ [Assign s tmp (GetField offset op')])
@@ -188,7 +188,7 @@ indirectExpression ::
     SM.Expression -> State FlattenerState (Scalar, [SingleStatement])
 indirectExpression = \case
     i@(SM.Identifier _ _) -> expression i
-
+    
     SM.ArrayElement t array@(SM.Identifier {}) index -> do
         (index', evaluateIndex) <- expression index
         (array', evaluateElementAddress) <- indirectExpression array
@@ -241,11 +241,23 @@ indirectExpression = \case
             evaluatePair ++
             [ Assign B8 value (Dereference B8 address)
             , Assign B8 tmp (SeekPairSecond (Variable value))])
-
     _ -> error "Semantic check has failed."
 
 statement :: SM.Statement -> State FlattenerState [NoExpressionStatement]
 statement = \case
+    SM.Declare t@(SM.Struct structName fields) name (SM.NewStruct exps) -> do
+        structures <- gets structures
+        t' <- getSize' t
+        let
+            struct = M.lookup structName structures
+            declareFields :: (String, (Int, Size)) -> SM.Expression 
+                -> [NoExpressionStatement]
+            declareFields (name, (off, size)) exp = 
+                undefined
+        case struct of
+            (Just (Structure _ _ struct')) -> do
+                undefined
+        undefined
     SM.Declare t name rightValue -> do
         (result, evaluation) <- expression rightValue
         identifier <- newVariable name
@@ -395,6 +407,7 @@ instance HasReference Expression where
         Length a -> reference a
         Order a -> reference a
         Character a -> reference a
+        Reference a -> reference a
 
         Multiply a b -> reference a `S.union` reference b
         Divide a b -> reference a `S.union` reference b

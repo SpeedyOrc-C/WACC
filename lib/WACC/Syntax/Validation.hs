@@ -119,6 +119,7 @@ isExpression = \case
     NotEqual (a, b) _ -> isExpression a && isExpression b
     And (a, b) _ -> isExpression a && isExpression b
     Or (a, b) _ -> isExpression a && isExpression b
+    Field (a, _) _ -> isExpression a
     _ -> False
 
 {- Checks whether the given expression is an array literal. -}

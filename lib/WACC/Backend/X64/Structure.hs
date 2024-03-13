@@ -37,7 +37,6 @@ move _ from@(MemoryIndirect (Just (ImmediateLabel _)) (RIP, B8) Nothing) to =
     loadAddress from to
 move _ from to@(Register _) = return $ Move from to
 move (B size) from to =
-
     Sq.fromList $ concat [[ Move (addToIndirect from off) (Register (RAX, x))
         , Move (Register (RAX, x)) (addToIndirect from off)]| (x, off) <- 
             sizes `zip` scanl (+) 0 (map IR.sizeToInt sizes)]
