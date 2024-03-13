@@ -1,0 +1,18 @@
+# Assignment is legal since both sides types are known
+
+# Output:
+# 5
+#
+
+# Exit:
+# 0
+
+# Program:
+
+begin
+  pair(int, int) p = newpair(4, 5);
+  pair(pair(int, int), int) q = newpair(p, 6);
+  fst fst q = snd fst q;
+  int x = fst p;
+  println x
+end
