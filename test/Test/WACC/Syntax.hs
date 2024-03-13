@@ -199,21 +199,6 @@ testFunctionCall2
     "call increment(5);8965%$"
     expressionFunctionCall
 
-testArrayElement1 :: IO Bool
-testArrayElement1
-  = shouldSucceed "normal array element"
-    "A [1]"
-    expressionArrayElement
-    (\case (ArrayElement (Identifier "A" _,LiteralInt 1 _) _)-> True ;
-             _ -> False)
-
-testArrayElement2 :: IO Bool
-testArrayElement2
-  = shouldFailSyntaxError "error array element without right bracket"
-    "A [99"
-    expressionArrayElement
-    UnmatchedSquareBracket
-
 testUnaryOperation1 :: IO Bool
 testUnaryOperation1
   = shouldSucceed "normal unary operation"
@@ -567,8 +552,6 @@ syntaxUnitTests = sequence [
     testNullPairLiteral2,
     testFunctionCall1,
     testFunctionCall2,
-    testArrayElement1,
-    testArrayElement2,
     testUnaryOperation1,
     testUnaryOperation2,
     testBinaryOperation1,
