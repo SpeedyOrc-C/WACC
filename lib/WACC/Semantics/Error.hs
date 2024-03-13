@@ -15,6 +15,7 @@ data WaccSemanticsErrorType
     | RedefinedIdentifier String Int
     | RedefinedFunction String
     | ArgumentNumberMismatch String Int Int
+    | StructureNumberMismatch String Int Int
     | InconsistentTypesInArray Type Type
     | IncompatibleAssignment Type Type
     | IncompatibleArgument Type Type
@@ -69,6 +70,10 @@ instance Show WaccSemanticsErrorType where
     show (ArgumentNumberMismatch name expect actual) =
         "Function \"" ++ name ++ "\" takes " ++ show expect ++
         " argument" ++ (if expect > 1 then "s" else "") ++ ". " ++
+        "Actual: " ++ show actual
+    show (StructureNumberMismatch name expect actual) =
+        "Struct \"" ++ name ++ "\" has " ++ show expect ++
+        " field" ++ (if expect > 1 then "s" else "") ++ ". " ++
         "Actual: " ++ show actual
     show (InconsistentTypesInArray typeBefore typeAfter) =
         "Inconsistent types: type before is " ++ show typeBefore

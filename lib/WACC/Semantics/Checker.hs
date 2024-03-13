@@ -151,8 +151,8 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
         Syntax.And xy _ -> checkLogical xy And
         Syntax.Or xy _ -> checkLogical xy Or
         Syntax.NewStruct exps _ -> do
-            exps' <- for exps (check state)
-            undefined
+            (unzip -> (ts, exps')) <- for exps (check state)
+            Ok (Struct "" ts, NewStruct exps')
 
         Syntax.FunctionCall (name, args) range -> do
             -- firstly check if the function appears in the function mapping,
@@ -258,6 +258,26 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                     Log [SemanticError range $ InvalidEquality leftType rightType]
 
 
+triedToAssign :: Syntax.Expression -> Type -> Type -> Bool
+triedToAssign value leftType rightType
+     = (isLiter value && (leftType <? rightType)) || (leftType <| rightType)
+
+triedToAssigns :: Syntax.Expression -> Type -> Type -> LogEither SemanticError Bool
+triedToAssigns  (Syntax.NewStruct values range) 
+                (Struct k declaredVariables) 
+                (Struct a assignVariables)
+    | length declaredVariables /= length assignVariables
+        = Log [SemanticError range $ 
+                StructureNumberMismatch k (length declaredVariables) (length assignVariables)]
+    | a == ""         
+        = Ok (and $ zipWith3 triedToAssign values declaredVariables assignVariables)
+    | otherwise       
+        = Ok (k == a)
+
+triedToAssigns (expressionRange -> range) declaredType computedType 
+    = Log [SemanticError range $
+                IncompatibleAssignment declaredType computedType]
+
 instance CheckSemantics Syntax.Statement Statement where
     check state = \case
         -- firstly use fromSyntaxType to the type of the declare
@@ -265,11 +285,24 @@ instance CheckSemantics Syntax.Statement Statement where
             -> do
             declaredType <- fromSyntaxType state t
             case check state value of
+                Ok (computedType@(Struct _ _), newValue) -> 
+                    case triedToAssigns value declaredType computedType of
+                        Ok False -> 
+                            Log [SemanticError range $
+                                IncompatibleAssignment declaredType computedType]
+                        Ok True ->
+                            case lookUpInnermost state name of
+                            Nothing ->
+                                Ok (Declare (declaredType ?> computedType)
+                                name
+                                (alignAny declaredType newValue))
+                            Just ((previousPos, _), _) -> Log [SemanticError range $
+                                RedefinedIdentifier name previousPos]
+                        Log x -> Log x
                 Ok (computedType, newValue) ->
                     -- if the type at the right hand side can be compatible to the left
                     -- hand side, then it is fine else return error
-                    if (isLiter value && (declaredType <? computedType))
-                      || (declaredType <| computedType)
+                    if triedToAssign value declaredType computedType
                     -- the name of the identifier must not appear in the inner most layer
                     -- of the stack of variable tables
                     then case lookUpInnermost state name of
@@ -292,9 +325,7 @@ instance CheckSemantics Syntax.Statement Statement where
             if leftType == Any && rightType == Any then
                 Log [SemanticError (expressionRange right) BothSideAnyAssignment]
 
-            else if (isLiter right && (leftType <? rightType))
-                    || (leftType <| rightType) then do
-
+            else if triedToAssign right leftType rightType then do
                 let t = leftType ?> rightType
                 Ok (Assign t (alignAny t left') (alignAny t right'))
 

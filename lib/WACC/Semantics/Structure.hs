@@ -48,6 +48,7 @@ x ?> Any = x
 Any ?> x = x
 Pair (t1, t2) ?> Pair (t1', t2') = Pair (t1 ?> t1', t2 ?> t2')
 x ?> _ = x
+(Struct a x) ?> (Struct _ y) = Struct a (zipWith (?>) x y)
 t1 ?> t2
     | t1 == t2  = t1
     | otherwise = error ("Cannot unify different types." ++ show t1 ++ show t2)
@@ -97,7 +98,7 @@ data Expression
     | LiteralPair (Type, Type) (Expression, Expression)
     | LiteralPairNull
 
-    | NewStruct
+    | NewStruct [Expression]
     | Field Type Expression String
     | ArrayElement Type Expression Expression
 
