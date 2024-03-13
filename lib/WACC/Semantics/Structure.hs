@@ -136,3 +136,7 @@ isIdentifier _ = False
 isRefType :: Type -> Bool
 isRefType (RefType _) = True
 isRefType _ = False
+
+isStruct :: Type -> Bool
+isStruct (Struct _ _) = True
+isStruct _ = False

@@ -221,7 +221,7 @@ indirectExpression = \case
             evaluatePair ++
             [Assign B8 tmp (SeekPairSecond pair')])
 
-    SM.Field t op@(SM.Identifier (SM.Struct structName _) _) name' -> do
+    SM.Field _ op@(SM.Identifier (SM.Struct structName _) _) name' -> do
         (op', evaluateOp) <- indirectExpression op
         tmp <- newTemporary
         structures <- gets structures

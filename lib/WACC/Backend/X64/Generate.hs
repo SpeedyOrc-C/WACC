@@ -263,16 +263,15 @@ malloc cfg size = expression cfg (IR.Call B8 "malloc" [(B4, IR.Immediate size)])
 expression :: Config -> IR.Expression -> State GeneratorState (Seq Instruction)
 expression cfg = \case
     IR.Reference s -> undefined
-    
+
     IR.Scalar s -> do
         op <- scalar s
         let size = IR.getSize op
         return $ move size op (Register (RAX, IR.getSize op))
     IR.GetField num s -> do
         op <- scalar s
-        return $ Sq.fromList
-            [ Add (Immediate $ ImmediateInt num) op]
-                >< move B8 op (Register (RAX, B8))
+        return $ loadAddress (addToIndirect op num) (Register (RAX, B8))
+
     IR.NewStruct -> return Sq.empty
     IR.Not s -> do
         op <- scalar s
@@ -607,17 +606,16 @@ singleStatement cfg = \case
     IR.Assign size to from -> do
         memoryTable <- gets memoryTable
         evaluate <- expression cfg from
-
+        let size' = case size of (B _) -> B8; x -> x
         case memoryTable M.!? to of
-
             Just location -> do
                 to' <- operandFromMemoryLocation location
-                return $ evaluate >< move size (Register (RAX, size)) to'
+                return $ evaluate >< move size (Register (RAX, size')) to'
 
             Nothing -> do
                 location <- allocate cfg to size
                 to' <- operandFromMemoryLocation location
-                return $ evaluate >< move size (Register (RAX, size)) to'
+                return $ evaluate >< move size (Register (RAX, size')) to'
 
     IR.AssignIndirect size to from -> do
         memoryTable <- gets memoryTable

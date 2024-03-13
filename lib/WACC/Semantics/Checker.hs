@@ -76,7 +76,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                             case fieldType of
                                 Nothing -> Log [SemanticError fieldRange
                                     $ UndefinedField structName fieldName]
-                                Just x  -> Ok (x, Field expType struct' fieldName)
+                                Just x  -> Ok (x, Field expType  struct' fieldName)
                 _ -> Log [SemanticError structRange ShouldBeStruct]
 
         -- the case of array[index]
@@ -274,6 +274,10 @@ triedToAssigns  (Syntax.NewStruct values range)
     | otherwise       
         = Ok (k == a)
 
+triedToAssigns  (expressionRange -> range)
+                (Struct k _) 
+                (Struct a _)   = Ok (k == a)
+
 triedToAssigns (expressionRange -> range) declaredType computedType 
     = Log [SemanticError range $
                 IncompatibleAssignment declaredType computedType]
@@ -324,6 +328,15 @@ instance CheckSemantics Syntax.Statement Statement where
 
             if leftType == Any && rightType == Any then
                 Log [SemanticError (expressionRange right) BothSideAnyAssignment]
+            else if isStruct leftType then
+                case triedToAssigns right leftType rightType of
+                        Ok False -> 
+                            Log [SemanticError (expressionRange right) $
+                                IncompatibleAssignment leftType rightType]
+                        Ok True ->
+                            let t = leftType ?> rightType in
+                            Ok (Assign t (alignAny t left') (alignAny t right'))
+                        Log x -> Log x
 
             else if triedToAssign right leftType rightType then do
                 let t = leftType ?> rightType

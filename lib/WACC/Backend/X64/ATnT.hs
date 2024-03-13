@@ -14,7 +14,7 @@ class ATnT a where
 atntRegister :: Register -> String
 atntRegister (physicalRegister, size) = case physicalRegister of
     RAX -> case size of B8 -> "rax"; B4 -> "eax"; B2 -> "ax"; B1 -> "al";
-                        _ -> error "try to get the register of non normal size"
+                        _ -> error "try to get the register of non normal size" 
     RCX -> case size of B8 -> "rcx"; B4 -> "ecx"; B2 -> "cx"; B1 -> "cl";  
                         _ -> error "try to get the register of non normal size"
     RDX -> case size of B8 -> "rdx"; B4 -> "edx"; B2 -> "dx"; B1 -> "dl"; 

@@ -31,19 +31,31 @@ leaLabel label = LoadAddress (MemoryIndirect (Just (ImmediateLabel label)) (RIP,
 
 {- This is a function to generate move instructions
    between two operands, handling special cases. -}
+
+addToIndirect :: Operand -> Int -> Operand
+addToIndirect (MemoryIndirect Nothing x y) z 
+    = MemoryIndirect (Just $ ImmediateInt z) x y
+addToIndirect (MemoryIndirect (Just (ImmediateInt h)) x y) z 
+    = MemoryIndirect (Just $ ImmediateInt (h+z)) x y
+addToIndirect (Register reg) z
+    = MemoryIndirect (Just $ ImmediateInt z) reg Nothing
+addToIndirect _ _
+    = error "the address of struct must be in \
+        \either register or indirect address"
+
 move :: Size -> Operand -> Operand -> Seq Instruction
 move _ from@(Register _) to = return $ Move from to
 move _ from@(MemoryIndirect (Just (ImmediateLabel _)) (RIP, B8) Nothing) to =
     loadAddress from to
 move _ from to@(Register _) = return $ Move from to
 move (B size) from to =
-    Sq.fromList $ concat [[ Move (addToIndirect from off) (Register (RAX, x))
-        , Move (Register (RAX, x)) (addToIndirect from off)]| (x, off) <- 
+    Sq.fromList $ concat [[ LoadAddress (addToIndirect from off) (Register (RAX, x))
+        , Move (Register (RAX, x)) (addToIndirect to off)]| (x, off) <- 
             sizes `zip` scanl (+) 0 (map IR.sizeToInt sizes)]
         where 
             (n, m) = size `divMod` 8
             n' = n + if m == 0 then 0 else 1
-            sizes = replicate (n' - 1) B8 ++(getSizeHelper (size -(n' - 1) * 8) 8)
+            sizes = replicate (n' - 1) B8 ++(getSizeHelper (size - (n' - 1) * 8) 8)
             intToSize     :: Int -> Size
             intToSize 1 = B1
             intToSize 2 = B2
@@ -58,17 +70,6 @@ move (B size) from to =
             getSizeHelper x s
                 |x >= s = intToSize s: getSizeHelper (x - s) (s `div` 2)
                 |otherwise = getSizeHelper x (s `div` 2)
-            
-            addToIndirect :: Operand -> Int -> Operand
-            addToIndirect (MemoryIndirect Nothing x y) z 
-                = MemoryIndirect (Just $ ImmediateInt z) x y
-            addToIndirect (MemoryIndirect (Just (ImmediateInt h)) x y) z 
-                = MemoryIndirect (Just $ ImmediateInt (h+z)) x y
-            addToIndirect (Register reg) z
-                = MemoryIndirect (Just $ ImmediateInt z) reg Nothing
-            addToIndirect _ _
-                = error "the address of struct must be in \
-                    \either register or indirect address"
 move size from@(MemoryIndirect {}) to@(MemoryIndirect {}) =
     Sq.fromList [ Move from (Register (RAX, size))
     , Move (Register (RAX, size)) to]
