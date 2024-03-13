@@ -46,6 +46,11 @@ expressions xs = do
 
 expression :: SM.Expression -> State FlattenerState (Scalar, [SingleStatement])
 expression = \case
+    SM.Identifier (SM.RefType t) name -> do
+        identifier <- gets $ lookUp name . mappingStack
+        tmp <- newTemporary
+        return (Variable tmp, [Assign (getSize t) tmp (Dereference (getSize t) (Variable identifier))])
+
     SM.Identifier _ name -> do
         identifier <- gets $ lookUp name . mappingStack
         return (Variable identifier, [])
@@ -188,7 +193,7 @@ indirectExpression ::
     SM.Expression -> State FlattenerState (Scalar, [SingleStatement])
 indirectExpression = \case
     i@(SM.Identifier _ _) -> expression i
-    
+
     SM.ArrayElement t array@(SM.Identifier {}) index -> do
         (index', evaluateIndex) <- expression index
         (array', evaluateElementAddress) <- indirectExpression array
@@ -250,14 +255,15 @@ statement = \case
         t' <- getSize' t
         let
             struct = M.lookup structName structures
-            declareFields :: (String, (Int, Size)) -> SM.Expression 
+            declareFields :: (String, (Int, Size)) -> SM.Expression
                 -> [NoExpressionStatement]
-            declareFields (name, (off, size)) exp = 
+            declareFields (name, (off, size)) exp =
                 undefined
         case struct of
             (Just (Structure _ _ struct')) -> do
                 undefined
         undefined
+
     SM.Declare t name rightValue -> do
         (result, evaluation) <- expression rightValue
         identifier <- newVariable name
@@ -268,6 +274,13 @@ statement = \case
         t' <- getSize' t
         return $ map NE evaluation ++
             [NE $ Assign t' identifier (Scalar result)]
+
+    SM.Assign _ (SM.Identifier (SM.RefType t) name) rightValue -> do
+        identifier <- gets $ lookUp name . mappingStack
+        (result, evaluation) <- expression rightValue
+        t' <- getSize' t
+        return $ map NE evaluation ++
+            [NE $ AssignIndirect t' identifier (Scalar result)]
 
     SM.Assign _ (SM.Identifier t name) rightValue -> do
         identifier <- gets $ lookUp name . mappingStack

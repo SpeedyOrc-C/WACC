@@ -240,6 +240,7 @@ instance HasSize SM.Type where
         -- and right hand side being []
         SM.Any -> B1
         SM.Struct {} -> error "should not use getSize' to get the size of the struct"
+        SM.RefType {} -> B8
 
 
 sizeToInt :: Size -> Int
