@@ -10,7 +10,7 @@ All constructors no longer have a range, as they're only needed in
 syntactic and semantic analysis.
 -}
 
-data Program = Program (Set Structure) (Set Function) Block
+data Program = Program [Structure] (Set Function) Block
     deriving Show
 
 data Function = Function Type String [(String, Type)] Block
@@ -99,7 +99,7 @@ data Expression
     | LiteralPairNull
 
     | NewStruct [Expression]
-    | Field Type Expression String
+    | Field (Type, String) Expression String
     | ArrayElement Type Expression Expression
 
     | Not Expression

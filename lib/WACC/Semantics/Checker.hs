@@ -76,7 +76,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                             case fieldType of
                                 Nothing -> Log [SemanticError fieldRange
                                     $ UndefinedField structName fieldName]
-                                Just x  -> Ok (x, Field expType  struct' fieldName)
+                                Just x  -> Ok (x, Field (x, structName) struct' fieldName)
                 _ -> Log [SemanticError structRange ShouldBeStruct]
 
         -- the case of array[index]
@@ -553,9 +553,9 @@ instance CheckSemantics Syntax.Program Program where
                 -- can access other functions.
                 functionMapping = M.fromList ((snd <$>) <$> functionsNoRepeat)
             }
-        let functions' = S.fromList <$> check state' `mapM` functions
-        let structures''' = S.fromList $ map (snd.snd) structures''
-        let body'      =                check state'        body
+        let functions'    = S.fromList <$> check state' `mapM` functions
+        let structures''' = map (snd.snd) structures''
+        let body'         =                check state'        body
 
         Program <$> Ok structures''' <*> functions' <*> body'
 
