@@ -23,9 +23,9 @@ testExpression expr (s, ss) fs =
                 putStrLn $ red "    ! " ++ show expr
                 return False
 
-{- Helper function for testing Constant Propagation functions. -}
+{- Helper function for testing Constant Propagation expressions. -}
 testCP :: Expression -> Maybe Int
-                    -> PropagatorState -> IO Bool
+            -> PropagatorState -> IO Bool
 testCP expr value fs =
     case runIdentity (evalStateT (CP.expression expr) fs) of
         value' -> do
@@ -178,6 +178,27 @@ testNormalDivide = testCP (Divide (Immediate 5) (Immediate 3)) (Just 1) state2
 testDivideByzero :: IO Bool
 testDivideByzero = testCP (Divide (Immediate 5) (Immediate 0)) Nothing state2
 
+testNormalRemainder :: IO Bool
+testNormalRemainder = testCP (Remainder (Immediate 5) (Immediate 3)) 
+                                (Just 2) state2
+
+testAbnormalRemainder :: IO Bool
+testAbnormalRemainder = testCP (Remainder (Immediate 5) (Immediate 0)) 
+                                Nothing state2
+
+testGreater :: IO Bool
+testGreater = testCP (Greater B4 (Immediate 5) (Immediate 3)) (Just 1) state2
+
+testLessEqual :: IO Bool
+testLessEqual = testCP (LessEqual B4 (Immediate 5) (Immediate 3)) 
+                        (Just 0) state2
+
+testNotEqual :: IO Bool
+testNotEqual = testCP (NotEqual B4 (Immediate 5) (Immediate 0)) (Just 1) state2
+
+testOr :: IO Bool
+testOr = testCP (Or (Immediate 5) (Immediate 0)) (Just 1) state2
+
 irUnitTests :: IO [Bool]
 irUnitTests = sequence [
     testLiteralBool,
@@ -199,5 +220,11 @@ irUnitTests = sequence [
     testSubtract,
     testMultiply,
     testNormalDivide,
-    testDivideByzero
+    testDivideByzero,
+    testNormalRemainder,
+    testAbnormalRemainder,
+    testGreater,
+    testLessEqual,
+    testNotEqual,
+    testOr
   ]
