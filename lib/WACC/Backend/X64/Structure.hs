@@ -44,10 +44,6 @@ addToIndirect _ _
         \either register or indirect address"
 
 move :: Size -> Operand -> Operand -> Seq Instruction
-move _ from@(Register _) to = return $ Move from to
-move _ from@(MemoryIndirect (Just (ImmediateLabel _)) (RIP, B8) Nothing) to =
-    loadAddress from to
-move _ from to@(Register _) = return $ Move from to
 move (B size) from to =
     Sq.fromList $ concat [[ LoadAddress (addToIndirect from off) (Register (RAX, x))
         , Move (Register (RAX, x)) (addToIndirect to off)]| (x, off) <- 
@@ -70,6 +66,11 @@ move (B size) from to =
             getSizeHelper x s
                 |x >= s = intToSize s: getSizeHelper (x - s) (s `div` 2)
                 |otherwise = getSizeHelper x (s `div` 2)
+move _ from@(Register _) to = return $ Move from to
+move _ from@(MemoryIndirect (Just (ImmediateLabel _)) (RIP, B8) Nothing) to =
+    loadAddress from to
+move _ from to@(Register _) = return $ Move from to
+
 move size from@(MemoryIndirect {}) to@(MemoryIndirect {}) =
     Sq.fromList [ Move from (Register (RAX, size))
     , Move (Register (RAX, size)) to]

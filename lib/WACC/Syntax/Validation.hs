@@ -88,6 +88,7 @@ isPairElement = \case
 isArrayElement :: Expression -> Bool
 isArrayElement = \case
     Identifier {} -> True
+    Field {} -> True
     ArrayElement (a, i) _ -> isArrayElement a && isExpression i
     _ -> False
 
@@ -158,7 +159,6 @@ isRightValue e = or [
     isLiteralPair e,
     isPairElement e,
     isFunctionCall e,
-    isField e,
     isPrimStruct e
     ]
 

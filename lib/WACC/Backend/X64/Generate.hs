@@ -167,7 +167,9 @@ scalar = \case
 
     IR.Variable identifier -> do
         memoryTable <- gets memoryTable
-        operandFromMemoryLocation $ memoryTable M.! identifier
+        case memoryTable M.!? identifier of
+            Nothing -> error $ "cannot find" ++ show identifier
+            Just x -> operandFromMemoryLocation $ x
 
     IR.String n ->
         return $ MemoryIndirect
@@ -225,6 +227,19 @@ pop maybeReg = do
     return $ case maybeReg of
         Just reg -> Sq.singleton $ Pop (Register (reg, B8))
         Nothing -> upRSP 8
+{-let (argsReg, argsStack) = splitAt paramRegCount operands
+        let (argsRegSizes, argsStackSizes) = splitAt paramRegCount sizes-}
+getCallStackSize :: [(a,Size)] -> Int -> Int -> ([(a,Size)], [(a,Size)])
+getCallStackSize [] _ _ = ([], [])
+getCallStackSize (x@(_, B _):xs) k j= (argsReg', x:argsStack')
+    where
+        (argsReg', argsStack') = getCallStackSize xs k j
+getCallStackSize (x:xs) k j
+    | k < j = (x:argsReg', argsStack')
+    | otherwise = (argsReg', x:argsStack')
+    where
+        (argsReg', argsStack') = getCallStackSize xs (k + 1) j
+
 
 useManyTemporary :: [PhysicalRegister] -> State GeneratorState (Seq Instruction)
     -> State GeneratorState (Seq Instruction)
@@ -262,7 +277,9 @@ malloc cfg size = expression cfg (IR.Call B8 "malloc" [(B4, IR.Immediate size)])
 
 expression :: Config -> IR.Expression -> State GeneratorState (Seq Instruction)
 expression cfg = \case
-    IR.Reference s -> undefined
+    IR.Reference s -> do
+        op <- scalar s
+        return $ loadAddress op (Register (RAX, B8))
 
     IR.Scalar s -> do
         op <- scalar s
@@ -496,8 +513,8 @@ expression cfg = \case
         operands <- traverse scalar scalars
         maybeAlignUpRSP <- if needAlignStack then pop Nothing else return Sq.empty
 
-        let (argsReg, argsStack) = splitAt paramRegCount operands
-        let (argsRegSizes, argsStackSizes) = splitAt paramRegCount sizes
+        let (unzip -> (argsReg, argsRegSizes), unzip -> (argsStack, argsStackSizes)) 
+                = getCallStackSize (zip operands sizes) 0 paramRegCount 
 
         let assignArgsReg =
                 zip3 [1..paramRegCount] argsRegSizes argsReg <&> \(n, size, arg) -> do
@@ -603,6 +620,9 @@ singleStatement cfg = \case
         op <- scalar s
         return $ Sq.fromList [Move op (Register (parameter cfg 1 B4)), Call "exit"]
 
+    IR.FunctionReturnStruct t' to fn args -> do
+        expression cfg (IR.Call t' fn ((B8, IR.Variable to):args))
+
     IR.Assign size to from -> do
         memoryTable <- gets memoryTable
         evaluate <- expression cfg from
@@ -666,6 +686,13 @@ singleStatement cfg = \case
         use Internal.PrintString
 
         expression cfg (IR.Call B8 "print_pointer" [(B8, s)])
+    
+    IR.Return size@(B _) s -> do
+        op <- scalar s
+        name <- gets functionName
+
+        return $ move size op (Register (RDI, B8)) >< Sq.fromList
+            [Jump . ImmediateLabel $ name ++ ".return"]
 
     IR.Return size s -> do
         op <- scalar s
@@ -742,7 +769,7 @@ function cfg (IR.Function name parameters statements) = do
     modify $ \s -> s { functionName = name }
 
     let paramRegCount = length (parameterRegisters cfg)
-    let (registerParams, stackParams) = splitAt paramRegCount parameters
+    let (registerParams, stackParams) = getCallStackSize parameters 0 paramRegCount
 
     for_ (zip [1..] registerParams) $ \(i, (ident, size)) -> do
         memoryTable <- gets memoryTable

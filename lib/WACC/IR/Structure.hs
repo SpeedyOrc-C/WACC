@@ -126,6 +126,7 @@ data NoControlFlowStatement
 
 data SingleStatement
     = Assign Size Identifier Expression
+    | FunctionReturnStruct Size Identifier String [(Size, Scalar)]
     | AssignIndirect Size Identifier Expression
     | Return Size Scalar
     | Exit Scalar

@@ -160,8 +160,8 @@ expression = \case
         ts' <-forM ts (\z ->do getSize' z)
         return (Variable tmp,
             evaluate ++
-            [Assign t' tmp (Call t' ("fn_" ++ f)
-            (ts' `zip` scalars))])
+            [Assign t' tmp (Call t' ("fn_" ++ f) (ts' `zip` scalars))])
+
     where
     unary :: Size -> (Scalar -> Expression) -> SM.Expression
                 -> State FlattenerState (Scalar, [SingleStatement])
@@ -298,7 +298,7 @@ statement = \case
         return $ map NE evaluation ++
             [NE $ Assign t' identifier (Scalar result)]
 
-    SM.Assign t@(SM.Struct structName fts) leftValue (SM.NewStruct exps) -> do
+    SM.Assign (SM.Struct structName fts) leftValue (SM.NewStruct exps) -> do
         structures <- gets structures
         let
             struct = M.lookup structName structures
@@ -313,7 +313,19 @@ statement = \case
                     (uncurry declareFields)
                 return assigns
             _ -> error "should not happen not found struct at declaring"
-    
+
+    SM.Assign t@(SM.Struct _ _) leftValue (SM.FunctionCall _ f (unzip -> (ts, args))) -> do
+        (scalar, evaluateLeft) <- expression leftValue
+        tmp <- newTemporary
+        (scalars, evaluate) <- expressions args
+        t' <- getSize' t
+        ts' <-forM ts (\z ->do getSize' z)
+        return $
+            map NE evaluate ++ map NE evaluateLeft ++
+                [NE(Assign B8 tmp (Reference scalar)),
+                NE(FunctionReturnStruct t' tmp ("fn_" ++ f) (ts' `zip` scalars))]
+        -- return $ NE(Assign B8 tmp (Reference scalar)): [FunctionReturnStruct tmp ]
+
     SM.Assign t@(SM.Struct structName fts) leftValue rightValue -> do
         structures <- gets structures
         _ <- getSize' t
@@ -519,6 +531,8 @@ instance HasReference SingleStatement where
         Exit e -> reference e
         Free e -> reference e
         FreeArray e -> reference e
+        FunctionReturnStruct _ var _ args -> 
+            var `S.insert` reference (snd <$> args)
 
         PrintBool e -> reference e
         PrintInt e -> reference e
