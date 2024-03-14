@@ -37,6 +37,7 @@ for file in $(find "$directory" -type f \
 
         echo -e "Compiling...\n"
         if ./compile "$file"; then
+            rm "$exec_name.macro.S"
             echo -e "\nCompilation of $filename succeeded!"
             echo -e "\nExecuting..."
             if [ -n "$input" ]; then
