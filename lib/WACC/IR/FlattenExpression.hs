@@ -135,10 +135,10 @@ expression = \case
     SM.GreaterEqual SM.CompareChar a b -> binary B1 (GreaterEqual B1) a b
     SM.Less         SM.CompareChar a b -> binary B1 (Less         B1) a b
     SM.LessEqual    SM.CompareChar a b -> binary B1 (LessEqual    B1) a b
-    op@(SM.Field t _ _) -> do
+    op@(SM.Field (t, _) _ _) -> do
         (op', evaluateOp) <- indirectExpression op
         tmp <- newTemporary
-        t'  <- getSize' t
+        t' <- getSize' t
         return (Variable tmp,
             evaluateOp ++
             [Assign t' tmp (Dereference t' op')])
@@ -232,11 +232,11 @@ indirectExpression = \case
                 let field = lookup name' struct'
                 case field of
                     (Just (offset, s)) -> return (Variable tmp,
-                        evaluateOp ++ [Assign s tmp (GetField offset op')])
+                        evaluateOp ++ [Assign B8 tmp (GetField offset op')])
                     Nothing           ->error "Unfound field after semantic check"
             _ -> error "Unfound struct after semantic check"
 
-    SM.Field (SM.Struct structName _) op name' -> do
+    SM.Field (t, structName) op name' -> do
         (address, evaluateOp) <- indirectExpression op
         value <- newTemporary
         tmp <- newTemporary
@@ -249,7 +249,7 @@ indirectExpression = \case
                 case field of
                     (Just (offset, _)) -> return (Variable tmp,
                         evaluateOp ++  
-                            [ Assign B8 value (Dereference B8 address)
+                            [ Assign B8 value (Scalar address)
                             , Assign B8 tmp (GetField offset (Variable value))])
                     Nothing           ->error "Unfound field after semantic check"
             _ -> error "Unfound struct after semantic check"
@@ -276,30 +276,16 @@ indirectExpression = \case
 
 statement :: SM.Statement -> State FlattenerState [NoExpressionStatement]
 statement = \case
-    SM.Declare t@(SM.Struct structName _) name (SM.NewStruct exps) -> do
-        structures <- gets structures
+    SM.Declare t@(SM.Struct _ _)
+            name right -> do
         identifier <- newVariable name
         modify $ \s -> s {
             mappingStack = M.insert name identifier
                 (head (mappingStack s)) : tail (mappingStack s)
         }
         t' <- getSize' t
-        let
-            struct = M.lookup structName structures
-            declareFields :: (String, (Int, Size)) -> SM.Expression
-                -> State FlattenerState [SingleStatement]
-            declareFields (_, (off, size)) exp' = do
-                (s, exp'') <- expression exp'
-                tmp <- newTemporary
-                return $ exp'' ++ 
-                    [Assign B8 tmp (GetField off (Variable identifier)),
-                        AssignIndirect size tmp (Scalar s)]
-                        
-        case struct of
-            (Just (Structure _ _ struct')) -> do
-                (concat -> assigns) <- forM (zip struct' exps) (uncurry declareFields)
-                return $ NE (Assign t' identifier NewStruct): map NE assigns
-            _ -> error "should not happen not found struct at declaring"
+        assigns <- statement $ SM.Assign t (SM.Identifier t name) right
+        return $ NE (Assign t' identifier NewStruct) : assigns
 
     SM.Declare t name rightValue -> do
         (result, evaluation) <- expression rightValue
@@ -311,6 +297,40 @@ statement = \case
         t' <- getSize' t
         return $ map NE evaluation ++
             [NE $ Assign t' identifier (Scalar result)]
+
+    SM.Assign t@(SM.Struct structName fts) leftValue (SM.NewStruct exps) -> do
+        structures <- gets structures
+        let
+            struct = M.lookup structName structures
+            declareFields :: (String, SM.Type) -> SM.Expression
+                -> State FlattenerState [NoExpressionStatement]
+            declareFields (field, ft) exp' = do
+                statement (SM.Assign ft (SM.Field (ft, structName) leftValue field) exp')
+                        
+        case struct of
+            (Just (Structure _ _ (map fst -> fields'))) -> do
+                (concat -> assigns) <- forM (zip (zip fields' fts) exps) 
+                    (uncurry declareFields)
+                return assigns
+            _ -> error "should not happen not found struct at declaring"
+    
+    SM.Assign t@(SM.Struct structName fts) leftValue rightValue -> do
+        structures <- gets structures
+        _ <- getSize' t
+        let
+            struct = M.lookup structName structures
+            declareFields :: (String, SM.Type)
+                -> State FlattenerState [NoExpressionStatement]
+            declareFields (field, ft) = do
+                statement 
+                    (SM.Assign ft (SM.Field (ft, structName) leftValue field)
+                        (SM.Field (ft, structName) rightValue field))
+                        
+        case struct of
+            (Just (Structure _ _ (map fst -> fields'))) -> do
+                (concat -> assigns) <- forM (zip fields' fts) declareFields
+                return assigns
+            _ -> error "should not happen not found struct at declaring"
 
     SM.Assign _ (SM.Identifier (SM.RefType t) name) rightValue -> do
         identifier <- gets $ lookUp name . mappingStack
@@ -561,4 +581,4 @@ flattenExpression :: (String `M.Map` Int, SM.Program) ->
                         Program NoExpressionStatement
 flattenExpression (dataSegment, SM.Program structures fs main) =
     runIdentity $ evalStateT (program fs main)
-        (initialState dataSegment (S.toList structures))
+        (initialState dataSegment structures)

@@ -49,8 +49,8 @@ turnStructures preStruct (SM.Structure name fields) =
                         (offset'', xs)
                             = turnStructures' (offset' + sizeToInt ft')
                             maximumSize' fs
-                Nothing  -> error "should never occur (struct field with type \
-                    \ struct must be defined in previous struct)"
+                Nothing  -> error $ "should never occur (struct field with type \
+                    \ struct must be defined in previous struct)" ++ show (length preStruct)
             where
                 ft  = M.lookup name' preStruct
 
