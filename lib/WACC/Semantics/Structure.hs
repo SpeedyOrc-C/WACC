@@ -2,7 +2,6 @@
 module WACC.Semantics.Structure where
 
 import Data.Set (Set)
-import Text.Parser (Range)
 import Data.List (intercalate)
 
 {-
@@ -126,7 +125,7 @@ data Expression
     | And Expression Expression
     | Or Expression Expression
 
-    | FunctionCall Type String [(Type, Expression)]
+    | FunctionCall Type String [(Type, (Type, Expression))]
     deriving (Show, Eq)
 
 isIdentifier :: Expression -> Bool

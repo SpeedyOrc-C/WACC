@@ -83,5 +83,5 @@ analyseLiveRange ::
     Program NoControlFlowStatement -> Program NoControlFlowStatement
 analyseLiveRange (Program dataSegment functions) =
     Program dataSegment
-        [Function name params (putFreeVariableDirective body)
-            | Function name params body <- functions]
+        [Function size name params (putFreeVariableDirective body)
+            | Function size name params body <- functions]

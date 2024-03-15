@@ -45,7 +45,7 @@ addToIndirect _ _
 
 move :: Size -> Operand -> Operand -> Seq Instruction
 move (B size) from to =
-    Sq.fromList $ concat [[ LoadAddress (addToIndirect from off) (Register (RAX, x))
+    Sq.fromList $ concat [[ Move (addToIndirect from off) (Register (RAX, x))
         , Move (Register (RAX, x)) (addToIndirect to off)]| (x, off) <- 
             sizes `zip` scanl (+) 0 (map IR.sizeToInt sizes)]
         where 

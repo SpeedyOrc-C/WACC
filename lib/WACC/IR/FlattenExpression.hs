@@ -11,6 +11,7 @@ import           Control.Monad.Trans.State.Lazy
 
 import qualified WACC.Semantics.Structure as SM
 import           WACC.IR.Structure
+import WACC.Backend.X64.ATnT (ident)
 
 lookUp :: Ord k => k -> [M.Map k a] -> a
 lookUp _ [] = error "Semantic check has failed!"
@@ -44,6 +45,36 @@ expressions xs = do
     (unzip -> (scalars, concat -> evaluate)) <- traverse expression xs
     return (scalars, evaluate)
 
+getIdentifier :: Scalar -> Identifier
+getIdentifier (Variable ident') = ident'
+getIdentifier (Reference ident') = ident'
+getIdentifier _ = error "cannot get identifier at this stage"
+
+paramExpression :: (SM.Type, (SM.Type, SM.Expression)) 
+    -> State FlattenerState (Scalar,[SingleStatement]) 
+paramExpression x = do
+    case x of
+        (SM.RefType _, (SM.RefType _, exp')) ->
+            expression exp'
+        -- (SM.Struct _ _, (SM.RefType _, exp')) ->
+        --     expression exp'
+        (_, (SM.RefType _, exp')) -> do
+            (getIdentifier -> s, stats) <- expression exp'
+            return (Reference s, stats)
+        (SM.RefType _, (t, exp')) -> do
+            tmp <- newTemporary
+            (s, stats) <- expression exp'
+            t' <- getSize' t
+            return (Variable tmp, stats ++ [Assign t' tmp (Dereference t' s)])
+
+        (_, (_, exp')) -> 
+            expression exp'
+
+paramExpressions :: [(SM.Type, (SM.Type, SM.Expression))] -> StateT FlattenerState Identity ([Scalar], [SingleStatement])
+paramExpressions xs = do
+    (unzip -> (scalars, concat -> evaluate)) <- traverse paramExpression xs
+    return (scalars, evaluate)
+
 expression :: SM.Expression -> State FlattenerState (Scalar, [SingleStatement])
 expression = \case
     SM.Identifier (SM.RefType t) name -> do
@@ -67,7 +98,7 @@ expression = \case
     SM.LiteralString str -> do
         number <- gets $ (M.! str) . dataSegment
         return (String number, [])
-    SM.NewStruct x -> do
+    SM.NewStruct _ -> do
         tmp <- newTemporary
         return (Variable tmp, [])
     SM.LiteralArray t xs -> do
@@ -153,8 +184,8 @@ expression = \case
     SM.And a b -> binary B1 And a b
     SM.Or  a b -> binary B1 Or  a b
 
-    SM.FunctionCall t f (unzip -> (ts, args)) -> do
-        (scalars, evaluate) <- expressions args
+    SM.FunctionCall t f args@(unzip.map snd -> (ts, _)) -> do
+        (scalars, evaluate) <- paramExpressions args
         tmp <- newTemporary
         t' <- getSize' t
         ts' <-forM ts (\z ->do getSize' z)
@@ -314,16 +345,17 @@ statement = \case
                 return assigns
             _ -> error "should not happen not found struct at declaring"
 
-    SM.Assign t@(SM.Struct _ _) leftValue (SM.FunctionCall _ f (unzip -> (ts, args))) -> do
+    SM.Assign t@(SM.Struct _ _) leftValue (SM.FunctionCall _ f args@(unzip.map snd -> (ts, _))) -> do
         (scalar, evaluateLeft) <- expression leftValue
-        tmp <- newTemporary
-        (scalars, evaluate) <- expressions args
+        (scalars, evaluate) <- paramExpressions args
         t' <- getSize' t
         ts' <-forM ts (\z ->do getSize' z)
-        return $
-            map NE evaluate ++ map NE evaluateLeft ++
-                [NE(Assign B8 tmp (Reference scalar)),
-                NE(FunctionReturnStruct t' tmp ("fn_" ++ f) (ts' `zip` scalars))]
+        case scalar of
+            Variable x -> return $
+                map NE evaluate ++ map NE evaluateLeft ++
+                    [NE(FunctionReturnStruct t' x ("fn_" ++ f) 
+                        (ts' `zip` scalars))]
+            _ -> error "should not happen left scalar must be an variable"
         -- return $ NE(Assign B8 tmp (Reference scalar)): [FunctionReturnStruct tmp ]
 
     SM.Assign t@(SM.Struct structName fts) leftValue rightValue -> do
@@ -478,6 +510,9 @@ instance HasReference Scalar where
         (Variable var@(Identifier {})) -> S.singleton var
         (Variable var@(Parameter {})) -> S.singleton var
         (Variable var@(Temporary {})) -> S.singleton var
+        (Reference var@(Identifier {})) -> S.singleton var
+        (Reference var@(Parameter {})) -> S.singleton var
+        (Reference var@(Temporary {})) -> S.singleton var
         _ -> S.empty
 
 instance HasReference Expression where
@@ -489,7 +524,6 @@ instance HasReference Expression where
         Length a -> reference a
         Order a -> reference a
         Character a -> reference a
-        Reference a -> reference a
         NewStruct -> S.empty
         Multiply a b -> reference a `S.union` reference b
         Divide a b -> reference a `S.union` reference b
@@ -559,9 +593,9 @@ instance HasReference NoExpressionStatement where
 
 function :: SM.Function ->
             State FlattenerState (Function NoExpressionStatement)
-function (SM.Function _ functionName params@(unzip -> (names, types)) b) = do
+function (SM.Function t functionName params@(unzip -> (names, types)) b) = do
     oldState <- get
-
+    size <- getSize' t
     (map fst -> identifiers) <- forM params $ \(name, t) -> do
         identifier <- newParameter name
         return (identifier, getSize' t)
@@ -576,6 +610,7 @@ function (SM.Function _ functionName params@(unzip -> (names, types)) b) = do
     put oldState
 
     return $ Function
+        size
         functionName
         (identifiers `zip` ts')
         b'

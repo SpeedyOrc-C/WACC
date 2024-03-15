@@ -92,7 +92,7 @@ initialState ds structs = FlattenerState {
 
 data Program s = Program (M.Map String Int) [Function s] deriving Show
 
-data Function s = Function String [(Identifier, Size)] [s] deriving Show
+data Function s = Function Size String [(Identifier, Size)] [s] deriving Show
 
 data Structure = Structure String Int [(String,(Int, Size))] deriving Show
 
@@ -179,7 +179,6 @@ data Expression
     | SeekPairFirst Scalar
     | SeekPairSecond Scalar
 
-    | Reference Scalar
     | Dereference Size Scalar
 
     | Call Size String [(Size, Scalar)]
@@ -190,6 +189,7 @@ data Expression
 data Scalar
     = Immediate Int
     | Variable Identifier
+    | Reference Identifier
     | String Int
     deriving (Show, Eq)
 

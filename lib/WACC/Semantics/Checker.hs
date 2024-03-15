@@ -162,7 +162,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 Nothing -> Log [SemanticError range $ UndefinedFunction name]
                 Just (paramsTypes, returnType) -> do
                     -- get the type of each arguments
-                    args'@(unzip -> (_, args'')) <- check state `traverse` args
+                    args'@(unzip -> (argsType, args'')) <- check state `traverse` args
 
                     -- check if the argument type being compatible of the parameter
                     -- type
@@ -176,14 +176,15 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
 
                     -- using the checkParamsArgTypes to check if the type of each
                     -- arguments is compatible to the type of the coresponding parameter
-                    argsType <-
+                    
+                    _ <- 
                         for (zip3 paramsTypes args' (map expressionRange args))
-                        checkParamsArgsTypes
+                            checkParamsArgsTypes
 
                     -- check if the number of parameters the same as the arguments number
                     case compare (length args) (length paramsTypes) of
                         EQ -> Ok (returnType, FunctionCall returnType name
-                            (argsType `zip` args''))
+                            (argsType `zip` zip paramsTypes args''))
                         _ -> Log [SemanticError range $ ArgumentNumberMismatch
                                     name (length paramsTypes) (length args)]
 

@@ -164,6 +164,9 @@ scalar :: IR.Scalar -> State GeneratorState Operand
 scalar = \case
     IR.Immediate n -> return $
         Immediate (ImmediateInt n)
+    
+    IR.Reference identifier -> 
+        error $ "should not use the scalar to get the operand of the " ++ show identifier
 
     IR.Variable identifier -> do
         memoryTable <- gets memoryTable
@@ -275,11 +278,20 @@ pairHelper s = do
 malloc :: Config -> Int -> State GeneratorState (Seq Instruction)
 malloc cfg size = expression cfg (IR.Call B8 "malloc" [(B4, IR.Immediate size)])
 
+getRefRegisters :: [IR.Scalar] ->  State GeneratorState [PhysicalRegister]
+getRefRegisters [] = return []
+getRefRegisters ((IR.Reference x):xs) = do
+    xs' <- getRefRegisters xs
+    operand <- scalar (IR.Variable x)
+    case operand of
+        (Register (reg, _)) -> 
+            return (reg:xs')
+        _ ->
+            return xs'
+getRefRegisters (_:xs) = getRefRegisters xs
+
 expression :: Config -> IR.Expression -> State GeneratorState (Seq Instruction)
 expression cfg = \case
-    IR.Reference s -> do
-        op <- scalar s
-        return $ loadAddress op (Register (RAX, B8))
 
     IR.Scalar s -> do
         op <- scalar s
@@ -504,21 +516,29 @@ expression cfg = \case
 
     IR.Call _ name (unzip -> (sizes, scalars)) -> do
         callerSaveRegistersToBePushed <- usedCallerSaveRegisters cfg
+
         let needAlignStack = odd $ length callerSaveRegistersToBePushed
         let paramRegCount = length (parameterRegisters cfg)
+        refRegisters <- getRefRegisters scalars
 
-        (asum -> pushCallerSave) <- traverse (push . Just) callerSaveRegistersToBePushed
+        (asum -> pushRegister) <- traverse (push . Just) (callerSaveRegistersToBePushed ++ refRegisters)
 
         maybeAlignDownRSP <- if needAlignStack then push Nothing else return Sq.empty
-        operands <- traverse scalar scalars
         maybeAlignUpRSP <- if needAlignStack then pop Nothing else return Sq.empty
 
         let (unzip -> (argsReg, argsRegSizes), unzip -> (argsStack, argsStackSizes)) 
-                = getCallStackSize (zip operands sizes) 0 paramRegCount 
+                = getCallStackSize (zip scalars sizes) 0 paramRegCount 
 
-        let assignArgsReg =
-                zip3 [1..paramRegCount] argsRegSizes argsReg <&> \(n, size, arg) -> do
-                    move size arg (Register (parameter cfg n size))
+        assignArgsReg <-
+                forM (zip3 [1..paramRegCount] argsRegSizes argsReg) $ \(n, size, arg) -> 
+                    case arg of
+                        (IR.Reference x) -> do
+                            x' <- scalar (IR.Variable x)
+                            return $ loadAddress x' (Register (parameter cfg n B8))
+                        _ -> do
+                            x' <- scalar arg
+                            return $ move size x' (Register (parameter cfg n size))
+                        
 
         let allocateArgsStackSize = max
                 (sum (IR.sizeToInt <$> argsStackSizes))
@@ -528,16 +548,24 @@ expression cfg = \case
 
         let argsStackOffsets = scanl (+) 0 (IR.sizeToInt <$> argsStackSizes)
 
-        let assignArgsStack =
-                zip3 argsStackOffsets argsStackSizes argsStack <&> \(offset, size, arg) -> do
-                    move size arg (MemoryIndirect (Just (ImmediateInt offset)) (RSP, B8) Nothing)
+        assignArgsStack <-
+                forM (zip3 argsStackOffsets argsStackSizes argsStack) $
+                    \(offset, size, arg) -> do
+                    case arg of
+                        (IR.Reference x) -> do
+                            x' <- scalar (IR.Variable x)
+                            return $ loadAddress x' (MemoryIndirect (Just (ImmediateInt offset)) (RSP, B8) Nothing)
+                        _ -> do
+                            x' <- scalar arg
+                            return $ move size x' (MemoryIndirect (Just (ImmediateInt offset)) (RSP, B8) Nothing)
+                    
 
         let freeArgsStack = upRSP . ceil16 $ allocateArgsStackSize
 
-        (asum -> popCallerSave) <- traverse (pop . Just) (reverse callerSaveRegistersToBePushed)
+        (asum -> popCallerSave) <- traverse (pop . Just) (reverse (callerSaveRegistersToBePushed ++ refRegisters))
 
         return $
-            pushCallerSave ><
+            pushRegister ><
             maybeAlignDownRSP ><
                 asum assignArgsReg ><
                 allocateArgsStack ><
@@ -621,7 +649,7 @@ singleStatement cfg = \case
         return $ Sq.fromList [Move op (Register (parameter cfg 1 B4)), Call "exit"]
 
     IR.FunctionReturnStruct t' to fn args -> do
-        expression cfg (IR.Call t' fn ((B8, IR.Variable to):args))
+        expression cfg (IR.Call t' fn ((B8, IR.Reference to):args))
 
     IR.Assign size to from -> do
         memoryTable <- gets memoryTable
@@ -765,13 +793,17 @@ instructions cfg = fmap asum . traverse (instruction cfg)
 
 function :: Config -> IR.Function IR.NoControlFlowStatement
     -> State GeneratorState (S.Set Internal.Function, Seq Instruction)
-function cfg (IR.Function name parameters statements) = do
+function cfg (IR.Function x name parameters statements) = do
     modify $ \s -> s { functionName = name }
-
+    let startRegisterInt = 
+            case x of
+                (B _) -> 2
+                _     -> 1
     let paramRegCount = length (parameterRegisters cfg)
-    let (registerParams, stackParams) = getCallStackSize parameters 0 paramRegCount
+    let (registerParams, stackParams) 
+            = getCallStackSize parameters (startRegisterInt - 1) paramRegCount
 
-    for_ (zip [1..] registerParams) $ \(i, (ident, size)) -> do
+    for_ (zip [startRegisterInt..] registerParams) $ \(i, (ident, size)) -> do
         memoryTable <- gets memoryTable
         let reg@(physicalReg, _) = parameter cfg i size
         modify $ \s -> s {

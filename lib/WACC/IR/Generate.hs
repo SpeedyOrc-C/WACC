@@ -28,7 +28,7 @@ debug (IR.Program (M.toList -> dataSegment) functions) = do
         putStrLn $ show number ++ "\t" ++ show string
     putStrLn ""
 
-    for_ functions $ \(IR.Function name params statements) -> do
+    for_ functions $ \(IR.Function _ name params statements) -> do
         putStrLn $ "<" ++ name ++ ">" ++ " " ++ show params
         for_ statements $ \statement -> do
             putStrLn $ "    " ++ show statement

@@ -55,8 +55,8 @@ noExpressionStatements xs = concat <$> traverse noExpressionStatement xs
 functionNoExpressionStatement ::
     Function NoExpressionStatement
     -> State FlattenerState' (Function NoControlFlowStatement)
-functionNoExpressionStatement (Function name params statements) =
-    Function name params <$> noExpressionStatements statements
+functionNoExpressionStatement (Function size name params statements) =
+    Function size name params <$> noExpressionStatements statements
 
 functionsNoExpressionStatement ::
     [Function NoExpressionStatement]

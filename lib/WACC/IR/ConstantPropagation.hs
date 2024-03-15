@@ -344,8 +344,8 @@ statement = \case
 This function applies constant propagation to a function's body.
 -}
 function :: Function NoExpressionStatement -> Function NoExpressionStatement
-function (Function name params statements) =
-    Function name params . concat $
+function (Function size name params statements) =
+    Function size name params . concat $
         evalState (traverse statement statements) $
             PropagatorState (M.fromList [(var, Nothing) | (var, _) <- params])
 

@@ -29,7 +29,7 @@ instance HasLiteralStrings Expression where
         LiteralArray _ ss -> S.unions $ getLiteralStrings <$> ss
         LiteralPair _ (a, b) -> getLiteralStrings a `S.union`
                                 getLiteralStrings b
-        FunctionCall _ _ params -> getLiteralStrings (map snd params)
+        FunctionCall _ _ params -> getLiteralStrings (map (snd.snd) params)
         _ -> S.empty
 
 instance HasLiteralStrings Statement where
