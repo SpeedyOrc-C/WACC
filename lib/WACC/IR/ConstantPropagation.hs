@@ -82,6 +82,19 @@ scalar = \case
 waccMod :: Int -> Int -> Int
 waccMod x y = signum x * (abs x `mod` abs y)
 
+varsInArgs :: [(Size, Scalar)] -> [Identifier]
+varsInArgs = map snd >>> (>>= \case
+    Variable var -> [var]
+    Reference var -> [var]
+    _ -> []
+    )
+
+varsPassByReferenceInArgs :: [(Size, Scalar)] -> [Identifier]
+varsPassByReferenceInArgs = map snd >>> (>>= \case
+    Reference var -> [var]
+    _ -> []
+    )
+
 {- |
 This function evaluates expressions, such as arithmetic operations,
 comparisons, logical operations, etc., and returns possibly
@@ -115,14 +128,12 @@ expression = \case
     And a b -> evaluateBinary a b (\x y -> if x /= 0 && y /= 0 then 1 else 0)
     Or  a b -> evaluateBinary a b (\x y -> if x /= 0 || y /= 0 then 1 else 0)
 
-    Call _ _ (map snd -> args) -> do
-        for_ args $ \case
-            Reference var -> do
-                mapping <- gets constantMapping
-                modify $ \s -> s {
-                    constantMapping = M.insert var Nothing mapping
-                }
-            _ -> return ()
+    Call _ _ args -> do
+        for_ (varsPassByReferenceInArgs args) $ \var -> do
+            mapping <- gets constantMapping
+            modify $ \s -> s {
+                constantMapping = M.insert var Nothing mapping
+            }
 
         return Nothing
 
@@ -207,20 +218,22 @@ This class defines functions to extract dependencies
 between variables and statements.
 -}
 class HasDependency a where
-    getDependency :: a -> [(Identifier, S.Set Identifier)]
+    getDependency :: a -> G.Graph Identifier
 
 instance HasDependency a => HasDependency [a] where
-    getDependency :: HasDependency a => [a] -> [(Identifier, S.Set Identifier)]
-    getDependency = concatMap getDependency
+    getDependency =  G.unions . map getDependency
 
 instance HasDependency SingleStatement where
-    getDependency :: SingleStatement -> [(Identifier, S.Set Identifier)]
     getDependency = \case
-        Assign _ var e -> [(var, reference e)]
-        _ -> []
+        Assign _ var e@(Call _ _ args) ->
+            G.singleton var (reference e) `G.union`
+            G.fromList [(arg, reference e) | arg <- varsPassByReferenceInArgs args]
+
+        Assign _ var e -> G.singleton var (reference e)
+
+        _ -> G.empty
 
 instance HasDependency NoExpressionStatement where
-    getDependency :: NoExpressionStatement -> [(Identifier, S.Set Identifier)]
     getDependency = \case
         NE s -> getDependency s
 
@@ -228,22 +241,22 @@ instance HasDependency NoExpressionStatement where
             -- The condition decides which branch to take.
             -- So all definitions in both branches depend on the condition.
 
-            let innerDependencies =
-                    getDependency thenClause ++ getDependency elseClause
+            let innerDependencies@(G.Graph g) =
+                    getDependency thenClause `G.union` getDependency elseClause
 
             case condition of
-                Variable var -> map (second (S.insert var)) innerDependencies
+                Variable var -> G.Graph $ M.map (S.insert var) g
                 _ -> innerDependencies
 
         While (condition, evaluateCondition) body _ -> do
             -- The condition decides whether to execute the loop.
             -- So all definitions in the loop depend on the condition.
 
-            let innerDependencies =
-                    getDependency evaluateCondition ++ getDependency body
+            let innerDependencies@(G.Graph g) =
+                    getDependency evaluateCondition `G.union` getDependency body
 
             case condition of
-                Variable var -> map (second (S.insert var)) innerDependencies
+                Variable var -> G.Graph $ M.map (S.insert var) g
                 _ -> innerDependencies
 
 class HasDependencyOnInput a where
@@ -279,10 +292,8 @@ statementWhile ::
     [SingleStatement] -> [NoExpressionStatement] -> WhileInfo
     -> State PropagatorState [NoExpressionStatement]
 statementWhile evaluateCondition body info = do
-    let evalDependencies =
-            G.fromListWith S.union $ getDependency evaluateCondition
-    let bodyDependencies =
-            G.fromListWith S.union $ getDependency body
+    let evalDependencies = getDependency evaluateCondition
+    let bodyDependencies = getDependency body
     let dependencies =
             G.transitiveClosure (evalDependencies `G.union` bodyDependencies)
 
