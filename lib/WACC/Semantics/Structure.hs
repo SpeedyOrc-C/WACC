@@ -136,6 +136,14 @@ canBeRefType (PairFirst {}) = True
 canBeRefType (PairSecond {}) = True
 canBeRefType _ = False
 
+isIdent :: Expression -> Bool
+isIdent (Identifier _ _) = True
+isIdent _ = False
+
+identType :: Expression -> Type
+identType (Identifier t _) = t
+identType _ = error "should not use ident type when it is not an ident"
+
 isRefType :: Type -> Bool
 isRefType (RefType _) = True
 isRefType _ = False

@@ -162,14 +162,20 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                 Nothing -> Log [SemanticError range $ UndefinedFunction name]
                 Just (paramsTypes, returnType) -> do
                     -- get the type of each arguments
-                    args'@(unzip -> (argsType, args'')) <- check state `traverse` args
+                    args'@(unzip -> (_, args'')) <- check state `traverse` args
 
                     -- check if the argument type being compatible of the parameter
                     -- type
                     let checkParamsArgsTypes (paramType, (argType, arg), range')
                           | isRefType argType && not (canBeRefType arg)
                             = Log [SemanticError range' OnlyAcceptIdentifier]
-                          | paramType <| argType = Ok paramType
+                          | paramType <| argType = 
+                            case paramType of
+                                (RefType _) ->
+                                    if isIdent arg 
+                                        then Ok (identType arg)
+                                        else Ok argType
+                                _ -> Ok argType
                           | otherwise = Log [SemanticError range' $
                                     IncompatibleArgument paramType argType]
 
@@ -177,7 +183,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                     -- using the checkParamsArgTypes to check if the type of each
                     -- arguments is compatible to the type of the coresponding parameter
                     
-                    _ <- 
+                    argsType <- 
                         for (zip3 paramsTypes args' (map expressionRange args))
                             checkParamsArgsTypes
 

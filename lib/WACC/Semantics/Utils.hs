@@ -155,3 +155,7 @@ common (Array a) (Array b)         = Array (common a b)
 common (Pair (a, b)) (Pair (c, d)) = Pair (common a c, common b d)
 
 common a b = if a == b then a else undefined
+
+getTypeRefType :: Type -> Type
+getTypeRefType (RefType t) = t
+getTypeRefType t = t

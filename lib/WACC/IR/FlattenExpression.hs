@@ -55,7 +55,7 @@ paramExpression :: (SM.Type, (SM.Type, SM.Expression))
 paramExpression x = do
     case x of
         (SM.RefType _, (SM.RefType _, exp')) ->
-            expression exp'
+            indirectExpression exp'
         -- (SM.Struct _ _, (SM.RefType _, exp')) ->
         --     expression exp'
         (_, (SM.RefType _, exp'@(SM.Identifier {}))) -> do
@@ -223,6 +223,10 @@ expression = \case
 indirectExpression ::
     SM.Expression -> State FlattenerState (Scalar, [SingleStatement])
 indirectExpression = \case
+    SM.Identifier (SM.RefType _) name -> do
+        identifier <- gets $ lookUp name . mappingStack
+        return (Variable identifier, [])
+
     i@(SM.Identifier _ _) -> expression i
 
     SM.ArrayElement t array@(SM.Identifier {}) index -> do
@@ -490,6 +494,7 @@ statement = \case
         SM.Array SM.Char -> PrintString
         SM.Array {} -> PrintAddress
         SM.Pair {} -> PrintAddress
+        SM.RefType t -> printByType t
         _ -> error "Semantic check has failed."
 
     readByType t = \case
