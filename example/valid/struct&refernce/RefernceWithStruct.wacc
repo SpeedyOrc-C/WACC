@@ -3,9 +3,11 @@
 # Output:
 # 6
 # 6
-# 2
+# 3
+# 3
 # 6
 # 6
+# 3
 #
 
 # Exit:
@@ -41,8 +43,10 @@ begin
     int[] x = [1,2,3];
     int y = 2;
     int z = call x(s.x);
+    int q = call y(y);
 
     println (y);
     println (z);
-    println (s.x)
+    println (s.x);
+    println (q)
 end
