@@ -278,17 +278,19 @@ pairHelper s = do
 malloc :: Config -> Int -> State GeneratorState (Seq Instruction)
 malloc cfg size = expression cfg (IR.Call B8 "malloc" [(B4, IR.Immediate size)])
 
-getRefRegisters :: [IR.Scalar] ->  State GeneratorState [PhysicalRegister]
-getRefRegisters [] = return []
-getRefRegisters ((IR.Reference x):xs) = do
-    xs' <- getRefRegisters xs
+getRefRegisters :: [IR.Scalar] -> Config ->  State GeneratorState [PhysicalRegister]
+getRefRegisters [] _ = return []
+getRefRegisters ((IR.Reference x):xs) config = do
+    xs' <- getRefRegisters xs config
     operand <- scalar (IR.Variable x)
     case operand of
         (Register (reg, _)) -> 
-            return (reg:xs')
+            if reg `elem` callerSaveRegisters config
+                then return xs'
+                else return (reg:xs')
         _ ->
             return xs'
-getRefRegisters (_:xs) = getRefRegisters xs
+getRefRegisters (_:xs) config = getRefRegisters xs config
 
 expression :: Config -> IR.Expression -> State GeneratorState (Seq Instruction)
 expression cfg = \case
@@ -517,13 +519,14 @@ expression cfg = \case
     IR.Call _ name (unzip -> (sizes, scalars)) -> do
         callerSaveRegistersToBePushed <- usedCallerSaveRegisters cfg
 
-        let needAlignStack = odd $ length callerSaveRegistersToBePushed
+        refRegisters <- getRefRegisters scalars cfg
+        let needAlignStack = odd $ length (callerSaveRegistersToBePushed ++ refRegisters)
         let paramRegCount = length (parameterRegisters cfg)
-        refRegisters <- getRefRegisters scalars
 
         (asum -> pushRegister) <- traverse (push . Just) (callerSaveRegistersToBePushed ++ refRegisters)
 
         maybeAlignDownRSP <- if needAlignStack then push Nothing else return Sq.empty
+        
         let (unzip -> (argsReg, argsRegSizes), unzip -> (argsStack, argsStackSizes)) 
                 = getCallStackSize (zip scalars sizes) 0 paramRegCount 
 
@@ -545,7 +548,9 @@ expression cfg = \case
         let allocateArgsStack = downRSP . ceil16 $ allocateArgsStackSize
 
         let argsStackOffsets = scanl (+) 0 (IR.sizeToInt <$> argsStackSizes)
-
+        modify $ \s -> s {
+            tmpStackOffset = tmpStackOffset s - allocateArgsStackSize
+        }
         assignArgsStack <-
                 forM (zip3 argsStackOffsets argsStackSizes argsStack) $
                     \(offset, size, arg) -> do
@@ -557,7 +562,9 @@ expression cfg = \case
                             x' <- scalar arg
                             return $ move size x' (MemoryIndirect (Just (ImmediateInt offset)) RSP Nothing)
                     
-
+        modify $ \s -> s {
+            tmpStackOffset = tmpStackOffset s + allocateArgsStackSize
+        }
         let freeArgsStack = upRSP . ceil16 $ allocateArgsStackSize
 
         maybeAlignUpRSP <- if needAlignStack then pop Nothing else return Sq.empty
