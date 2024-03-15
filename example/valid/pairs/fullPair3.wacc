@@ -1,0 +1,16 @@
+# nested pair assignments are legal for full nested typing
+
+# Output:
+# c
+#
+
+# Program:
+
+begin
+  pair(char, int) p = newpair('a', 3) ;
+  pair(int, pair(char, int)) q = newpair(1, p) ;
+  pair(char, pair(int, pair(char, int))) s = newpair('b', q) ;
+  fst snd snd s = 'c' ;
+  char x = fst p ;
+  println x
+end

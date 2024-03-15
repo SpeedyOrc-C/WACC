@@ -1,0 +1,20 @@
+# Reading is legal since the type is known
+
+# Input: 24
+
+# Output:
+# 24
+#
+
+# Exit:
+# 0
+
+# Program:
+
+begin
+  pair(int, int) p = newpair(0, 0);
+  pair(pair(int, int), int) q = newpair(p, 0);
+  read fst fst q;
+  int x = fst fst q;
+  println x
+end
