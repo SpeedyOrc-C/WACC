@@ -274,12 +274,12 @@ indirectExpression = \case
             (Just (Structure _ _ struct')) -> do
                 let field = lookup name' struct'
                 case field of
-                    (Just (offset, s)) -> return (Variable tmp,
+                    (Just (offset, _)) -> return (Variable tmp,
                         evaluateOp ++ [Assign B8 tmp (GetField offset op')])
                     Nothing           ->error "Unfound field after semantic check"
             _ -> error "Unfound struct after semantic check"
 
-    SM.Field (t, structName) op name' -> do
+    SM.Field (_, structName) op name' -> do
         (address, evaluateOp) <- indirectExpression op
         value <- newTemporary
         tmp <- newTemporary
@@ -621,7 +621,7 @@ function :: SM.Function ->
 function (SM.Function t functionName params@(unzip -> (names, types)) b) = do
     oldState <- get
     size <- getSize' t
-    (map fst -> identifiers) <- forM params $ \(name, t) -> do
+    (map fst -> identifiers) <- forM params $ \(name, _) -> do
         identifier <- newParameter name
         return (identifier, getSize' t)
 

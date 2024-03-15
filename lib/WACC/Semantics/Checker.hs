@@ -279,11 +279,11 @@ triedToAssigns  (Syntax.NewStruct values range)
                 StructureNumberMismatch k (length declaredVariables) (length assignVariables)]
     | a == "" = do 
         result <- for (zip3 values declaredVariables assignVariables) (uncurry3 triedToAssigns)
-        Ok (and $ result)
+        Ok (and result)
     | otherwise       
         = Ok (k == a)
 
-triedToAssigns  (expressionRange -> range)
+triedToAssigns  _
                 (Struct k _) 
                 (Struct a _)   = Ok (k == a)
 
