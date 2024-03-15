@@ -1,0 +1,15 @@
+# Read into nested pair is not legal when types don't match
+
+# Output:
+# #semantic_error#
+
+# Exit:
+# 200
+
+# Program:
+
+begin
+  pair(string, int) p = newpair("abc", 5);
+  pair(pair(string, int), int) q = newpair(p, 6);
+  read fst fst q
+end
