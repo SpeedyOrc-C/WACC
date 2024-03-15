@@ -1,0 +1,27 @@
+
+# Output:
+# { true, false }
+# { 114, 514, { true, false } }
+#
+
+# Exit:
+# 0
+
+# Program:
+
+begin
+    struct Foo is
+        bool a;
+        bool b
+    end
+    struct Foo2 is
+        int x;
+        int y;
+        struct Foo foo
+    end
+
+    struct Foo foo = {true, false};
+    struct Foo2 x = {114, 514, foo};
+    println foo;
+    println x
+end
