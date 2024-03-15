@@ -277,8 +277,9 @@ triedToAssigns  (Syntax.NewStruct values range)
     | length declaredVariables /= length assignVariables
         = Log [SemanticError range $ 
                 StructureNumberMismatch k (length declaredVariables) (length assignVariables)]
-    | a == ""         
-        = Ok (and $ zipWith3 triedToAssign values declaredVariables assignVariables)
+    | a == "" = do 
+        result <- for (zip3 values declaredVariables assignVariables) (uncurry3 triedToAssigns)
+        Ok (and $ result)
     | otherwise       
         = Ok (k == a)
 
@@ -289,6 +290,9 @@ triedToAssigns  (expressionRange -> range)
 triedToAssigns (expressionRange -> range) declaredType computedType 
     = Log [SemanticError range $
                 IncompatibleAssignment declaredType computedType]
+
+uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
+uncurry3 f (x,y,z)= f x y z
 
 instance CheckSemantics Syntax.Statement Statement where
     check state = \case
@@ -570,3 +574,12 @@ instance CheckSemantics Syntax.Program Program where
 checkProgram :: CheckSemantics syntaxTree result
     => syntaxTree -> LogEither SemanticError result
 checkProgram = check $ CheckerState Nothing M.empty [M.empty] M.empty
+
+
+expressionType :: Expression -> Type
+expressionType (Identifier t _) = t
+expressionType (Field (t, _) _ _) = t
+expressionType (ArrayElement t _ _) = t
+expressionType (PairFirst t _) = t
+expressionType (PairSecond t _) = t
+expressionType _ = P.error "should not try to get the type of non left value"
