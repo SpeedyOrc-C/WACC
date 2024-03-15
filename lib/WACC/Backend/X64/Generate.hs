@@ -164,8 +164,8 @@ scalar :: IR.Scalar -> State GeneratorState Operand
 scalar = \case
     IR.Immediate n -> return $
         Immediate (ImmediateInt n)
-    
-    IR.Reference identifier -> 
+
+    IR.Reference identifier ->
         error $ "should not use the scalar to get the operand of the " ++ show identifier
 
     IR.Variable identifier -> do
@@ -284,7 +284,7 @@ getRefRegisters ((IR.Reference x):xs) config = do
     xs' <- getRefRegisters xs config
     operand <- scalar (IR.Variable x)
     case operand of
-        (Register (reg, _)) -> 
+        (Register (reg, _)) ->
             if reg `elem` callerSaveRegisters config
                 then return xs'
                 else return (reg:xs')
@@ -526,12 +526,12 @@ expression cfg = \case
         (asum -> pushRegister) <- traverse (push . Just) (callerSaveRegistersToBePushed ++ refRegisters)
 
         maybeAlignDownRSP <- if needAlignStack then push Nothing else return Sq.empty
-        
-        let (unzip -> (argsReg, argsRegSizes), unzip -> (argsStack, argsStackSizes)) 
-                = getCallStackSize (zip scalars sizes) 0 paramRegCount 
+
+        let (unzip -> (argsReg, argsRegSizes), unzip -> (argsStack, argsStackSizes))
+                = getCallStackSize (zip scalars sizes) 0 paramRegCount
 
         assignArgsReg <-
-                forM (zip3 [1..paramRegCount] argsRegSizes argsReg) $ \(n, size, arg) -> 
+                forM (zip3 [1..paramRegCount] argsRegSizes argsReg) $ \(n, size, arg) ->
                     case arg of
                         (IR.Reference x) -> do
                             x' <- scalar (IR.Variable x)
@@ -539,7 +539,7 @@ expression cfg = \case
                         _ -> do
                             x' <- scalar arg
                             return $ move size x' (Register (parameter cfg n size))
-                        
+
 
         let allocateArgsStackSize = max
                 (sum (IR.sizeToInt <$> argsStackSizes))
@@ -561,7 +561,7 @@ expression cfg = \case
                         _ -> do
                             x' <- scalar arg
                             return $ move size x' (MemoryIndirect (Just (ImmediateInt offset)) RSP Nothing)
-                    
+
         modify $ \s -> s {
             tmpStackOffset = tmpStackOffset s + allocateArgsStackSize
         }
@@ -724,7 +724,7 @@ singleStatement cfg = \case
         use Internal.PrintString
 
         expression cfg (IR.Call B8 "print_pointer" [(B8, s)])
-    
+
     IR.Return size@(B _) s -> do
         op <- scalar s
         name <- gets functionName
@@ -814,7 +814,7 @@ function cfg (IR.Function x name parameters statements) = do
                     return 2
                 _     -> return 1
     let paramRegCount = length (parameterRegisters cfg)
-    let (registerParams, stackParams) 
+    let (registerParams, stackParams)
             = getCallStackSize parameters (startRegisterInt - 1) paramRegCount
 
     for_ (zip [startRegisterInt..] registerParams) $ \(i, (ident, size)) -> do
@@ -934,32 +934,32 @@ macro =
 program :: Config -> IR.Program IR.NoControlFlowStatement -> Seq Instruction
 program cfg (IR.Program dataSegment functions) = let
 
- (unzip -> (calledInternalFunctionsSets, functionsStatements)) =
-     (`evalState` initialState) . (function cfg) <$> functions
+    (unzip -> (calledInternalFunctionsSets, functionsStatements)) =
+        (`evalState` initialState) . function cfg <$> functions
 
- allCalledInternalFunctions = S.toList $ S.unions calledInternalFunctionsSets
- internalFunctionsStatements =
-     ((internalFunctions cfg) M.!) <$> allCalledInternalFunctions
+    allCalledInternalFunctions = S.toList $ S.unions calledInternalFunctionsSets
+    internalFunctionsStatements =
+        (internalFunctions cfg M.!) <$> allCalledInternalFunctions
 
- dataSegmentStatements =
-     Sq.fromList (M.toList dataSegment) <&> \(name, number) ->
-         Sq.fromList
-             [ SectionReadOnly
-             , SectionLiteral4
-             , Int (length name)
-             , SectionCString
-             , Label ("str." ++ show number)
-             , AsciiZero name
-             ]
+    dataSegmentStatements =
+        Sq.fromList (M.toList dataSegment) <&> \(name, number) ->
+            Sq.fromList
+                [ SectionReadOnly
+                , SectionLiteral4
+                , Int (length name)
+                , SectionCString
+                , Label ("str." ++ show number)
+                , AsciiZero name
+                ]
 
- addLineBreaks = intersperse (return EmptyLine)
+    addLineBreaks = intersperse (return EmptyLine)
 
- in
+    in
 
- (                    macro                        |> EmptyLine) ><
- (asum (addLineBreaks functionsStatements        ) |> EmptyLine) ><
- (asum (addLineBreaks internalFunctionsStatements) |> EmptyLine) ><
- (asum                dataSegmentStatements        |> EmptyLine)
+    (                    macro                        |> EmptyLine) ><
+    (asum (addLineBreaks functionsStatements        ) |> EmptyLine) ><
+    (asum (addLineBreaks internalFunctionsStatements) |> EmptyLine) ><
+    (asum                dataSegmentStatements        |> EmptyLine)
 
 initialState :: GeneratorState
 initialState = GeneratorState {

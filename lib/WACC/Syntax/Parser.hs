@@ -558,11 +558,6 @@ type' = typeArray `syntaxErrorWhen` (not . isType, \(_, t) -> findError t)
             SyntaxError from PairTypeErased
         _ -> P.error "unreachable"
 
-paramType :: WaccParser Type
-paramType = asum [
-    typeReference,
-    type'
-    ]
 {- It is a parser which parses different kinds of declaration statements. -}
 statementDeclare :: WaccParser Statement
 statementDeclare = Declare ~ do
@@ -625,10 +620,13 @@ name = Name ~ identifierString
 {- It is a parser which parses parameters in function headers. -}
 parameter :: WaccParser (Name, Type)
 parameter = do
-    t <- paramType
-    _ <- some white
+    from <- gets inputPosition
+    t <- type'
+    ref <- (True <$ surroundManyWhites (char '&')) <|> (False <$ some white)
     p <- name
-    return (p, t)
+    to <- gets inputPosition
+
+    return $ if ref then (p, RefType t (from, to)) else (p, t)
 
 {- It is a parser which parses a statement which must not return anything. -}
 statementMustNotReturn :: WaccParser Statement
