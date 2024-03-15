@@ -167,7 +167,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                     -- check if the argument type being compatible of the parameter
                     -- type
                     let checkParamsArgsTypes (paramType, (argType, arg), range')
-                          | isRefType argType && not (canBeRefType arg)
+                          | isRefType paramType && not (canBeRefType arg)
                             = Log [SemanticError range' OnlyAcceptIdentifier]
                           | paramType <| argType = 
                             case paramType of
@@ -279,11 +279,11 @@ triedToAssigns  (Syntax.NewStruct values range)
                 StructureNumberMismatch k (length declaredVariables) (length assignVariables)]
     | a == "" = do 
         result <- for (zip3 values declaredVariables assignVariables) (uncurry3 triedToAssigns)
-        Ok (and $ result)
+        Ok (and result)
     | otherwise       
         = Ok (k == a)
 
-triedToAssigns  (expressionRange -> range)
+triedToAssigns  _
                 (Struct k _) 
                 (Struct a _)   = Ok (k == a)
 
