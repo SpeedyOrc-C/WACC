@@ -524,8 +524,6 @@ expression cfg = \case
         (asum -> pushRegister) <- traverse (push . Just) (callerSaveRegistersToBePushed ++ refRegisters)
 
         maybeAlignDownRSP <- if needAlignStack then push Nothing else return Sq.empty
-        maybeAlignUpRSP <- if needAlignStack then pop Nothing else return Sq.empty
-
         let (unzip -> (argsReg, argsRegSizes), unzip -> (argsStack, argsStackSizes)) 
                 = getCallStackSize (zip scalars sizes) 0 paramRegCount 
 
@@ -562,6 +560,7 @@ expression cfg = \case
 
         let freeArgsStack = upRSP . ceil16 $ allocateArgsStackSize
 
+        maybeAlignUpRSP <- if needAlignStack then pop Nothing else return Sq.empty
         (asum -> popCallerSave) <- traverse (pop . Just) (reverse (callerSaveRegistersToBePushed ++ refRegisters))
 
         return $
