@@ -3,6 +3,7 @@ module WACC.IR.FlattenExpression where
 
 import qualified Data.Map as M
 import qualified Data.Set as S
+import           Data.List
 import           Data.Char
 import           Data.Maybe
 import           Data.Functor.Identity
@@ -11,7 +12,6 @@ import           Control.Monad.Trans.State.Lazy
 
 import qualified WACC.Semantics.Structure as SM
 import           WACC.IR.Structure
-import WACC.Backend.X64.ATnT (ident)
 
 lookUp :: Ord k => k -> [M.Map k a] -> a
 lookUp _ [] = error "Semantic check has failed!"
@@ -50,8 +50,8 @@ getIdentifier (Variable ident') = ident'
 getIdentifier (Reference ident') = ident'
 getIdentifier _ = error "cannot get identifier at this stage"
 
-paramExpression :: (SM.Type, (SM.Type, SM.Expression)) 
-    -> State FlattenerState (Scalar,[SingleStatement]) 
+paramExpression :: (SM.Type, (SM.Type, SM.Expression))
+    -> State FlattenerState (Scalar,[SingleStatement])
 paramExpression x = do
     case x of
         (SM.RefType _, (SM.RefType _, exp')) ->
@@ -71,10 +71,10 @@ paramExpression x = do
             (s, stats) <- expression exp'
             t' <- getSize' t
             return (Variable tmp, stats ++ [Assign t' tmp (Dereference t' s)])
-        (_, (_, exp')) -> 
+        (_, (_, exp')) ->
             expression exp'
 
-paramExpressions :: [(SM.Type, (SM.Type, SM.Expression))] -> StateT FlattenerState Identity ([Scalar], [SingleStatement])
+paramExpressions :: [(SM.Type, (SM.Type, SM.Expression))] -> State FlattenerState ([Scalar], [SingleStatement])
 paramExpressions xs = do
     (unzip -> (scalars, concat -> evaluate)) <- traverse paramExpression xs
     return (scalars, evaluate)
@@ -181,7 +181,7 @@ expression = \case
         return (Variable tmp,
             evaluateOp ++
             [Assign t' tmp (Dereference t' op')])
-            
+
     SM.Equal    t a b -> do
         t' <- getSize' t
         binary B1 (Equal  t') a b
@@ -291,7 +291,7 @@ indirectExpression = \case
                 let field = lookup name' struct'
                 case field of
                     (Just (offset, _)) -> return (Variable tmp,
-                        evaluateOp ++  
+                        evaluateOp ++
                             [ Assign B8 value (Scalar address)
                             , Assign B8 tmp (GetField offset (Variable value))])
                     Nothing           ->error "Unfound field after semantic check"
@@ -314,7 +314,7 @@ indirectExpression = \case
             evaluatePair ++
             [ Assign B8 value (Dereference B8 address)
             , Assign B8 tmp (SeekPairSecond (Variable value))])
-    
+
     x -> error $ "Semantic check has failed." ++ show x
 
 statement :: SM.Statement -> State FlattenerState [NoExpressionStatement]
@@ -349,10 +349,10 @@ statement = \case
                 -> State FlattenerState [NoExpressionStatement]
             declareFields (field, ft) exp' = do
                 statement (SM.Assign ft (SM.Field (ft, structName) leftValue field) exp')
-                        
+
         case struct of
             (Just (Structure _ _ (map fst -> fields'))) -> do
-                (concat -> assigns) <- forM (zip (zip fields' fts) exps) 
+                (concat -> assigns) <- forM (zip (zip fields' fts) exps)
                     (uncurry declareFields)
                 return assigns
             _ -> error "should not happen not found struct at declaring"
@@ -365,7 +365,7 @@ statement = \case
         case scalar of
             Variable x -> return $
                 map NE evaluate ++ map NE evaluateLeft ++
-                    [NE(FunctionReturnStruct t' x ("fn_" ++ f) 
+                    [NE(FunctionReturnStruct t' x ("fn_" ++ f)
                         (ts' `zip` scalars))]
             _ -> error "should not happen left scalar must be an variable"
         -- return $ NE(Assign B8 tmp (Reference scalar)): [FunctionReturnStruct tmp ]
@@ -378,10 +378,10 @@ statement = \case
             declareFields :: (String, SM.Type)
                 -> State FlattenerState [NoExpressionStatement]
             declareFields (field, ft) = do
-                statement 
+                statement
                     (SM.Assign ft (SM.Field (ft, structName) leftValue field)
                         (SM.Field (ft, structName) rightValue field))
-                        
+
         case struct of
             (Just (Structure _ _ (map fst -> fields'))) -> do
                 (concat -> assigns) <- forM (zip fields' fts) declareFields
@@ -452,15 +452,27 @@ statement = \case
         return $ map NE evaluateExpression ++
             [NE $ Exit result]
 
+    SM.Print (SM.Struct name types) e -> do
+        structures <- gets structures
+        let (Structure _ _ (unzip -> (fields, _))) = structures M.! name
+        let printItems = zip types fields >>= \(t, field) ->
+                [SM.Print t (SM.Field (t, name) e field)]
+
+        printAll <- traverse statement $
+            [SM.Print SM.String (SM.LiteralString "{ ")] ++
+            SM.Print SM.String (SM.LiteralString ", ") `intersperse` printItems ++
+            [SM.Print SM.String (SM.LiteralString " }")]
+
+        return $ concat printAll
+
     SM.Print t e -> do
         (result, evaluateExpression) <- expression e
         return $ map NE evaluateExpression ++
             [NE $ printByType t result]
 
     SM.PrintLine t e -> do
-        (result, evaluateExpression) <- expression e
-        return $ map NE evaluateExpression ++
-            map NE [printByType t result, PrintLineBreak]
+        ss <- statement $ SM.Print t e
+        return $ ss ++ [NE PrintLineBreak]
 
     SM.Read _ ident@(SM.Identifier t name) -> do
         var <- gets $ lookUp name . mappingStack
@@ -578,7 +590,7 @@ instance HasReference SingleStatement where
         Exit e -> reference e
         Free e -> reference e
         FreeArray e -> reference e
-        FunctionReturnStruct _ var _ args -> 
+        FunctionReturnStruct _ var _ args ->
             var `S.insert` reference (snd <$> args)
 
         PrintBool e -> reference e

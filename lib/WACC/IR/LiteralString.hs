@@ -49,11 +49,15 @@ instance HasLiteralStrings Statement where
 
 newtype DataSegments = DataSegments (String `M.Map` Int)
 
+internalStrings :: S.Set String
+internalStrings = S.fromList ["{ ", ", ", " }"]
+
 {- | Find all literal strings in the program, remove all the duplicated,
      and give each a unique number. -}
 createDataSegments :: Program -> M.Map String Int
 createDataSegments =
         getLiteralStrings
+    >>> S.union internalStrings
     >>> S.toList
     >>> (`zip` [1..])
     >>> M.fromList
