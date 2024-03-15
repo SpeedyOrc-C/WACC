@@ -805,10 +805,14 @@ function :: Config -> IR.Function IR.NoControlFlowStatement
     -> State GeneratorState (S.Set Internal.Function, Seq Instruction)
 function cfg (IR.Function x name parameters statements) = do
     modify $ \s -> s { functionName = name }
-    let startRegisterInt = 
+    startRegisterInt <-
             case x of
-                (B _) -> 2
-                _     -> 1
+                (B _) -> do
+                    modify $ \s -> s {
+                        registerPool = S.insert RDI (registerPool s)
+                    }
+                    return 2
+                _     -> return 1
     let paramRegCount = length (parameterRegisters cfg)
     let (registerParams, stackParams) 
             = getCallStackSize parameters (startRegisterInt - 1) paramRegCount
