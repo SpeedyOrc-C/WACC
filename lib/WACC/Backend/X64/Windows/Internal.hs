@@ -1,7 +1,7 @@
 module WACC.Backend.X64.Windows.Internal where
 
 import qualified Data.Sequence as Sq
-import Data.Sequence ((<|), (|>), (><))
+import Data.Sequence ((><))
 import WACC.Backend.X64.Structure
 import WACC.IR.Structure (Size(..))
 

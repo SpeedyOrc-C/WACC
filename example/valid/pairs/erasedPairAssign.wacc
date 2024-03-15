@@ -1,10 +1,9 @@
 # Erased pair assignment is legal even types don't match
 
 # Output:
-# #semantic_error#
 
 # Exit:
-# 200
+# 0
 
 # Program:
 
