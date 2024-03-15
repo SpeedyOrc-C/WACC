@@ -1,0 +1,20 @@
+# Easy struct with multiple members
+
+# Output:
+# "hello"
+#
+
+# Exit:
+# 0
+
+# Program:
+
+begin
+  struct al is
+    int x;
+    char y;
+    string z
+    end
+  struct al s = {4,'7',"hello"};
+  println (s.z)
+end
