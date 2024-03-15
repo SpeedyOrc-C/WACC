@@ -2,8 +2,9 @@ module WACC.Backend.X64.Structure where
 
 import Data.String
 
-import qualified Data.Set as S
+import qualified Data.Maybe as M
 import qualified Data.Sequence as Sq
+import qualified Data.List as L
 import Data.Sequence (Seq)
 import WACC.IR.Structure (Size(..), HasSize (..))
 import qualified WACC.IR.Structure as IR
@@ -12,6 +13,17 @@ containRAX :: Operand -> Bool
 containRAX (Register (RAX, _)) = True
 containRAX (MemoryIndirect _ RAX _) = True
 containRAX _ = False
+
+containRegister :: Operand -> Maybe PhysicalRegister
+containRegister (Register (r, _)) = Just r
+containRegister (MemoryIndirect _ r _) = Just r
+containRegister _ = Nothing
+
+pushedRegister :: PhysicalRegister -> Operand -> Operand
+pushedRegister _ x@(MemoryIndirect _ RSP _) = addToIndirect x 8
+pushedRegister r (Register (RAX, s)) = Register (r, s)
+pushedRegister r (MemoryIndirect x RAX y) = MemoryIndirect x r y
+pushedRegister _ x = x
 
 {- A program is made up of a list of instructions. -}
 newtype Program = Program {
@@ -49,28 +61,45 @@ addToIndirect _ _
         \either register or indirect address"
 
 move :: Size -> Operand -> Operand -> Seq Instruction
-move (B size) from to =
-    Sq.fromList $ concat [[ Move (addToIndirect from off) (Register (RAX, x))
-        , Move (Register (RAX, x)) (addToIndirect to off)]| (x, off) <- 
-            sizes `zip` scanl (+) 0 (map IR.sizeToInt sizes)]
-        where 
-            (n, m) = size `divMod` 8
-            n' = n + if m == 0 then 0 else 1
-            sizes = replicate (n' - 1) B8 ++ getSizeHelper (size - (n' - 1) * 8) 8
-            intToSize     :: Int -> Size
-            intToSize 1 = B1
-            intToSize 2 = B2
-            intToSize 4 = B4
-            intToSize 8 = B8
-            intToSize x = B x
-            getSizeHelper :: Int -> Int -> [Size]
-            getSizeHelper _ 0 
-                = error "should pass in size of smaller than 8 bytes in"
-            getSizeHelper 0 _
-                = []
-            getSizeHelper x s
-                |x >= s = intToSize s: getSizeHelper (x - s) (s `div` 2)
-                |otherwise = getSizeHelper x (s `div` 2)
+move (B size) from to
+    | containRAX from || containRAX to =
+        (Push (Register (regist, B8))
+        Sq.<|
+        (move B8 (Register (RAX,B8)) (Register (regist, B8)) Sq.><
+        Sq.fromList (concat 
+            [[ Move (addToIndirect from' off) (Register (RAX, x))
+                , Move (Register (RAX, x)) (addToIndirect to' off)]
+            | (x, off) <- sizes `zip` scanl (+) 0 (map IR.sizeToInt sizes)]) Sq.><
+        move B8 (Register (regist, B8))(Register (RAX,B8))))
+        Sq.|>
+        Pop (Register (regist, B8))
+    | otherwise = 
+        Sq.fromList (concat 
+            [[ Move (addToIndirect from off) (Register (RAX, x))
+                , Move (Register (RAX, x)) (addToIndirect to off)]
+            | (x, off) <- sizes `zip` scanl (+) 0 (map IR.sizeToInt sizes)])
+    where 
+        (n, m) = size `divMod` 8
+        n' = n + if m == 0 then 0 else 1
+        sizes = replicate (n' - 1) B8 ++ getSizeHelper (size - (n' - 1) * 8) 8
+        intToSize     :: Int -> Size
+        intToSize 1 = B1
+        intToSize 2 = B2
+        intToSize 4 = B4
+        intToSize 8 = B8
+        intToSize x = B x
+        getSizeHelper :: Int -> Int -> [Size]
+        getSizeHelper _ 0 
+            = error "should pass in size of smaller than 8 bytes in"
+        getSizeHelper 0 _
+            = []
+        getSizeHelper x s
+            |x >= s = intToSize s: getSizeHelper (x - s) (s `div` 2)
+            |otherwise = getSizeHelper x (s `div` 2)
+        regist = head ([RDX, R10, R11] 
+            L.\\ M.catMaybes (containRegister from:[containRegister to]))
+        from' = pushedRegister regist from
+        to' = pushedRegister regist to
             
 
 

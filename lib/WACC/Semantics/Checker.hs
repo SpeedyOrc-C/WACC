@@ -36,7 +36,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
         -- if left handside is a indentifer which must be in the state
         Syntax.Identifier name range ->
             case lookUp state name of
-                Just (_, RefType t) -> Ok (t, Identifier t name)
+                Just (_, RefType t) -> Ok (t, Identifier (RefType t) name)
                 Just (_, t)  -> Ok (t, Identifier t name)
                 Nothing -> Log [SemanticError range (UndefinedIdentifier name)]
 

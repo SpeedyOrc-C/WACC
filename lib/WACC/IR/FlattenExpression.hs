@@ -66,7 +66,6 @@ paramExpression x = do
             (s, stats) <- expression exp'
             t' <- getSize' t
             return (Variable tmp, stats ++ [Assign t' tmp (Dereference t' s)])
-
         (_, (_, exp')) -> 
             expression exp'
 
@@ -77,6 +76,10 @@ paramExpressions xs = do
 
 expression :: SM.Expression -> State FlattenerState (Scalar, [SingleStatement])
 expression = \case
+    SM.Identifier (SM.RefType (SM.Struct {})) name -> do
+        identifier <- gets $ lookUp name . mappingStack
+        return (Variable identifier, [])
+
     SM.Identifier (SM.RefType t) name -> do
         identifier <- gets $ lookUp name . mappingStack
         tmp <- newTemporary
