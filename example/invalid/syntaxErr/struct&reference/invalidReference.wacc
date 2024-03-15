@@ -1,0 +1,45 @@
+# invalid reference construction
+
+# Output:
+# #syntax_error#
+
+# Exit:
+# 100
+
+# Program:
+
+begin
+    struct al is
+        int x;
+        int y;
+        int z;
+        int k
+        end
+    struct a2 is
+        int x;
+        struct al s;
+        int[] xs
+        end
+    int y(int &x) is
+        x = x + 1;
+        println x;
+        return x
+        end
+    int x(int &x) is
+        x = x + 1;
+        int z = call y(x);
+        println x;
+        return x
+        end
+    struct al s = {4,4,5,2};
+    struct a2 j = {1,s,[1,2,3]};
+    int[] x = [1,2,3];
+    int y = 2;
+    int z = call x(s.x);
+    int q = call y(5);
+
+    println (y);
+    println (z);
+    println (s.x);
+    println (q)
+end

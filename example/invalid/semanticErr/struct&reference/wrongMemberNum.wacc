@@ -1,0 +1,17 @@
+# bad struct construction with wrong number of members
+
+# Output:
+# #semantic_error#
+
+# Exit:
+# 200
+
+# Program:
+
+begin
+  struct a is
+    int x;
+    int y
+  end
+  struct a a = {1, 10, 100}
+end

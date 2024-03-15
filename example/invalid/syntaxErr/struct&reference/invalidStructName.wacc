@@ -1,0 +1,16 @@
+# invalid struct name
+
+# Output:
+# #syntax_error#
+
+# Exit:
+# 100
+
+# Program:
+
+begin
+  struct 1a7 
+    int x;
+    int y
+  end
+end
