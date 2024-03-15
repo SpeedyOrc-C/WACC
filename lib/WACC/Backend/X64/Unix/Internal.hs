@@ -56,7 +56,7 @@ errorFunction name err
         Label name,
         And (Immediate $ ImmediateInt (-16)) (Register (RSP, B8)),
         LoadAddress
-            (MemoryIndirect (Just (ImmediateLabel label)) (RIP, B8) Nothing)
+            (MemoryIndirect (Just (ImmediateLabel label)) RIP Nothing)
             (Register (RDI, B8)),
         Call "print_string",
         Move (Immediate $ ImmediateInt (-1)) (Register (RDI, B1)),
@@ -142,24 +142,24 @@ printString :: Sq.Seq Instruction
 printString =
     newPrintFunction "print_string" [(".L._prints_str0", "%.*s")]
     [Move (Register (RDI, B8)) (Register (RDX, B8)),
-    Move (MemoryIndirect (Just $ ImmediateInt (-4)) (RDI, B8) Nothing)
+    Move (MemoryIndirect (Just $ ImmediateInt (-4)) RDI Nothing)
          (Register (RSI, B4)),
     LoadAddress (MemoryIndirect (Just ".L._prints_str0") 
-                (RIP, B8) Nothing) 
+                RIP Nothing) 
                 (Register (RDI, B8))]
 
 printChar :: Sq.Seq Instruction
 printChar =
     newPrintFunction "print_char" [(".L._printc_str0", "%c")]
     [Move (Register (RDI, B1)) (Register (RSI, B1)),
-    LoadAddress (MemoryIndirect (Just ".L._printc_str0") (RIP, B8) Nothing) (Register (RDI, B8))]
+    LoadAddress (MemoryIndirect (Just ".L._printc_str0") RIP Nothing) (Register (RDI, B8))]
 
 printInt :: Sq.Seq Instruction
 printInt =
     newPrintFunction "print_int" [(".L.printi_str0", "%d")]
     [Move (Register (RDI, B4)) (Register (RSI, B4)),
     LoadAddress
-        (MemoryIndirect (Just ".L.printi_str0") (RIP, B8) Nothing)
+        (MemoryIndirect (Just ".L.printi_str0") RIP Nothing)
         (Register (RDI, B8))]
 
 {-
@@ -182,10 +182,10 @@ seekArrayElement size = Sq.fromList
     Move (Register (RSP, B8)) (Register (RBP, B8)),
     Compare (Immediate $ ImmediateInt 0) (Register (RSI, B4)),
     JumpWhen Less "error_out_of_bounds",
-    Compare (MemoryIndirect (Just $ ImmediateInt (-4)) (RDI,B8) Nothing) (Register (RSI, B4)),
+    Compare (MemoryIndirect (Just $ ImmediateInt (-4)) RDI Nothing) (Register (RSI, B4)),
     JumpWhen GreaterEqual "error_out_of_bounds",
     MoveSignSizeExtend B4 B8 (Register (RSI, B4)) (Register (RSI, B8)),
-    LoadAddress (MemoryIndirect Nothing (RDI, B8) (Just ((RSI, B8), size))) (Register (RAX, B8)),
+    LoadAddress (MemoryIndirect Nothing RDI (Just ((RSI, B8), size))) (Register (RAX, B8)),
 
     Leave,
     Return
@@ -239,7 +239,7 @@ printBool = newPrintFunction
      LoadAddress (stringAddress ".L._printb_str1") (Register (RDX, B8)),
      Label ".L_printb1",
      Move (MemoryIndirect (Just $ ImmediateInt (-4))
-        (RDX, B8) Nothing)
+        RDX Nothing)
         (Register (RSI, B4)),
      LoadAddress (stringAddress ".L._printb_str2") (Register (RDI, B8))
      ]
@@ -300,11 +300,11 @@ printPointer =
         JumpWhen Equal "print_null",
         Move (Register (RDI, B8)) (Register (RSI, B8)),
         LoadAddress
-            (MemoryIndirect (Just ".L._printp_str0") (RIP, B8) Nothing)
+            (MemoryIndirect (Just ".L._printp_str0") RIP Nothing)
             (Register (RDI, B8))] Sq.><
     Sq.fromList
     [Label "print_null",
-    LoadAddress (MemoryIndirect (Just ".L._printp_str1") (RIP, B8) Nothing)
+    LoadAddress (MemoryIndirect (Just ".L._printp_str1") RIP Nothing)
                 (Register (RDI, B8)),
     Call "print_string",
     Leave,
@@ -368,8 +368,8 @@ readHelperFunction :: String -> (String, String) -> Size -> Sq.Seq Instruction
 readHelperFunction name str@(label, _) size
     = newFunction name [str] [
         Subtract (Immediate $ ImmediateInt 16) (Register (RSP, B8)),
-        Move (Register (RDI, size)) (MemoryIndirect Nothing (RSP, B8) Nothing),
-        LoadAddress (MemoryIndirect Nothing (RSP, B8) Nothing) (Register (RSI, B8)),
+        Move (Register (RDI, size)) (MemoryIndirect Nothing RSP Nothing),
+        LoadAddress (MemoryIndirect Nothing RSP Nothing) (Register (RSI, B8)),
 
         LoadAddress
             (stringAddress label)
@@ -378,7 +378,7 @@ readHelperFunction name str@(label, _) size
         Move (Immediate $ ImmediateInt 0) (Register (RAX, B1)),
         Call "scanf",
         MoveSignSizeExtend size B8
-            (MemoryIndirect Nothing (RSP, B8) Nothing)
+            (MemoryIndirect Nothing RSP Nothing)
             (Register (RAX, B8)),
 
         Add (Immediate $ ImmediateInt 16) (Register (RSP, B8))

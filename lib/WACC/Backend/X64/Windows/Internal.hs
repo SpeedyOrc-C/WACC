@@ -75,7 +75,7 @@ printString = f "print_string" [
 
     Move (Immediate $ ImmediateInt 1) (Register (RCX, B4)),
     Move (Register (RAX, B8)) (Register (RDX, B8)),
-    Move (MemoryIndirect (Just $ ImmediateInt (-4)) (RAX, B8) Nothing) (Register (R8, B4)),
+    Move (MemoryIndirect (Just $ ImmediateInt (-4)) RAX Nothing) (Register (R8, B4)),
     reserveStack,
     Call "write",
     releaseStack
