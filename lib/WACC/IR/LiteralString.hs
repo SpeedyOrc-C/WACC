@@ -30,6 +30,7 @@ instance HasLiteralStrings Expression where
         LiteralPair _ (a, b) -> getLiteralStrings a `S.union`
                                 getLiteralStrings b
         FunctionCall _ _ params -> getLiteralStrings (map (snd.snd) params)
+        NewStruct exps -> getLiteralStrings exps
         _ -> S.empty
 
 instance HasLiteralStrings Statement where
