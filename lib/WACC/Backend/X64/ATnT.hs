@@ -68,7 +68,7 @@ instance ATnT Operand where
         offset' ++ "(" ++ base' ++ index' ++ ")"
         where
         offset' = maybe "" atnt offset
-        base' = atnt base
+        base' = atnt (base, B8)
         index' = case index of
             Just (reg, scale) -> ", " ++ atnt reg ++ ", " ++ show scale
             Nothing -> ""

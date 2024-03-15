@@ -8,6 +8,11 @@ import Data.Sequence (Seq)
 import WACC.IR.Structure (Size(..), HasSize (..))
 import qualified WACC.IR.Structure as IR
 
+containRAX :: Operand -> Bool
+containRAX (Register (RAX, _)) = True
+containRAX (MemoryIndirect _ RAX _) = True
+containRAX _ = False
+
 {- A program is made up of a list of instructions. -}
 newtype Program = Program {
     dataSegmentsDefinition :: [Instruction]
@@ -22,10 +27,10 @@ stringsToInstructions strs = SectionReadOnly Sq.<|
 
 stringAddress :: String -> Operand
 stringAddress str
-    = MemoryIndirect (Just (ImmediateLabel str)) (RIP, B8) Nothing
+    = MemoryIndirect (Just (ImmediateLabel str)) RIP Nothing
 
 leaLabel :: String -> Operand -> Instruction
-leaLabel label = LoadAddress (MemoryIndirect (Just (ImmediateLabel label)) (RIP, B8) Nothing)
+leaLabel label = LoadAddress (MemoryIndirect (Just (ImmediateLabel label)) RIP Nothing)
 
 {- This is a function to generate a function definition. -}
 
@@ -37,7 +42,7 @@ addToIndirect (MemoryIndirect Nothing x y) z
     = MemoryIndirect (Just $ ImmediateInt z) x y
 addToIndirect (MemoryIndirect (Just (ImmediateInt h)) x y) z 
     = MemoryIndirect (Just $ ImmediateInt (h+z)) x y
-addToIndirect (Register reg) z
+addToIndirect (Register (reg, _)) z
     = MemoryIndirect (Just $ ImmediateInt z) reg Nothing
 addToIndirect _ _
     = error "the address of struct must be in \
@@ -51,7 +56,7 @@ move (B size) from to =
         where 
             (n, m) = size `divMod` 8
             n' = n + if m == 0 then 0 else 1
-            sizes = replicate (n' - 1) B8 ++(getSizeHelper (size - (n' - 1) * 8) 8)
+            sizes = replicate (n' - 1) B8 ++ getSizeHelper (size - (n' - 1) * 8) 8
             intToSize     :: Int -> Size
             intToSize 1 = B1
             intToSize 2 = B2
@@ -66,8 +71,11 @@ move (B size) from to =
             getSizeHelper x s
                 |x >= s = intToSize s: getSizeHelper (x - s) (s `div` 2)
                 |otherwise = getSizeHelper x (s `div` 2)
+            
+
+
 move _ from@(Register _) to = return $ Move from to
-move _ from@(MemoryIndirect (Just (ImmediateLabel _)) (RIP, B8) Nothing) to =
+move _ from@(MemoryIndirect (Just (ImmediateLabel _)) RIP Nothing) to =
     loadAddress from to
 move _ from to@(Register _) = return $ Move from to
 
@@ -247,7 +255,7 @@ data Operand
     | MemoryDirect Immediate
     | MemoryIndirect {
         offset :: Maybe Immediate,
-        base :: Register,
+        base :: PhysicalRegister,
         index :: Maybe (Register, Int)
         }
     deriving (Show)

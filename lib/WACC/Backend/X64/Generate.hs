@@ -138,7 +138,7 @@ operandFromMemoryLocation = \case
         return $ case elemIndex (Just reg) tmpPushedRegs of
             Nothing -> Register register
             Just offset -> MemoryIndirect
-                (Just (ImmediateInt (offset * 8))) (RSP, B8) Nothing
+                (Just (ImmediateInt (offset * 8))) RSP Nothing
 
     -- Variable A
     -- Variable B  Minus the offset to get the variables on the stack.
@@ -149,7 +149,7 @@ operandFromMemoryLocation = \case
     AtStack offset _ -> do
         tmpStackOffset <- gets tmpStackOffset
         return $ MemoryIndirect
-            (Just (ImmediateInt (offset - tmpStackOffset))) (RSP, B8) Nothing
+            (Just (ImmediateInt (offset - tmpStackOffset))) RSP Nothing
 
     -- 9th parameter
     -- 8th parameter  Move up to get the parameters after 6th.
@@ -158,7 +158,7 @@ operandFromMemoryLocation = \case
     -- pushed RBP     <- RBP points here in the body. --+
     AtParameterStack offset _ ->
         return $ MemoryIndirect
-            (Just (ImmediateInt (offset + 16))) (RBP, B8) Nothing
+            (Just (ImmediateInt (offset + 16))) RBP Nothing
 
 scalar :: IR.Scalar -> State GeneratorState Operand
 scalar = \case
@@ -177,7 +177,7 @@ scalar = \case
     IR.String n ->
         return $ MemoryIndirect
             (Just $ ImmediateLabel ("str." ++ show n))
-            (RIP, B8) Nothing
+            RIP Nothing
 
 {- This function determines which caller-save registers
    are currently being used. -}
@@ -463,7 +463,7 @@ expression cfg = \case
         op <- scalar s
         return $ Sq.fromList
             [ Move op (Register (RAX, B8))
-            , Move (MemoryIndirect Nothing (RAX, B8) Nothing)
+            , Move (MemoryIndirect Nothing RAX Nothing)
                     (Register (RAX, size))
             ]
 
@@ -482,8 +482,8 @@ expression cfg = \case
 
             return $
                 return (Move (Register (RAX, B8)) (Register (RDX, B8))) ><
-                move fstSize opA (MemoryIndirect Nothing (RDX, B8) Nothing) ><
-                move sndSize opB (MemoryIndirect (Just (ImmediateInt 8)) (RDX, B8) Nothing) ><
+                move fstSize opA (MemoryIndirect Nothing RDX Nothing) ><
+                move sndSize opB (MemoryIndirect (Just (ImmediateInt 8)) RDX Nothing) ><
                 return (Move (Register (RDX, B8)) (Register (RAX, B8)))
 
         return $ evaluateAddress >< initialise
@@ -499,12 +499,12 @@ expression cfg = \case
 
                 move B4
                     (Immediate (ImmediateInt (length xs)))
-                    (MemoryIndirect (Just (ImmediateInt (-4))) (RDX, B8) Nothing) ><
+                    (MemoryIndirect (Just (ImmediateInt (-4))) RDX Nothing) ><
 
                 asum (zip elements [0..] <&> \(element, index) ->
                     move size element $ MemoryIndirect
                         (Just (ImmediateInt (index * bytes)))
-                        (RDX, B8) Nothing
+                        RDX Nothing
                 ) ><
 
                 move B8 (Register (RDX, B8)) (Register (RAX, B8))
@@ -552,10 +552,10 @@ expression cfg = \case
                     case arg of
                         (IR.Reference x) -> do
                             x' <- scalar (IR.Variable x)
-                            return $ loadAddress x' (MemoryIndirect (Just (ImmediateInt offset)) (RSP, B8) Nothing)
+                            return $ loadAddress x' (MemoryIndirect (Just (ImmediateInt offset)) RSP Nothing)
                         _ -> do
                             x' <- scalar arg
-                            return $ move size x' (MemoryIndirect (Just (ImmediateInt offset)) (RSP, B8) Nothing)
+                            return $ move size x' (MemoryIndirect (Just (ImmediateInt offset)) RSP Nothing)
                     
 
         let freeArgsStack = upRSP . ceil16 $ allocateArgsStackSize
@@ -595,7 +595,7 @@ expression cfg = \case
         addr' <- scalar addr
         return $ Sq.fromList
             [ Move addr' (Register (RDX, B8))
-            , Move (MemoryIndirect (Just $ ImmediateInt (-4)) (RDX, B8) Nothing)
+            , Move (MemoryIndirect (Just $ ImmediateInt (-4)) RDX Nothing)
                     (Register (RAX, B4))
             ]
 
@@ -650,6 +650,10 @@ singleStatement cfg = \case
     IR.FunctionReturnStruct t' to fn args -> do
         expression cfg (IR.Call t' fn ((B8, IR.Reference to):args))
 
+    IR.Assign size ident IR.NewStruct -> do
+        _ <- allocate cfg ident size
+        return Sq.empty
+
     IR.Assign size to from -> do
         memoryTable <- gets memoryTable
         evaluate <- expression cfg from
@@ -669,7 +673,7 @@ singleStatement cfg = \case
         evaluate <- expression cfg from
 
         case memoryTable M.!? to of
-            Just (AtRegister reg) ->
+            Just (AtRegister (reg, _)) ->
                 return $ evaluate ><
                     move size (Register (RAX, size)) (MemoryIndirect Nothing reg Nothing)
 
@@ -678,17 +682,17 @@ singleStatement cfg = \case
                 return $ evaluate ><
                     move size (MemoryIndirect
                             (Just (ImmediateInt (offset - tmpStackOffset)))
-                            (RSP, B8)
+                            RSP
                             Nothing)
                         (Register (RDX, B8)) ><
-                    move size (Register (RAX, size)) (MemoryIndirect Nothing (RDX, B8) Nothing)
+                    move size (Register (RAX, size)) (MemoryIndirect Nothing RDX Nothing)
 
             Just (AtParameterStack offset _) -> useTemporary RDX $
                 return $ evaluate ><
                     move size (MemoryIndirect
-                            (Just (ImmediateInt (offset + 16))) (RBP, B8) Nothing)
+                            (Just (ImmediateInt (offset + 16))) RBP Nothing)
                         (Register (RDX, B8)) ><
-                    move size (Register (RAX, size)) (MemoryIndirect Nothing (RDX, B8) Nothing)
+                    move size (Register (RAX, size)) (MemoryIndirect Nothing RDX Nothing)
 
             Nothing -> error $ "Cannot assign to " ++ show to
 
