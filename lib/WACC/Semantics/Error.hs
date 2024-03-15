@@ -47,7 +47,8 @@ data WaccSemanticsErrorType
 instance Show WaccSemanticsErrorType where
     show :: WaccSemanticsErrorType -> String
     show OnlyAcceptIdentifier =
-        "Only accept identifier for passing in a reference"
+        "Only accept identifier, array element, field, pair first and pair se\
+        \cond for passing in a reference"
     show ShouldBeStruct =
         "Should be a struct type to allow getting field"
     show (UndefinedIdentifier identifier) =

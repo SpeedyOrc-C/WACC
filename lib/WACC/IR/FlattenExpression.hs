@@ -58,9 +58,14 @@ paramExpression x = do
             expression exp'
         -- (SM.Struct _ _, (SM.RefType _, exp')) ->
         --     expression exp'
-        (_, (SM.RefType _, exp')) -> do
+        (_, (SM.RefType _, exp'@(SM.Identifier {}))) -> do
             (getIdentifier -> s, stats) <- expression exp'
             return (Reference s, stats)
+        (_, (SM.RefType t, exp')) -> do
+            tmp <- newTemporary
+            (s, stats) <- indirectExpression exp'
+            _ <- getSize' t
+            return (Variable tmp, stats ++ [Assign B8 tmp (Scalar s)])
         (SM.RefType _, (t, exp')) -> do
             tmp <- newTemporary
             (s, stats) <- expression exp'

@@ -167,7 +167,7 @@ instance CheckSemantics Syntax.Expression (Type, Expression) where
                     -- check if the argument type being compatible of the parameter
                     -- type
                     let checkParamsArgsTypes (paramType, (argType, arg), range')
-                          | isRefType argType && not (isIdentifier arg)
+                          | isRefType argType && not (canBeRefType arg)
                             = Log [SemanticError range' OnlyAcceptIdentifier]
                           | paramType <| argType = Ok paramType
                           | otherwise = Log [SemanticError range' $

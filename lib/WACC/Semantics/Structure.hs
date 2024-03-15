@@ -128,9 +128,13 @@ data Expression
     | FunctionCall Type String [(Type, (Type, Expression))]
     deriving (Show, Eq)
 
-isIdentifier :: Expression -> Bool
-isIdentifier (Identifier _ _) = True
-isIdentifier _ = False
+canBeRefType :: Expression -> Bool
+canBeRefType (Identifier _ _) = True
+canBeRefType (ArrayElement {}) = True
+canBeRefType (Field {}) = True
+canBeRefType (PairFirst {}) = True
+canBeRefType (PairSecond {}) = True
+canBeRefType _ = False
 
 isRefType :: Type -> Bool
 isRefType (RefType _) = True
