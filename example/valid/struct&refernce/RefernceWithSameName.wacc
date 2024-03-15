@@ -1,0 +1,24 @@
+# Refernce with same name
+
+# Output:
+# 2
+# 3
+# 3
+#
+
+# Exit:
+# 0
+
+# Program:
+
+begin
+  int x(int & x) is
+    println x;
+    x = x + 1;
+    println x;
+    return x
+    end
+  int x = 2;
+  int z = call x(x);
+  println z
+end

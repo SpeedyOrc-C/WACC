@@ -1,0 +1,25 @@
+# Return a struct from a function
+
+# Output:
+# 3
+#
+
+# Exit:
+# 0
+
+# Program:
+
+begin
+    struct al is
+        int x;
+        int y;
+        int z;
+        int k
+        end
+    struct al y(int n) is
+        struct al s = {n, n, n, n};
+        return s
+        end
+    struct al s = call y(3);
+    println (s.x)
+end

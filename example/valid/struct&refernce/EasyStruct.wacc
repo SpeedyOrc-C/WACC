@@ -1,0 +1,18 @@
+# Easy struct
+
+# Output:
+# 5
+#
+
+# Exit:
+# 0
+
+# Program:
+
+begin
+  struct al is
+    int x
+    end
+  struct al s = {5};
+  println (s.x)
+end

@@ -1,0 +1,24 @@
+# Easy refernce
+
+# Output:
+# 2
+# 3
+# 3
+#
+
+# Exit:
+# 0
+
+# Program:
+
+begin
+  int increment(int & x) is
+    println x;
+    x = x + 1;
+    println x;
+    return x
+    end
+  int y = 2;
+  int z = call increment(y);
+  println z
+end

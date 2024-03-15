@@ -1,0 +1,26 @@
+# Nested struct 
+
+# Output:
+# hello
+#
+
+# Exit:
+# 0
+
+# Program:
+
+begin
+  struct al is
+    int x;
+    char y;
+    string z
+    end
+  struct ak is
+    int x;
+    int[] xs;
+    struct al s
+    end
+  struct al s = {4,'7',"hello"};
+  struct ak k = {1,[1,2,3],s};
+  println (s.z)
+end
