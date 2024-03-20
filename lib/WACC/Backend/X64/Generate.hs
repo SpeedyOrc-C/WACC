@@ -6,6 +6,7 @@ import qualified Data.Sequence as Sq
 import           Data.List
 import           Data.Functor
 import           Data.Bifunctor
+import           Data.Traversable
 import           Data.Foldable
 import           Data.Sequence ((|>), (><), Seq)
 import           Data.Function
@@ -57,7 +58,7 @@ use f = modify $ \s -> s {
 allocate :: Config -> Identifier -> Size -> State GeneratorState MemoryLocation
 allocate cfg var size = do
     registerPool <- gets registerPool
-    if (case size of (B _) -> False; _ -> True)
+    if (case size of B {} -> False; _ -> True)
         && S.size registerPool < S.size (availableRegisters cfg)
     then allocateOnRegister cfg var size
     else allocateOnStack var size
@@ -130,7 +131,6 @@ free name = do
 
         Nothing -> error $ "Cannot free " ++ show name
 
-{- Given a 'MemoryLocation', this function generates an 'Operand'. -}
 operandFromMemoryLocation :: MemoryLocation -> State GeneratorState Operand
 operandFromMemoryLocation = \case
     AtRegister register@(reg, _) -> do
@@ -531,14 +531,14 @@ expression cfg = \case
                 = getCallStackSize (zip scalars sizes) 0 paramRegCount
 
         assignArgsReg <-
-                forM (zip3 [1..paramRegCount] argsRegSizes argsReg) $ \(n, size, arg) ->
-                    case arg of
-                        (IR.Reference x) -> do
-                            x' <- scalar (IR.Variable x)
-                            return $ loadAddress x' (Register (parameter cfg n B8))
-                        _ -> do
-                            x' <- scalar arg
-                            return $ move size x' (Register (parameter cfg n size))
+            for (zip3 [1..paramRegCount] argsRegSizes argsReg) $ \(n, size, arg) ->
+                case arg of
+                    (IR.Reference x) -> do
+                        x' <- scalar (IR.Variable x)
+                        return $ loadAddress x' (Register (parameter cfg n B8))
+                    _ -> do
+                        x' <- scalar arg
+                        return $ move size x' (Register (parameter cfg n size))
 
 
         let allocateArgsStackSize = max
@@ -552,15 +552,14 @@ expression cfg = \case
             tmpStackOffset = tmpStackOffset s - allocateArgsStackSize
         }
         assignArgsStack <-
-                forM (zip3 argsStackOffsets argsStackSizes argsStack) $
-                    \(offset, size, arg) -> do
-                    case arg of
-                        (IR.Reference x) -> do
-                            x' <- scalar (IR.Variable x)
-                            return $ loadAddress x' (MemoryIndirect (Just (ImmediateInt offset)) RSP Nothing)
-                        _ -> do
-                            x' <- scalar arg
-                            return $ move size x' (MemoryIndirect (Just (ImmediateInt offset)) RSP Nothing)
+            for (zip3 argsStackOffsets argsStackSizes argsStack) $ \(offset, size, arg) -> do
+                case arg of
+                    IR.Reference x -> do
+                        x' <- scalar (IR.Variable x)
+                        return $ loadAddress x' (MemoryIndirect (Just (ImmediateInt offset)) RSP Nothing)
+                    _ -> do
+                        x' <- scalar arg
+                        return $ move size x' (MemoryIndirect (Just (ImmediateInt offset)) RSP Nothing)
 
         modify $ \s -> s {
             tmpStackOffset = tmpStackOffset s + allocateArgsStackSize
@@ -805,17 +804,18 @@ function :: Config -> IR.Function IR.NoControlFlowStatement
     -> State GeneratorState (S.Set Internal.Function, Seq Instruction)
 function cfg (IR.Function x name parameters statements) = do
     modify $ \s -> s { functionName = name }
-    startRegisterInt <-
-            case x of
-                (B _) -> do
-                    modify $ \s -> s {
-                        registerPool = S.insert RDI (registerPool s)
-                    }
-                    return 2
-                _     -> return 1
+
+    startRegisterInt <- case x of
+        B {} -> do
+            modify $ \s -> s {
+                registerPool = S.insert RDI (registerPool s)
+            }
+            return 2
+        _ -> return 1
+
     let paramRegCount = length (parameterRegisters cfg)
-    let (registerParams, stackParams)
-            = getCallStackSize parameters (startRegisterInt - 1) paramRegCount
+    let (registerParams, stackParams) =
+            getCallStackSize parameters (startRegisterInt - 1) paramRegCount
 
     for_ (zip [startRegisterInt..] registerParams) $ \(i, (ident, size)) -> do
         memoryTable <- gets memoryTable
@@ -923,11 +923,12 @@ macro =
     EmptyLine,
 
     IfDefined "_WIN64",
-    Define "section_read_only" ".section .rodata",
-    Define "section_literal4" "",
-    Define "section_cstring" "",
-    Define "section_text" ".text",
-    Global "main",
+        Define "section_read_only" ".section .rodata",
+        Define "section_literal4" "",
+        Define "section_cstring" "",
+        Define "section_text" ".text",
+
+        Global "main",
     EndIf
     ]
 
