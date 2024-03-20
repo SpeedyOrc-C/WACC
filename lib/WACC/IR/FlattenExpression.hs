@@ -6,8 +6,8 @@ import qualified Data.Set as S
 import           Data.List
 import           Data.Char
 import           Data.Maybe
+import           Data.Traversable
 import           Data.Functor.Identity
-import           Control.Monad
 import           Control.Monad.Trans.State.Lazy
 
 import qualified WACC.Semantics.Structure as SM
@@ -196,7 +196,7 @@ expression = \case
         (scalars, evaluate) <- paramExpressions args
         tmp <- newTemporary
         t' <- getSize' t
-        ts' <-forM ts (\z ->do getSize' z)
+        ts' <-for ts getSize'
         return (Variable tmp,
             evaluate ++
             [Assign t' tmp (Call t' ("fn_" ++ f) (ts' `zip` scalars))])
@@ -352,7 +352,7 @@ statement = \case
 
         case struct of
             (Just (Structure _ _ (map fst -> fields'))) -> do
-                (concat -> assigns) <- forM (zip (zip fields' fts) exps)
+                (concat -> assigns) <- for (zip (zip fields' fts) exps)
                     (uncurry declareFields)
                 return assigns
             _ -> error "should not happen not found struct at declaring"
@@ -361,7 +361,7 @@ statement = \case
         (scalar, evaluateLeft) <- expression leftValue
         (scalars, evaluate) <- paramExpressions args
         t' <- getSize' t
-        ts' <-forM ts (\z ->do getSize' z)
+        ts' <- for ts getSize'
         case scalar of
             Variable x -> return $
                 map NE evaluate ++ map NE evaluateLeft ++
@@ -384,7 +384,7 @@ statement = \case
 
         case struct of
             (Just (Structure _ _ (map fst -> fields'))) -> do
-                (concat -> assigns) <- forM (zip fields' fts) declareFields
+                (concat -> assigns) <- for (zip fields' fts) declareFields
                 return assigns
             _ -> error "should not happen not found struct at declaring"
 
@@ -621,7 +621,7 @@ function :: SM.Function ->
 function (SM.Function t functionName params@(unzip -> (names, types)) b) = do
     oldState <- get
     size <- getSize' t
-    (map fst -> identifiers) <- forM params $ \(name, _) -> do
+    (map fst -> identifiers) <- for params $ \(name, _) -> do
         identifier <- newParameter name
         return (identifier, getSize' t)
 
