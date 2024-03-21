@@ -90,7 +90,10 @@ library wacc25-lib
 
         Text.AnsiEscape,
         Text.SourceCode,
-        Text.Parser
+        Text.Parser,
+
+        Control.Monad.StateEnv.Lazy,
+        Control.Monad.Trans.StateEnv.Lazy
 
     default-extensions:
         LambdaCase,
