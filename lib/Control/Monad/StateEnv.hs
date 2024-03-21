@@ -1,4 +1,4 @@
-module Control.Monad.StateEnv.Lazy where
+module Control.Monad.StateEnv where
 
 import Control.Monad.State
 

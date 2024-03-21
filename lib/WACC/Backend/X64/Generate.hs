@@ -14,7 +14,7 @@ import           Control.Monad
 
 import qualified Control.Monad.Trans.StateEnv.Lazy as SE
 import           Control.Monad.State
-import           Control.Monad.StateEnv.Lazy
+import           Control.Monad.StateEnv
 
 import qualified WACC.Backend.X64.Internal as Internal
 import qualified WACC.IR.Structure as IR

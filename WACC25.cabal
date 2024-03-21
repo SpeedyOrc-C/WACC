@@ -92,7 +92,7 @@ library wacc25-lib
         Text.SourceCode,
         Text.Parser,
 
-        Control.Monad.StateEnv.Lazy,
+        Control.Monad.StateEnv,
         Control.Monad.Trans.StateEnv.Lazy
 
     default-extensions:

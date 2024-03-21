@@ -1,7 +1,7 @@
 module Control.Monad.Trans.StateEnv.Lazy where
 
 import           Control.Monad.State (MonadState(..))
-import           Control.Monad.StateEnv.Lazy
+import           Control.Monad.StateEnv
 import           Control.Arrow
 
 {- |
