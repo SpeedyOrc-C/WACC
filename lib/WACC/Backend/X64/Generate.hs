@@ -889,63 +889,6 @@ function (IR.Function x name parameters statements) = do
 
     return (calledInternalFunctions, allStatements)
 
-macro :: Seq Instruction
-macro =
-    Sq.fromList
-    [
-    IfDefined "__APPLE__",
-        Define "section_read_only" "",
-        Define "section_literal4" "",
-        Define "section_cstring" "",
-        Define "section_text" ".text",
-
-        Define "fflush"  "_fflush",
-        Define "write"   "_write",
-        Define "printf"  "_printf",
-        Define "scanf"   "_scanf",
-        Define "exit"    "_exit",
-        Define "malloc"  "_malloc",
-        Define "putchar" "_putchar",
-        Define "getchar" "_getchar",
-        Define "free" "_free",
-
-        Global "_main",
-        Define "main" "_main",
-    EndIf,
-
-    EmptyLine,
-
-    IfDefined "__linux__",
-        Define "section_read_only" ".section .rodata",
-        Define "section_literal4" "",
-        Define "section_cstring" "",
-        Define "section_text" ".text",
-
-        Define "fflush" "fflush@PLT",
-        Define "write" "write@PLT",
-        Define "printf" "printf@PLT",
-        Define "scanf" "scanf@PLT",
-        Define "exit" "exit@PLT",
-        Define "free" "free@PLT",
-        Define "malloc" "malloc@PLT",
-        Define "putchar" "putchar@PLT",
-        Define "getchar" "getchar@PLT",
-
-        Global "main",
-    EndIf,
-
-    EmptyLine,
-
-    IfDefined "_WIN64",
-        Define "section_read_only" ".section .rodata",
-        Define "section_literal4" "",
-        Define "section_cstring" "",
-        Define "section_text" ".text",
-
-        Global "main",
-    EndIf
-    ]
-
 program :: Config -> IR.Program IR.NoControlFlowStatement -> Seq Instruction
 program config (IR.Program dataSegment functions) = let
 
@@ -971,10 +914,10 @@ program config (IR.Program dataSegment functions) = let
 
     in
 
-    (                    macro                        |> EmptyLine) ><
-    (asum (addLineBreaks functionsStatements        ) |> EmptyLine) ><
-    (asum (addLineBreaks internalFunctionsStatements) |> EmptyLine) ><
-    (asum                dataSegmentStatements        |> EmptyLine)
+    (Sq.fromList (              macro config               ) |> EmptyLine) ><
+    (       asum (addLineBreaks functionsStatements        ) |> EmptyLine) ><
+    (       asum (addLineBreaks internalFunctionsStatements) |> EmptyLine) ><
+    (       asum                dataSegmentStatements        |> EmptyLine)
 
 initialState :: GeneratorState
 initialState = GeneratorState {

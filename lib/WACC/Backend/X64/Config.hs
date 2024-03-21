@@ -14,5 +14,6 @@ data Config = Config {
     rankRegister :: PhysicalRegister -> Int,
     availableRegisters :: Set PhysicalRegister,
     minSizeOfReservedStackForCallee :: Int,
-    internalFunctions :: Map Internal.Function (Seq Instruction)
+    internalFunctions :: Map Internal.Function (Seq Instruction),
+    macro :: [Instruction]
 }

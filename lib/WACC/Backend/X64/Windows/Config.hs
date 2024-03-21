@@ -6,19 +6,19 @@ import qualified Data.Map as M
 import WACC.Backend.X64.Config
 import WACC.Backend.X64.Internal
 import WACC.Backend.X64.Windows.Internal
-import WACC.Backend.X64.Structure (PhysicalRegister(..))
+import WACC.Backend.X64.Structure (PhysicalRegister(..), Instruction (..))
 
 config :: Config
 config = Config {
     callerSaveRegisters = S.fromList
         [RAX, RCX, RDX, RSP, R8, R9, R10, R11],
-    
+
     calleeSaveRegisters = S.fromList
         [RBX, RSI, RDI, RBP, R12, R13, R14, R15],
 
     parameterRegisters =
         [RCX, RDX, R8, R9],
-    
+
     availableRegisters = S.fromList
         [RBX, R12, R13, R14, R15, R10, R11, RSI, RDI, R9, R8, RCX],
 
@@ -29,7 +29,7 @@ config = Config {
         r -> error $ "Cannot use register " ++ show r ++ " in Windows.",
 
     minSizeOfReservedStackForCallee = 32,
-    
+
     internalFunctions = M.fromList
         [ (PrintString, printString)
         , (PrintLineBreak, printLineBreak)
@@ -37,5 +37,16 @@ config = Config {
         , (PrintChar, printChar)
         , (PrintBool, printBool)
         , (ErrorOverflow, errorOverflow)
-        ]
+        ],
+
+    macro = [
+        IfDefined "_WIN64",
+            Define "section_read_only" ".section .rodata",
+            Define "section_literal4" "",
+            Define "section_cstring" "",
+            Define "section_text" ".text",
+
+            Global "main",
+        EndIf
+    ]
 }
