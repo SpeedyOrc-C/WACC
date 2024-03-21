@@ -1,9 +1,15 @@
 module Control.Monad.Trans.StateEnv.Lazy where
 
-import qualified Control.Monad.State.Lazy as S.L
+import           Control.Monad.State (MonadState(..))
 import           Control.Monad.StateEnv.Lazy
 import           Control.Arrow
 
+{- |
+Enhanced State transformer with an extra read only field.
+
+The computation reads the environment and a writable state,
+and gives a result with a modified state.
+-}
 newtype State env state a = State (env -> state -> (a, state))
 
 instance Functor (State env state) where
@@ -32,7 +38,7 @@ instance Monad (State env state) where
         in
         a' e s'
 
-instance S.L.MonadState state (State env state) where
+instance MonadState state (State env state) where
     get :: State env state state
     get = State $ \_ s -> (s, s)
 
