@@ -124,6 +124,7 @@ executable wacc25
         filepath,
         wacc25-lib,
         directory,
+        containers,
         base ^>=4.17.1.0
 
     default-language: GHC2021

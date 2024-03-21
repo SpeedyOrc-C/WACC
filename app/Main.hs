@@ -10,6 +10,7 @@ import System.Exit ( ExitCode(ExitFailure), exitSuccess, exitWith )
 import Control.Monad ( when )
 import Data.Foldable ( for_, traverse_ )
 import Data.Function ((&))
+import qualified Data.Sequence as Sq
 
 import Text.SourceCode ( textPosition, underlineTextSection, removeTabs )
 import Text.AnsiEscape ( bold, red )
@@ -73,7 +74,7 @@ main = do
             let targetWindows = "--target-windows" `elem` flagsArgs
 
             let flags = flagsFromArgs flagsArgs
-            
+
             case (targetUnix, targetWindows) of
                 (True, False) -> do
                     sourceCode <- readFile path
@@ -161,15 +162,16 @@ generateCode path flags ast = do
     let name = takeBaseName path
 
     let ir = IR.generateIR ast
+    when (showIR flags) $ IR.debug ir
 
     let asm = (`X64.generateX64` ir) $ case target flags of
             Unix -> Unix.config
             Windows -> Windows.config
-    
-    let output = ATnT.atnt asm
 
-    when (showIR flags) $ IR.debug ir
+    let output = asm >>= \i -> ATnT.atnt i Sq.|> "\n"
+    let fileName = name ++ ".S"
 
-    writeFile (name ++ ".S") output
+    writeFile fileName ""
+    for_ output $ appendFile fileName
 
     exitSuccess
