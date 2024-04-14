@@ -307,6 +307,8 @@ binaryOperator ::
 binaryOperator higherParser (associativity, operators) = do
     firstExpression <- getRangeA higherParser
 
+    stateAfterFirstExpression <- get
+
     rightExpressionsAndConstructors <-
         many . asum $ operators <&> \(symbol, constructor) -> do
             _ <- surroundManyWhites $ getRangeA $ str symbol
@@ -334,7 +336,16 @@ binaryOperator higherParser (associativity, operators) = do
             return $ snd $
                 foldr merge lastExpression leftExpressionsAndConstructors
 
-        NotAssociative -> P.error "WACC does not have this kind of operator!"
+        NotAssociative -> do
+            case rightExpressionsAndConstructors of
+                [(constructor, secondExpression)] ->
+                    return $ constructor
+                        (snd firstExpression, snd secondExpression)
+                        (fst (fst firstExpression), snd (fst secondExpression))
+                [] -> return $ snd firstExpression
+                _ -> do
+                    put stateAfterFirstExpression
+                    empty `syntaxError` NonAssociativeEquality
 
 {- It is a parser which parses expressions with binary operators. -}
 expressionBinaryOperation :: WaccParser Expression
@@ -346,7 +357,7 @@ expressionBinaryOperation = foldl binaryOperator expressionUnaryOperation [
     (LeftAssociative,
         [("<=", LessEqual), ("<", Less), (">=", GreaterEqual),
          (">", Greater)]),
-    (LeftAssociative,
+    (NotAssociative,
         [("==", Equal), ("!=", NotEqual)]),
     (RightAssociative,
         [("&&", And)]),

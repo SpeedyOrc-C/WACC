@@ -11,6 +11,7 @@ extendCondition = "Or add other operators and extend the existing condition."
 data WaccSyntaxErrorType
     = ExpectOperand
     | ExpectExpressionInBracket
+    | NonAssociativeEquality
     | UnmatchedBracket
     | ExpectIndexInBracket
     | UnmatchedSquareBracket
@@ -67,6 +68,8 @@ instance Show WaccSyntaxErrorType where
     show :: WaccSyntaxErrorType -> String
     show ExpectOperand =
         "Expect an operand."
+    show NonAssociativeEquality =
+        "Equality check is non-associative, only one equality check is allowed."
     show ExpectExpressionInBracket =
         "Expect an expression in bracket."
     show UnmatchedBracket =
