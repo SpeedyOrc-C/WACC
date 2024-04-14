@@ -29,7 +29,7 @@ class PrettyError error where
             to = case to' of Just t -> t; Nothing -> from + 1
 
             stylishTitle = red ~ ("[" ++ errorTitle e ++ "] ")
-            stylishPosition = bold ~ (show row ++ ":" ++ show col)
+            stylishPosition = bold ~ (show (row + 1) ++ ":" ++ show (col + 1))
             description = errorDescription code e
             codeSection = ("|   " ++) <$>
                 underlineTextSection from to (2, '^', (red ~)) code
@@ -42,7 +42,7 @@ instance PrettyError (SyntaxError WaccSyntaxErrorType) where
     errorRange (SyntaxError pos _) = (pos, Nothing)
 
     errorDescription :: SourceCode -> SyntaxError WaccSyntaxErrorType -> String
-    errorDescription _ = show
+    errorDescription _ (SyntaxError _ e) = show e
 
 instance PrettyError SemanticError where
     errorTitle :: SemanticError -> String
