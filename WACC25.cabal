@@ -115,6 +115,9 @@ executable wacc25
     hs-source-dirs: app
     main-is: Main.hs
 
+    other-modules:
+        PrettyPrint
+
     default-extensions:
         LambdaCase,
         ViewPatterns,
