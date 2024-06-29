@@ -765,8 +765,7 @@ singleStatement = \case
             [Compare (Immediate $ ImmediateInt 0) op, JumpWhen Equal "error_null"]
             >< callFree
 
-    -- TODO: RDI is not saved before use.
-    IR.FreeArray s -> useTemporary RDX $ do
+    IR.FreeArray s -> useManyTemporary [RDX, RDI] $ do
         op <- scalar s
         call <- expression (IR.Call B8 "free" [])
         return $
