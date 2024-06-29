@@ -831,10 +831,9 @@ function (IR.Function x name parameters statements) = do
             getCallStackSize parameters (startRegisterInt - 1) paramRegCount
 
     for_ (zip [startRegisterInt..] registerParams) $ \(i, (ident, size)) -> do
-        memoryTable <- gets memoryTable
         reg@(physicalReg, _) <- parameter i size
         modify $ \s -> s {
-            memoryTable = M.insert ident (AtRegister reg) memoryTable,
+            memoryTable = M.insert ident (AtRegister reg) (memoryTable s),
             registerPool = S.insert physicalReg (registerPool s)
         }
 
@@ -844,9 +843,8 @@ function (IR.Function x name parameters statements) = do
     let stackParamOffsets = scanl (+) 0 (sizeToInt . snd <$> stackParams)
 
     for_ (zip stackParamOffsets stackParams) $ \(offset, (ident, size)) -> do
-        memoryTable <- gets memoryTable
         modify $ \s -> s {
-            memoryTable = M.insert ident (AtParameterStack offset size) memoryTable
+            memoryTable = M.insert ident (AtParameterStack offset size) (memoryTable s)
         }
 
     statements' <- instructions statements
