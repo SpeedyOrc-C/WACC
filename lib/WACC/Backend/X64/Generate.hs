@@ -284,7 +284,7 @@ pairHelper s = do
 
     return $ Sq.fromList
         [ Compare (Immediate $ ImmediateInt 0) op
-        , JumpWhen Equal "error_null"
+        , JumpWhen Equal "error_pair_null"
         , Move op (Register (RAX, B8))]
 
 malloc :: Int -> GS (Seq Instruction)
@@ -762,7 +762,7 @@ singleStatement = \case
         use Internal.PrintString
 
         return $ Sq.fromList
-            [Compare (Immediate $ ImmediateInt 0) op, JumpWhen Equal "error_null"]
+            [Compare (Immediate $ ImmediateInt 0) op, JumpWhen Equal "error_free_null"]
             >< callFree
 
     IR.FreeArray s -> useManyTemporary [RDX, RDI] $ do
@@ -892,9 +892,9 @@ program config (IR.Program dataSegment functions) = let
     (unzip -> (calledInternalFunctionsSets, functionsStatements)) =
         [SE.evalState (function f) config initialState | f <- functions]
 
-    allCalledInternalFunctions = S.toList $ S.unions calledInternalFunctionsSets
-    internalFunctionsStatements =
-        (internalFunctions config M.!) <$> allCalledInternalFunctions
+    -- allCalledInternalFunctions = S.toList $ S.unions calledInternalFunctionsSets
+    -- internalFunctionsStatements =
+    --     (internalFunctions config M.!) <$> allCalledInternalFunctions
 
     dataSegmentStatements =
         Sq.fromList (M.toList dataSegment) <&> \(name, number) ->
@@ -913,7 +913,7 @@ program config (IR.Program dataSegment functions) = let
 
     (Sq.fromList (              macro config               ) |> EmptyLine) ><
     (       asum (addLineBreaks functionsStatements        ) |> EmptyLine) ><
-    (       asum (addLineBreaks internalFunctionsStatements) |> EmptyLine) ><
+    -- (       asum (addLineBreaks internalFunctionsStatements) |> EmptyLine) ><
     (       asum                dataSegmentStatements        |> EmptyLine)
 
 initialState :: GeneratorState
